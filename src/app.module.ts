@@ -17,21 +17,24 @@ import { InsumoModule } from './insumo/insumo.module';
 import { TallaModule } from './talla/talla.module';
 
 
-console.log('ALL ENV:', JSON.stringify(process.env));
-
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'mysql',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      username: process.env.DB_USERNAME || 'root',
-      password: process.env.DB_PASSWORD || 'root',
-      database: process.env.DB_NAME || 'nueva_tendencia',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: false,
-      ssl: { rejectUnauthorized: false },
+    TypeOrmModule.forRootAsync({
+      useFactory: () => {
+        console.log('DB_HOST runtime:', process.env.DB_HOST);
+        return {
+          type: 'mysql',
+          host: process.env.DB_HOST || 'localhost',
+          port: parseInt(process.env.DB_PORT || '3306'),
+          username: process.env.DB_USERNAME || 'root',
+          password: process.env.DB_PASSWORD || '',
+          database: process.env.DB_NAME || 'nueva_tendencia',
+          entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          synchronize: false,
+          ssl: { rejectUnauthorized: false },
+        };
+      },
     }),
     ProductoModule,
     ClienteModule,
