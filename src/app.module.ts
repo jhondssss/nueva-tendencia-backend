@@ -33,6 +33,8 @@ import { TallaModule } from './talla/talla.module';
           host, port, username, password, database,
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
           synchronize: false,
+          charset: 'utf8mb4',
+          collation: 'utf8mb4_unicode_ci',
           ssl: { rejectUnauthorized: false },
         };
       },
