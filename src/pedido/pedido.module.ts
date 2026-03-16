@@ -7,12 +7,13 @@ import { PedidoCrudService } from './pedido-crud.service';
 import { PedidoEstadoService } from './pedido-estado.service';
 import { PedidoService } from './pedido.service';
 import { PedidoController } from './pedido.controller';
+import { PedidoPublicoController } from './pedido-publico.controller';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { TallaModule } from '../talla/talla.module';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Pedido, Cliente, Producto]), AuditoriaModule, TallaModule],
-  controllers: [PedidoController],
+  controllers: [PedidoController, PedidoPublicoController],
   providers: [PedidoCrudService, PedidoEstadoService, PedidoService],
   exports: [PedidoService],
 })
