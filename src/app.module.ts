@@ -22,14 +22,15 @@ import { TallaModule } from './talla/talla.module';
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       useFactory: () => {
-        console.log('DB_HOST runtime:', process.env.DB_HOST);
+        const host = process.env.DB_HOST || 'mysql-2129d7bb-jhoncarlosg5-8f1f.e.aivencloud.com';
+        const port = parseInt(process.env.DB_PORT || '24469');
+        const username = process.env.DB_USERNAME || 'avnadmin';
+        const password = process.env.DB_PASSWORD || 'AVNS_TRjUXaO973ksTPwkX5t';
+        const database = process.env.DB_NAME || 'defaultdb';
+        console.log('DB_HOST runtime:', host);
         return {
           type: 'mysql',
-          host: process.env.DB_HOST || 'localhost',
-          port: parseInt(process.env.DB_PORT || '3306'),
-          username: process.env.DB_USERNAME || 'root',
-          password: process.env.DB_PASSWORD || '',
-          database: process.env.DB_NAME || 'nueva_tendencia',
+          host, port, username, password, database,
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
           synchronize: false,
           ssl: { rejectUnauthorized: false },
