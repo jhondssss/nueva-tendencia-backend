@@ -7,13 +7,19 @@ import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
-const SYSTEM_PROMPT = `Eres NT Assistant, el asistente inteligente de Calzados Nueva Tendencia, una microempresa boliviana de calzado artesanal masculino e infantil.
+export interface ChatMessage {
+  role: string;
+  text: string;
+}
+
+const SYSTEM_PROMPT = `Eres NT Assistant, el asistente inteligente de Calzados Nueva Tendencia, un taller de calzado artesanal masculino e infantil ubicado en Cochabamba, Bolivia. Conoces el negocio en detalle y ayudas al administrador a tomar decisiones basadas en los datos reales del sistema.
 
 Tienes acceso a los datos reales del negocio en tiempo real.
 Responde SIEMPRE en español natural y amigable.
 Usa emojis relevantes: 👟 pedidos, 📦 stock, 💰 ventas, 👤 clientes, ⚠️ alertas, 📊 estadísticas, 🧴 insumos.
 Sé conciso pero completo. Máximo 150 palabras por respuesta.
-Si te preguntan algo que no está en los datos responde honestamente que no tienes esa información.`;
+Si te preguntan algo que no está en los datos responde honestamente que no tienes esa información.
+El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
 
 @Injectable()
 export class AssistantService {
@@ -277,16 +283,32 @@ ${topProductos}
   // Punto de entrada principal
   // ══════════════════════════════════════════════════════════════════════════
 
-  async chat(message: string): Promise<string> {
+  async chat(message: string, history: ChatMessage[] = []): Promise<string> {
     if (!this.model) {
       return this.fallbackChat(message);
     }
 
     try {
       const contexto = await this.buildContext();
-      const prompt = `${contexto}\n\n=== PREGUNTA DEL USUARIO ===\n${message}`;
 
-      const result = await this.model.generateContent(prompt);
+      // El contexto de BD se inyecta como primer turno del historial
+      const geminiHistory = [
+        {
+          role: 'user',
+          parts: [{ text: contexto }],
+        },
+        {
+          role: 'model',
+          parts: [{ text: 'Entendido. Tengo los datos actualizados del negocio y estoy listo para responder.' }],
+        },
+        ...history.map(h => ({
+          role: h.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: h.text }],
+        })),
+      ];
+
+      const chatSession = this.model.startChat({ history: geminiHistory });
+      const result = await chatSession.sendMessage(message);
       return result.response.text().trim();
     } catch {
       return this.fallbackChat(message);

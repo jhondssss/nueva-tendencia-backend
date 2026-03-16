@@ -1,5 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { AssistantService } from './assistant.service';
+import { AssistantService, ChatMessage } from './assistant.service';
 import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('assistant')
@@ -9,9 +9,9 @@ export class AssistantController {
   @Public()
   @Post('chat')
   async chat(
-    @Body() body: { message: string },
+    @Body() body: { message: string; history?: ChatMessage[] },
   ): Promise<{ response: string }> {
-    const response = await this.assistantService.chat(body.message);
+    const response = await this.assistantService.chat(body.message, body.history);
     return { response };
   }
 }
