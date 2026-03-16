@@ -15,8 +15,10 @@ async function bootstrap() {
 
   // ✅ Habilitar CORS para permitir el acceso desde tu frontend Vite (Vue)
   app.enableCors({
-    origin: 'http://localhost:5173',
-    methods: 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+    origin: [
+      'http://localhost:5173',
+      'https://nueva-tendencia-frontend.vercel.app',
+    ],
     credentials: true,
   });
   
