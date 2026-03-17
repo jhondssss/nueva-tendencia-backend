@@ -23,6 +23,7 @@ export class PedidoPublicoController {
 
     if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
 
+    console.log('BACKEND_URL:', process.env.BACKEND_URL);
     const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
     const imagenRaw = pedido.producto?.imagen_url ?? null;
     const imagen = imagenRaw
