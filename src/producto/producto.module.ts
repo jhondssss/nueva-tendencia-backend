@@ -5,6 +5,7 @@ import { ProductoService } from './producto.service';
 import { ProductoController } from './producto.controller';
 import { KardexModule } from '../kardex/kardex.module';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Module({
   imports: [
@@ -13,7 +14,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
     AuditoriaModule,
   ],
   controllers: [ProductoController],
-  providers: [ProductoService],
+  providers: [ProductoService, CloudinaryService],
   exports: [ProductoService, TypeOrmModule],
 })
 export class ProductoModule {}

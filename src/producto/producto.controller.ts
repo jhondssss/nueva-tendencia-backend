@@ -5,74 +5,48 @@ import {
 } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { ProductoService } from './producto.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 
+const imageInterceptor = FileInterceptor('imagen', {
+  storage: memoryStorage(),
+  fileFilter: (req, file, callback) => {
+    if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+      return callback(new Error('Solo se permiten imágenes'), false);
+    }
+    callback(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
 @Controller('productos')
 export class ProductoController {
-  constructor(private readonly productoService: ProductoService) {}
+  constructor(
+    private readonly productoService: ProductoService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Roles('admin')
   @Post()
-  @UseInterceptors(
-    FileInterceptor('imagen', {
-      storage: diskStorage({
-        destination: './uploads/productos',
-        filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `producto-${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-          return callback(new Error('Solo se permiten imágenes'), false);
-        }
-        callback(null, true);
-      },
-      limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB máximo
-      },
-    }),
-  )
-  create(
+  @UseInterceptors(imageInterceptor)
+  async create(
     @Body() dto: CreateProductoDto,
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
     if (file) {
-      dto.imagen_url = `/uploads/productos/${file.filename}`;
+      dto.imagen_url = await this.cloudinaryService.uploadImage(file);
     }
     return this.productoService.create(dto, req.user?.sub as number);
   }
 
   @Roles('admin')
   @Patch(':id')
-  @UseInterceptors(
-    FileInterceptor('imagen', {
-      storage: diskStorage({
-        destination: './uploads/productos',
-        filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `producto-${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-          return callback(new Error('Solo se permiten imágenes'), false);
-        }
-        callback(null, true);
-      },
-      limits: {
-        fileSize: 5 * 1024 * 1024,
-      },
-    }),
-  )
-  update(
+  @UseInterceptors(imageInterceptor)
+  async update(
     @Param('id') id: number,
     @Body() dto: UpdateProductoDto,
     @UploadedFile() file: Express.Multer.File,
@@ -80,7 +54,7 @@ export class ProductoController {
   ) {
     console.log('PRODUCTO UPDATE RECIBE:', JSON.stringify(dto));
     if (file) {
-      dto.imagen_url = `/uploads/productos/${file.filename}`;
+      dto.imagen_url = await this.cloudinaryService.uploadImage(file);
     }
     return this.productoService.update(id, dto, req.user?.sub as number);
   }
