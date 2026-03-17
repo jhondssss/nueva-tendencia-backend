@@ -46,6 +46,9 @@ export class Pedido {
   })
   categoria: CategoriaCalzado | null;
 
+  @Column({ unique: true, nullable: true })
+  token_seguimiento: string;
+
   @CreateDateColumn()
   fecha_creacion: Date;
 

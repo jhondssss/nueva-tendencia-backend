@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { Pedido } from './entities/pedido.entity';
@@ -46,13 +47,14 @@ export class PedidoCrudService implements IPedidoCrudService {
     console.log('FECHA FINAL:', fecha.toISOString().split('T')[0]);
 
     const pedido = this.pedidoRepo.create({
-      total:         createPedidoDto.total,
-      fecha_entrega: fecha.toISOString().split('T')[0],
-      estado:        createPedidoDto.estado || 'Pendiente',
+      total:              createPedidoDto.total,
+      fecha_entrega:      fecha.toISOString().split('T')[0],
+      estado:             createPedidoDto.estado || 'Pendiente',
       cantidad,
       unidad,
       cantidad_pares,
-      categoria:     createPedidoDto.categoria ?? null,
+      categoria:          createPedidoDto.categoria ?? null,
+      token_seguimiento:  uuidv4(),
       cliente,
       producto,
     });
