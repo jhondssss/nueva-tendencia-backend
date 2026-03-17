@@ -39,7 +39,7 @@ export class PedidoPublicoController {
       cantidad_pares:  pedido.cantidad_pares,
       unidad:          pedido.unidad,
       categoria:       pedido.categoria,
-      cliente:         pedido.cliente?.nombre ?? null,
+      cliente:         `${pedido.cliente?.nombre ?? ''} ${pedido.cliente?.apellido ?? ''}`.trim() || null,
       producto:        pedido.producto?.nombre_modelo ?? null,
       imagen,
       talles:          pedido.talles,

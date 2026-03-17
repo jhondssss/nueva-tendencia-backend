@@ -9,7 +9,8 @@
       "Bash(npm install:*)",
       "Bash(xargs grep:*)",
       "Bash(git config:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(ls -la /c/Users/jhonc/OneDrive/Documentos/UAB/proyecto_grado\\\\\\(app\\\\\\)/nueva_tendencia/)"
     ]
   }
 }
