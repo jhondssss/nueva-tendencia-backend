@@ -47,6 +47,12 @@ export class PedidoEstadoService implements IPedidoEstadoService {
       `📦 Pedido #${id} avanzó\nEstado: ${estadoAnterior} → ${nuevoEstado}\nCliente: ${pedido.cliente?.nombre ?? 'N/A'}`,
     ).catch(() => {});
 
+    if (nuevoEstado === 'Terminado') {
+      this.telegramService.sendMessage(
+        `✅ Pedido #${id} listo para entregar\nCliente: ${pedido.cliente?.nombre ?? 'N/A'}\nProducto: ya puede ser retirado`,
+      ).catch(() => {});
+    }
+
     void this.auditoriaService.registrar({
       accion: 'MOVER',
       modulo: 'pedidos',

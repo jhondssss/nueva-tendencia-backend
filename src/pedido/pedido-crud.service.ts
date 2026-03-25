@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, Like, Not } from 'typeorm';
+import { Cron } from '@nestjs/schedule';
 import { Pedido } from './entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
@@ -179,5 +180,24 @@ export class PedidoCrudService implements IPedidoCrudService {
       descripcion: `Eliminó pedido #${id}`,
     });
     return result;
+  }
+
+  // 7am Bolivia (UTC-4) = 11am UTC
+  @Cron('0 11 * * *')
+  async checkPedidosProximosAVencer(): Promise<void> {
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    const pedidos = await this.pedidoRepo.find({
+      where: { fecha_entrega: tomorrowStr, estado: Not('Terminado') },
+      relations: ['cliente'],
+    });
+
+    for (const pedido of pedidos) {
+      this.telegramService.sendMessage(
+        `📅 Pedido #${pedido.id_pedido} vence mañana\nCliente: ${pedido.cliente?.nombre ?? 'N/A'}\nEstado actual: ${pedido.estado}`,
+      ).catch(() => {});
+    }
   }
 }

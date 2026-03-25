@@ -16,10 +16,12 @@ import { AuditoriaModule } from './auditoria/auditoria.module';
 import { InsumoModule } from './insumo/insumo.module';
 import { TallaModule } from './talla/talla.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       useFactory: () => {
         const host = process.env.DB_HOST || 'mysql-2129d7bb-jhoncarlosg5-8f1f.e.aivencloud.com';
