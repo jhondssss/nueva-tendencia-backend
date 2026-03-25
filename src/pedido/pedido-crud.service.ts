@@ -9,6 +9,7 @@ import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TallaService } from '../talla/talla.service';
+import { TelegramService } from '../telegram/telegram.service';
 import { IPedidoCrudService } from './interfaces/pedido.interface';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class PedidoCrudService implements IPedidoCrudService {
     @InjectRepository(Producto) private productoRepo: Repository<Producto>,
     private readonly auditoriaService: AuditoriaService,
     private readonly tallaService: TallaService,
+    private readonly telegramService: TelegramService,
   ) {}
 
   async create(createPedidoDto: CreatePedidoDto) {
@@ -81,6 +83,10 @@ export class PedidoCrudService implements IPedidoCrudService {
       modulo: 'pedidos',
       descripcion: `Creó pedido #${savedPedido.id_pedido}`,
     });
+
+    this.telegramService.sendMessage(
+      `🔔 Nuevo pedido #${savedPedido.id_pedido}\nCliente: ${cliente.nombre} ${cliente.apellido ?? ''}\nProducto: ${producto.nombre_modelo}\nEntrega: ${savedPedido.fecha_entrega}`.trim(),
+    ).catch(() => {});
 
     return this.pedidoRepo.findOne({
       where: { id_pedido: savedPedido.id_pedido },

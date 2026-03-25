@@ -6,6 +6,7 @@ import { CreateInsumoDto } from './dto/create-insumo.dto';
 import { UpdateInsumoDto } from './dto/update-insumo.dto';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 @Injectable()
 export class InsumoService {
@@ -15,6 +16,7 @@ export class InsumoService {
 
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
+    private readonly telegramService: TelegramService,
   ) {}
 
   findAll(): Promise<Insumo[]> {
@@ -69,7 +71,13 @@ export class InsumoService {
       usuarioId,
     });
 
-    return this.findOne(saved.id_insumo);
+    const result = await this.findOne(saved.id_insumo);
+    if (Number(result.stock) <= Number(result.nivel_minimo)) {
+      this.telegramService.sendMessage(
+        `⚠️ Stock crítico\nInsumo: ${result.nombre}\nStock actual: ${result.stock}\nMínimo: ${result.nivel_minimo}`,
+      ).catch(() => {});
+    }
+    return result;
   }
 
   async update(id: number, dto: UpdateInsumoDto, usuarioId?: number): Promise<Insumo> {
@@ -102,7 +110,13 @@ export class InsumoService {
       usuarioId,
     });
 
-    return this.findOne(id);
+    const result = await this.findOne(id);
+    if (Number(result.stock) <= Number(result.nivel_minimo)) {
+      this.telegramService.sendMessage(
+        `⚠️ Stock crítico\nInsumo: ${result.nombre}\nStock actual: ${result.stock}\nMínimo: ${result.nivel_minimo}`,
+      ).catch(() => {});
+    }
+    return result;
   }
 
   async remove(id: number, usuarioId?: number): Promise<void> {

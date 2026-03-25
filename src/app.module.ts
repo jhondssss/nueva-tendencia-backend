@@ -15,7 +15,7 @@ import { KardexModule } from './kardex/kardex.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { InsumoModule } from './insumo/insumo.module';
 import { TallaModule } from './talla/talla.module';
-
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
   imports: [
@@ -51,6 +51,7 @@ import { TallaModule } from './talla/talla.module';
     AuditoriaModule,
     InsumoModule,
     TallaModule,
+    TelegramModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: RolesGuard },
