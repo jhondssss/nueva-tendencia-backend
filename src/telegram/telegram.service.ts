@@ -80,13 +80,13 @@ export class TelegramService {
         .where('p.fecha_entrega = :manana', { manana: mananaStr })
         .andWhere('p.estado != :estado', { estado: 'Terminado' })
         .getCount(),
-      // Ventas del mes: pedidos Terminados con fecha_actualizacion en el mes actual
+      // Ventas del mes: pedidos Terminados con fecha_entrega en el mes actual
       this.pedidoRepo
         .createQueryBuilder('p')
         .select('SUM(p.total)', 'sum')
         .where('p.estado = :estado', { estado: 'Terminado' })
-        .andWhere('p.fecha_actualizacion >= :inicioMes', { inicioMes: inicioMesUTC })
-        .andWhere('p.fecha_actualizacion <= :finMes', { finMes: finMesUTC })
+        .andWhere('p.fecha_entrega >= :inicioMesStr', { inicioMesStr: `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-01` })
+        .andWhere('p.fecha_entrega <= :finMesStr', { finMesStr: `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-31` })
         .getRawOne(),
       // Pedidos nuevos ayer
       this.pedidoRepo
@@ -102,16 +102,6 @@ export class TelegramService {
     ]);
 
     const ventasMes = parseFloat((pedidosMes as any)?.sum ?? '0');
-
-    // DEBUG temporal — eliminar después de verificar
-    const pedidosDetalle = await this.pedidoRepo
-      .createQueryBuilder('p')
-      .select(['p.id_pedido', 'p.total', 'p.estado', 'p.fecha_actualizacion'])
-      .where('p.estado = :estado', { estado: 'Terminado' })
-      .andWhere('p.fecha_actualizacion >= :inicioMes', { inicioMes: inicioMesUTC })
-      .andWhere('p.fecha_actualizacion <= :finMes', { finMes: finMesUTC })
-      .getMany();
-    console.log('Pedidos en ventasMes:', JSON.stringify(pedidosDetalle));
 
     const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const mesesNombre = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
