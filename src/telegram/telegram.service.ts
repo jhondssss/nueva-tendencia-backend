@@ -103,6 +103,16 @@ export class TelegramService {
 
     const ventasMes = parseFloat((pedidosMes as any)?.sum ?? '0');
 
+    // DEBUG temporal — eliminar después de verificar
+    const pedidosDetalle = await this.pedidoRepo
+      .createQueryBuilder('p')
+      .select(['p.id_pedido', 'p.total', 'p.estado', 'p.fecha_actualizacion'])
+      .where('p.estado = :estado', { estado: 'Terminado' })
+      .andWhere('p.fecha_actualizacion >= :inicioMes', { inicioMes: inicioMesUTC })
+      .andWhere('p.fecha_actualizacion <= :finMes', { finMes: finMesUTC })
+      .getMany();
+    console.log('Pedidos en ventasMes:', JSON.stringify(pedidosDetalle));
+
     const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const mesesNombre = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
                          'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
