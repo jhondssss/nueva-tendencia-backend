@@ -80,13 +80,14 @@ export class TelegramService {
         .where('p.fecha_entrega = :manana', { manana: mananaStr })
         .andWhere('p.estado != :estado', { estado: 'Terminado' })
         .getCount(),
-      // Ventas del mes (suma de total)
+      // Ventas del mes: pedidos Terminados con fecha_actualizacion en el mes actual
       this.pedidoRepo
         .createQueryBuilder('p')
-        .select('COALESCE(SUM(p.total), 0)', 'suma')
-        .where('p.fecha_creacion >= :inicioMes', { inicioMes: inicioMesUTC })
-        .andWhere('p.fecha_creacion <= :finMes', { finMes: finMesUTC })
-        .getRawOne<{ suma: string }>(),
+        .select('SUM(p.total)', 'sum')
+        .where('p.estado = :estado', { estado: 'Terminado' })
+        .andWhere('p.fecha_actualizacion >= :inicioMes', { inicioMes: inicioMesUTC })
+        .andWhere('p.fecha_actualizacion <= :finMes', { finMes: finMesUTC })
+        .getRawOne(),
       // Pedidos nuevos ayer
       this.pedidoRepo
         .createQueryBuilder('p')
@@ -100,7 +101,7 @@ export class TelegramService {
         .getMany(),
     ]);
 
-    const ventasMes = parseFloat((pedidosMes as any)?.suma ?? '0');
+    const ventasMes = parseFloat((pedidosMes as any)?.sum ?? '0');
 
     const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const mesesNombre = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
