@@ -40,16 +40,17 @@ export class TelegramService {
     const diaHoy = boliviaHoy.getUTCDate();
 
     // Rangos en UTC para ayer Bolivia: 00:00 Bolivia = 04:00 UTC
-    const inicioAyerUTC   = new Date(Date.UTC(anoHoy, mesHoy, diaHoy - 1, 4, 0, 0, 0));
-    const finAyerUTC      = new Date(Date.UTC(anoHoy, mesHoy, diaHoy,     3, 59, 59, 999));
-    const inicioHoyUTC    = new Date(Date.UTC(anoHoy, mesHoy, diaHoy,     4, 0, 0, 0));
-    const finHoyUTC       = new Date(Date.UTC(anoHoy, mesHoy, diaHoy + 1, 3, 59, 59, 999));
-    const inicioMananaUTC = new Date(Date.UTC(anoHoy, mesHoy, diaHoy + 1, 4, 0, 0, 0));
-    const finMananaUTC    = new Date(Date.UTC(anoHoy, mesHoy, diaHoy + 2, 3, 59, 59, 999));
+    const inicioAyerUTC = new Date(Date.UTC(anoHoy, mesHoy, diaHoy - 1, 4, 0, 0, 0));
+    const finAyerUTC    = new Date(Date.UTC(anoHoy, mesHoy, diaHoy,     3, 59, 59, 999));
 
     // Inicio del mes actual en Bolivia
     const inicioMesUTC = new Date(Date.UTC(anoHoy, mesHoy, 1, 4, 0, 0, 0));
     const finMesUTC    = new Date(Date.UTC(anoHoy, mesHoy + 1, 1, 3, 59, 59, 999));
+
+    // Strings YYYY-MM-DD para comparar con fecha_entrega (tipo string en la entidad)
+    const hoyStr    = `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-${String(diaHoy).padStart(2, '0')}`;
+    const mananaD   = new Date(Date.UTC(anoHoy, mesHoy, diaHoy + 1));
+    const mananaStr = `${mananaD.getUTCFullYear()}-${String(mananaD.getUTCMonth() + 1).padStart(2, '0')}-${String(mananaD.getUTCDate()).padStart(2, '0')}`;
 
     const [
       terminadosAyer,
@@ -69,20 +70,16 @@ export class TelegramService {
       }),
       // En producción ahora
       this.pedidoRepo.count({ where: { estado: Not('Terminado') } }),
-      // Vencen hoy
-      this.pedidoRepo.count({
-        where: {
-          estado: Not('Terminado'),
-          fecha_entrega: Between(inicioHoyUTC, finHoyUTC),
-        },
-      }),
-      // Vencen mañana
-      this.pedidoRepo.count({
-        where: {
-          estado: Not('Terminado'),
-          fecha_entrega: Between(inicioMananaUTC, finMananaUTC),
-        },
-      }),
+      // Vencen hoy (fecha_entrega es string 'YYYY-MM-DD')
+      this.pedidoRepo.createQueryBuilder('p')
+        .where('p.fecha_entrega = :hoy', { hoy: hoyStr })
+        .andWhere('p.estado != :estado', { estado: 'Terminado' })
+        .getCount(),
+      // Vencen mañana (fecha_entrega es string 'YYYY-MM-DD')
+      this.pedidoRepo.createQueryBuilder('p')
+        .where('p.fecha_entrega = :manana', { manana: mananaStr })
+        .andWhere('p.estado != :estado', { estado: 'Terminado' })
+        .getCount(),
       // Ventas del mes (suma de total)
       this.pedidoRepo
         .createQueryBuilder('p')
