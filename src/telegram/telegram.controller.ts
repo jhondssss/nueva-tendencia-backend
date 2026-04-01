@@ -8,8 +8,12 @@ export class TelegramController {
 
   @Public()
   @Get('test-resumen')
-  async testResumen(): Promise<{ ok: boolean }> {
-    await this.telegramService.sendResumenDiario();
-    return { ok: true };
+  async testResumen(): Promise<{ ok: boolean; error?: string; stack?: string }> {
+    try {
+      await this.telegramService.sendResumenDiario();
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message, stack: error.stack };
+    }
   }
 }
