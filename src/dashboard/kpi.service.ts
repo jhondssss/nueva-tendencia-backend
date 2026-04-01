@@ -19,7 +19,7 @@ export class KpiService implements IKpiService {
     const mes          = ahora.getMonth();
 
     const inicioMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-01`;
-    const finMes    = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-31`;
+    const finMes    = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).toISOString().split('T')[0];
 
     const [pedidos, productos, totalPedidos, itemsInventario] = await Promise.all([
       this.pedidoRepo.find(),

@@ -92,7 +92,7 @@ export class TelegramService {
         .select('SUM(p.total)', 'sum')
         .where('p.estado = :estado', { estado: 'Terminado' })
         .andWhere('p.fecha_entrega >= :inicioMesStr', { inicioMesStr: `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-01` })
-        .andWhere('p.fecha_entrega <= :finMesStr', { finMesStr: `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-31` })
+        .andWhere('p.fecha_entrega <= :finMesStr', { finMesStr: new Date(Date.UTC(anoHoy, mesHoy + 1, 0)).toISOString().split('T')[0] })
         .getRawOne(),
       // Pedidos nuevos ayer
       this.pedidoRepo
