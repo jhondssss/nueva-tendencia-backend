@@ -25,9 +25,15 @@ export class TelegramService {
     });
   }
 
-  // 7am Bolivia (UTC-4) = 11am UTC
-  @Cron('0 11 * * *')
+  @Cron('*/10 * * * *', { timeZone: 'America/La_Paz' })
+  async keepAlive(): Promise<void> {
+    console.log('[KeepAlive]', new Date().toISOString());
+  }
+
+  // 7am Bolivia
+  @Cron('0 7 * * *', { timeZone: 'America/La_Paz' })
   async sendResumenDiario(): Promise<void> {
+    console.log(`[Telegram Cron] Ejecutando sendResumenDiario - ${new Date().toISOString()}`);
     // Fecha actual en Bolivia (UTC-4)
     const ahora = new Date();
     const offsetBolivia = -4 * 60; // UTC-4 en minutos

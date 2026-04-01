@@ -48,7 +48,7 @@ export class PrediccionService implements IPrediccionService {
   }
 
   async getVentasPorMes() {
-    const pedidos = await this.pedidoRepo.find();
+    const pedidos = await this.pedidoRepo.find({ where: { estado: 'Terminado' } });
     const resumen: Record<string, number> = {};
 
     pedidos.forEach(p => {
