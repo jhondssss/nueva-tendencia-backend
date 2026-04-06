@@ -1,5 +1,5 @@
-// src/auth/auth.controller.ts
 import { Controller, Post, Body, UnauthorizedException, UseGuards, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -12,6 +12,8 @@ import { RolesGuard } from './guards/roles.guard';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  // ── Máximo 5 intentos de login por IP cada 60 segundos ──
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @Post('login')
   async login(@Body() loginDto: LoginDto, @Req() req: Request) {

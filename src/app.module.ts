@@ -64,10 +64,10 @@ import { TelegramModule } from './telegram/telegram.module';
     TelegramModule,
   ],
   providers: [
-    // ── Guard de roles (ya existía) ──
-    { provide: APP_GUARD, useClass: RolesGuard },
     // ── Rate limiting global ──
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // ── Guard de roles (ya existía) ──
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
