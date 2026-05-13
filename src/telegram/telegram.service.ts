@@ -18,11 +18,27 @@ export class TelegramService {
   async sendMessage(message: string): Promise<void> {
     if (!this.botToken || !this.chatId) return;
 
-    await fetch(`https://api.telegram.org/bot${this.botToken}/sendMessage`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ chat_id: this.chatId, text: message }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${this.botToken}/sendMessage`,
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ chat_id: this.chatId, text: message }),
+          signal:  controller.signal,
+        },
+      );
+      if (!res.ok) {
+        console.error(`[Telegram] HTTP ${res.status}:`, await res.text());
+      }
+    } catch (err) {
+      console.error('[Telegram] sendMessage falló:', err);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   @Cron('*/10 * * * *', { timeZone: 'America/La_Paz' })
@@ -134,6 +150,6 @@ export class TelegramService {
       `⚠️ Insumos en stock crítico: ${insumosStockCritico.length}` +
       (topInsumosLineas ? `\n${topInsumosLineas}` : '');
 
-    this.sendMessage(mensaje).catch(() => {});
+    await this.sendMessage(mensaje);
   }
 }
