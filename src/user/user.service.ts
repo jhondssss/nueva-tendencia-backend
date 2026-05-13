@@ -29,8 +29,11 @@ export class UserService {
 
   // Validar credenciales de usuario
   async validateUser(email: string, password: string): Promise<User | null> {
+    if (!email || !password) {
+      return null;
+    }
     const user = await this.findByEmail(email);
-    if (user && await bcrypt.compare(password, user.password)) {
+    if (user && user.password && await bcrypt.compare(password, user.password)) {
       return user;
     }
     return null;

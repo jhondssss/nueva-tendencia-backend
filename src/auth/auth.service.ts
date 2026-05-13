@@ -1,5 +1,5 @@
 // src/auth/auth.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import * as bcrypt from 'bcrypt';
@@ -15,14 +15,35 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
+    // 1. Verificar que los argumentos no sean nulos o vacíos
+    if (!email || !password) {
+      throw new UnauthorizedException('El email y la contraseña son requeridos');
+    }
+
+    // 2. Buscar al usuario
     const user = await this.usersService.findByEmail(email);
-    if (!user) return null;
+    if (!user) {
+      throw new UnauthorizedException('El usuario no existe');
+    }
 
-    const passwordValid = await bcrypt.compare(password, user.password);
-    if (!passwordValid) return null;
+    // 3. Verificar que el usuario tenga un hash de contraseña
+    if (!user.password) {
+      throw new UnauthorizedException('Error interno: el usuario no tiene contraseña registrada');
+    }
 
-    const { password: _, ...result } = user;
-    return result;
+    // 4. Comparar contraseñas de forma segura
+    try {
+      const passwordValid = await bcrypt.compare(password, user.password);
+      if (!passwordValid) {
+        throw new UnauthorizedException('Contraseña incorrecta');
+      }
+
+      // Eliminar la contraseña del objeto retornado
+      const { password: _, ...result } = user;
+      return result;
+    } catch (error) {
+      throw new UnauthorizedException('Error en la validación de credenciales');
+    }
   }
 
   async login(user: any, ip?: string) {
