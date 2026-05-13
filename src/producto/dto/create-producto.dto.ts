@@ -1,16 +1,48 @@
-import { IsString, IsNumber, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsString, IsNumber, IsOptional, IsBoolean,
+  IsNotEmpty, Min,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class CreateProductoDto {
-  @IsString() nombre_modelo: string;
-  @IsString() marca: string;
-  @IsString() tipo_calzado: string;
-  @IsString() genero: string;
-  @IsString() material_principal: string;
-  @IsString() color: string;
-  @Transform(({ value }) => Number(value)) @IsNumber() precio_venta: number;
-  @Transform(({ value }) => Number(value)) @IsNumber() costo_unidad: number;
-  @IsString() descripcion_corta: string;
+  @IsString()
+  @IsNotEmpty({ message: 'El nombre del modelo es obligatorio' })
+  nombre_modelo: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'La marca es obligatoria' })
+  marca: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'El tipo de calzado es obligatorio' })
+  tipo_calzado: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'El género es obligatorio' })
+  genero: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'El material principal es obligatorio' })
+  material_principal: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'El color es obligatorio' })
+  color: string;
+
+  @Transform(({ value }) => Number(value))
+  @IsNumber({}, { message: 'El precio de venta debe ser un número' })
+  @Min(0.01, { message: 'El precio debe ser mayor a 0' })
+  precio_venta: number;
+
+  @Transform(({ value }) => Number(value))
+  @IsNumber({}, { message: 'El costo por unidad debe ser un número' })
+  @Min(0.01, { message: 'El costo debe ser mayor a 0' })
+  costo_unidad: number;
+
+  @IsString()
+  @IsNotEmpty({ message: 'La descripción corta es obligatoria' })
+  descripcion_corta: string;
+
   @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true'  || value === true)  return true;
@@ -20,9 +52,21 @@ export class CreateProductoDto {
   @IsBoolean()
   activo?: boolean;
 
-  // Campos inventario
-  @IsOptional() @Transform(({ value }) => Number(value)) @IsNumber() stock?: number;
-  @IsOptional() @IsString() unidad_medida?: string;
-  @IsOptional() @Transform(({ value }) => Number(value)) @IsNumber() nivel_minimo?: number;
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber({}, { message: 'El stock debe ser un número' })
+  @Min(0, { message: 'El stock no puede ser negativo' })
+  stock?: number;
+
+  @IsOptional()
+  @IsString()
+  unidad_medida?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsNumber({}, { message: 'El nivel mínimo debe ser un número' })
+  @Min(0, { message: 'El nivel mínimo no puede ser negativo' })
+  nivel_minimo?: number;
+
   imagen_url?: string;
 }

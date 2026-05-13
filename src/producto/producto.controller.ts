@@ -2,6 +2,7 @@
 import {
   Controller, Get, Post, Body, Patch, Param, Delete,
   UseInterceptors, UploadedFile, Req,
+  BadRequestException, InternalServerErrorException,
 } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -11,11 +12,14 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 
+const ALLOWED_MIMETYPES = /^image\/(jpeg|png|webp)$/;
+
 const imageInterceptor = FileInterceptor('imagen', {
   storage: memoryStorage(),
   fileFilter: (req, file, callback) => {
-    if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-      return callback(new Error('Solo se permiten imágenes'), false);
+    if (!ALLOWED_MIMETYPES.test(file.mimetype)) {
+      (req as any).fileValidationError = 'Solo se permiten imágenes JPG, PNG o WEBP';
+      return callback(null, false);
     }
     callback(null, true);
   },
@@ -37,8 +41,15 @@ export class ProductoController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
+    if (req.fileValidationError) {
+      throw new BadRequestException(req.fileValidationError);
+    }
     if (file) {
-      dto.imagen_url = await this.cloudinaryService.uploadImage(file);
+      try {
+        dto.imagen_url = await this.cloudinaryService.uploadImage(file);
+      } catch {
+        throw new InternalServerErrorException('Error al procesar la imagen, intenta de nuevo');
+      }
     }
     return this.productoService.create(dto, req.user?.sub as number);
   }
@@ -52,9 +63,15 @@ export class ProductoController {
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    console.log('PRODUCTO UPDATE RECIBE:', JSON.stringify(dto));
+    if (req.fileValidationError) {
+      throw new BadRequestException(req.fileValidationError);
+    }
     if (file) {
-      dto.imagen_url = await this.cloudinaryService.uploadImage(file);
+      try {
+        dto.imagen_url = await this.cloudinaryService.uploadImage(file);
+      } catch {
+        throw new InternalServerErrorException('Error al procesar la imagen, intenta de nuevo');
+      }
     }
     return this.productoService.update(id, dto, req.user?.sub as number);
   }

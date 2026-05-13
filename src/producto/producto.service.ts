@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
@@ -18,6 +18,13 @@ export class ProductoService {
   ) {}
 
   async create(dto: CreateProductoDto, usuarioId?: number) {
+    const existente = await this.repo.findOne({
+      where: { nombre_modelo: dto.nombre_modelo, marca: dto.marca },
+    });
+    if (existente) {
+      throw new ConflictException('Ya existe un producto con ese nombre y marca');
+    }
+
     const producto = this.repo.create(dto as any);
     const saved = await this.repo.save(producto) as unknown as Producto;
 
