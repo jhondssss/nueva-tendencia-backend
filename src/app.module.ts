@@ -54,14 +54,14 @@ import { KeepAliveModule } from './keep-alive/keep-alive.module';
           extra: {
             // Pool de conexiones — evita abrir/cerrar en cada request
             waitForConnections: true,
-            connectionLimit:    10,
+            connectionLimit:    3,
             queueLimit:         0,
             // Timeouts para Aiven Cloud (conexión remota con SSL)
             connectTimeout:  60000,
             acquireTimeout:  60000,
             // Keep-alive a nivel de socket — evita que el OS cierre la conexión idle
             keepAlive:             true,
-            keepAliveInitialDelay: 10000,
+            keepAliveInitialDelay: 30000,
           },
         };
       },
