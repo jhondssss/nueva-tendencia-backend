@@ -33,35 +33,26 @@ import { KeepAliveModule } from './keep-alive/keep-alive.module';
 
     TypeOrmModule.forRootAsync({
       useFactory: () => {
-        const host     = process.env.DB_HOST     || 'mysql-2129d7bb-jhoncarlosg5-8f1f.e.aivencloud.com';
-        const port     = parseInt(process.env.DB_PORT || '24469');
-        const username = process.env.DB_USERNAME || 'avnadmin';
-        const password = process.env.DB_PASSWORD || 'AVNS_TRjUXaO973ksTPwkX5t';
-        const database = process.env.DB_NAME     || 'defaultdb';
+        const host     = process.env.DB_HOST     || 'localhost';
+        const port     = parseInt(process.env.DB_PORT || '5432');
+        const username = process.env.DB_USERNAME || 'postgres';
+        const password = process.env.DB_PASSWORD || '';
+        const database = process.env.DB_NAME     || 'postgres';
         console.log('DB_HOST runtime:', host);
         return {
-          type:        'mysql',
+          type:        'postgres',
           host, port, username, password, database,
           entities:    [__dirname + '/**/*.entity{.ts,.js}'],
-          synchronize: false,
-          charset:     'utf8mb4',
-          collation:   'utf8mb4_unicode_ci',
-          ssl:         { rejectUnauthorized: false },
-          // Reconexión automática ante caídas por inactividad (ETIMEDOUT)
+          synchronize: true,
+          ssl:         true,
           keepConnectionAlive: true,
           retryAttempts:       10,
           retryDelay:          3000,
           extra: {
-            // Pool de conexiones — evita abrir/cerrar en cada request
-            waitForConnections: true,
-            connectionLimit:    3,
-            queueLimit:         0,
-            // Timeouts para Aiven Cloud (conexión remota con SSL)
-            connectTimeout:  60000,
-            acquireTimeout:  60000,
-            // Keep-alive a nivel de socket — evita que el OS cierre la conexión idle
-            keepAlive:             true,
-            keepAliveInitialDelay: 30000,
+            max:                        3,
+            connectionTimeoutMillis:    60000,
+            keepAlive:                  true,
+            keepAliveInitialDelayMillis: 30000,
           },
         };
       },

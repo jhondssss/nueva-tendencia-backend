@@ -12,13 +12,11 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 
 ## Base de datos
 
-- **ORM**: TypeORM 0.3 con driver `mysql2`
-- **Motor**: MySQL 8 en la nube (Aiven Cloud)
-  - Host: `mysql-2129d7bb-jhoncarlosg5-8f1f.e.aivencloud.com:24469`
-  - DB: `defaultdb`
-  - SSL habilitado (`rejectUnauthorized: false`)
+- **ORM**: TypeORM 0.3 con driver `pg`
+- **Motor**: PostgreSQL en la nube (Supabase)
+  - Puerto por defecto: `5432`
+  - SSL habilitado (`ssl: true`)
 - `synchronize: false` — los cambios de esquema deben hacerse con migraciones o manualmente en la BD
-- Charset: `utf8mb4_unicode_ci`
 - Variables de entorno: `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME`
 
 ### Entidades principales
