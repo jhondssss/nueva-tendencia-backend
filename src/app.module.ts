@@ -43,7 +43,7 @@ import { KeepAliveModule } from './keep-alive/keep-alive.module';
           type:        'postgres',
           host, port, username, password, database,
           entities:    [__dirname + '/**/*.entity{.ts,.js}'],
-          synchronize: true,
+          synchronize: false,
           ssl:         { rejectUnauthorized: false },
           keepConnectionAlive: true,
           retryAttempts:       10,
