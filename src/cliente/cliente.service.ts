@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { Cliente } from './entities/cliente.entity';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
@@ -16,6 +16,20 @@ export class ClienteService {
   ) {}
 
   async create(createClienteDto: CreateClienteDto) {
+    const emailExistente = await this.clienteRepository.findOneBy({
+      correo_electronico: createClienteDto.correo_electronico,
+    });
+    if (emailExistente) {
+      throw new ConflictException('Ya existe un cliente con ese email');
+    }
+
+    const docExistente = await this.clienteRepository.findOneBy({
+      documento_identidad: createClienteDto.documento_identidad,
+    });
+    if (docExistente) {
+      throw new ConflictException('Ya existe un cliente con ese CI/RUC');
+    }
+
     const cliente = this.clienteRepository.create(createClienteDto);
     const saved = await this.clienteRepository.save(cliente);
     void this.auditoriaService.registrar({
@@ -30,11 +44,37 @@ export class ClienteService {
     return this.clienteRepository.find();
   }
 
-  findOne(id: number) {
-    return this.clienteRepository.findOneBy({ id_cliente: id });
+  async findOne(id: number) {
+    const cliente = await this.clienteRepository.findOneBy({ id_cliente: id });
+    if (!cliente) {
+      throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
+    }
+    return cliente;
   }
 
   async update(id: number, updateClienteDto: UpdateClienteDto) {
+    await this.findOne(id);
+
+    if (updateClienteDto.correo_electronico) {
+      const existente = await this.clienteRepository.findOneBy({
+        correo_electronico: updateClienteDto.correo_electronico,
+        id_cliente: Not(id),
+      });
+      if (existente) {
+        throw new ConflictException('Ya existe un cliente con ese email');
+      }
+    }
+
+    if (updateClienteDto.documento_identidad) {
+      const existente = await this.clienteRepository.findOneBy({
+        documento_identidad: updateClienteDto.documento_identidad,
+        id_cliente: Not(id),
+      });
+      if (existente) {
+        throw new ConflictException('Ya existe un cliente con ese CI/RUC');
+      }
+    }
+
     const result = await this.clienteRepository.update(id, updateClienteDto);
     const nombre = updateClienteDto.nombre ?? `ID ${id}`;
     void this.auditoriaService.registrar({
@@ -46,13 +86,12 @@ export class ClienteService {
   }
 
   async remove(id: number) {
-    const cliente = await this.clienteRepository.findOneBy({ id_cliente: id });
-    const nombre = cliente?.nombre ?? `ID ${id}`;
+    const cliente = await this.findOne(id);
     const result = await this.clienteRepository.delete(id);
     void this.auditoriaService.registrar({
       accion: 'DELETE',
       modulo: 'clientes',
-      descripcion: `Eliminó cliente ${nombre}`,
+      descripcion: `Eliminó cliente ${cliente.nombre}`,
     });
     return result;
   }
