@@ -39,13 +39,29 @@ import { TelegramModule } from './telegram/telegram.module';
         const database = process.env.DB_NAME     || 'defaultdb';
         console.log('DB_HOST runtime:', host);
         return {
-          type:       'mysql',
+          type:        'mysql',
           host, port, username, password, database,
-          entities:   [__dirname + '/**/*.entity{.ts,.js}'],
+          entities:    [__dirname + '/**/*.entity{.ts,.js}'],
           synchronize: false,
-          charset:    'utf8mb4',
-          collation:  'utf8mb4_unicode_ci',
-          ssl: { rejectUnauthorized: false },
+          charset:     'utf8mb4',
+          collation:   'utf8mb4_unicode_ci',
+          ssl:         { rejectUnauthorized: false },
+          // Reconexión automática ante caídas por inactividad (ETIMEDOUT)
+          keepConnectionAlive: true,
+          retryAttempts:       10,
+          retryDelay:          3000,
+          extra: {
+            // Pool de conexiones — evita abrir/cerrar en cada request
+            waitForConnections: true,
+            connectionLimit:    10,
+            queueLimit:         0,
+            // Timeouts para Aiven Cloud (conexión remota con SSL)
+            connectTimeout:  60000,
+            acquireTimeout:  60000,
+            // Keep-alive a nivel de socket — evita que el OS cierre la conexión idle
+            keepAlive:             true,
+            keepAliveInitialDelay: 10000,
+          },
         };
       },
     }),
