@@ -44,7 +44,7 @@ import { KeepAliveModule } from './keep-alive/keep-alive.module';
           host, port, username, password, database,
           entities:    [__dirname + '/**/*.entity{.ts,.js}'],
           synchronize: true,
-          ssl:         true,
+          ssl:         { rejectUnauthorized: false },
           keepConnectionAlive: true,
           retryAttempts:       10,
           retryDelay:          3000,
