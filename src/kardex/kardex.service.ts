@@ -56,7 +56,7 @@ export class KardexService {
     }
 
     await this.dataSource.query(
-      'UPDATE productos SET stock = ? WHERE id_producto = ?',
+      'UPDATE productos SET stock = $1 WHERE id_producto = $2',
       [stockNuevo, dto.producto_id],
     );
 
@@ -101,7 +101,7 @@ export class KardexService {
     }
 
     await this.dataSource.query(
-      'UPDATE insumos SET stock = ? WHERE id_insumo = ?',
+      'UPDATE insumos SET stock = $1 WHERE id_insumo = $2',
       [stockNuevo, dto.insumo_id],
     );
 
@@ -109,7 +109,8 @@ export class KardexService {
       `INSERT INTO kardex_movimientos
          (tipo, cantidad, motivo, stock_anterior, stock_nuevo,
           producto_id, insumo_id, usuario_id, tipo_registro)
-       VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 'insumo')`,
+       VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, 'insumo')
+       RETURNING id_movimiento`,
       [
         dto.tipo,
         dto.cantidad,
@@ -122,7 +123,7 @@ export class KardexService {
     );
 
     const movimiento = await this.kardexRepo.findOne({
-      where: { id_movimiento: result.insertId },
+      where: { id_movimiento: result[0].id_movimiento },
       relations: { producto: true, insumo: true, usuario: true },
     });
 
@@ -148,7 +149,8 @@ export class KardexService {
       `INSERT INTO kardex_movimientos
          (tipo, cantidad, motivo, stock_anterior, stock_nuevo,
           producto_id, insumo_id, usuario_id, tipo_registro)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'producto')`,
+       VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, 'producto')
+       RETURNING id_movimiento`,
       [
         tipo,
         cantidad,
@@ -161,7 +163,7 @@ export class KardexService {
     );
 
     const movimiento = await this.kardexRepo.findOne({
-      where: { id_movimiento: result.insertId },
+      where: { id_movimiento: result[0].id_movimiento },
       relations: { producto: true, insumo: true, usuario: true },
     });
 
