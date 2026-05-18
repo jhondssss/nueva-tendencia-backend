@@ -52,9 +52,9 @@ export class PrediccionService implements IPrediccionService {
     const resumen: Record<string, number> = {};
 
     pedidos.forEach(p => {
-      const fecha = new Date(p.fecha_entrega);
-      const key   = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-      resumen[key] = (resumen[key] || 0) + Number(p.total);
+      const [year, month] = String(p.fecha_entrega).split('-');
+      const key = `${year}-${month}`;
+      resumen[key] = (resumen[key] || 0) + Math.round(Number(p.total ?? 0) * 100) / 100;
     });
 
     return Object.entries(resumen)

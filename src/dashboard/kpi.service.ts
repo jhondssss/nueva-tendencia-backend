@@ -24,11 +24,7 @@ export class KpiService implements IKpiService {
     const [pedidos, productos, totalPedidos, itemsInventario] = await Promise.all([
       this.pedidoRepo.find(),
       this.productoRepo.find(),
-      this.pedidoRepo
-        .createQueryBuilder('p')
-        .where('p.fecha_entrega >= :inicio', { inicio: inicioMes })
-        .andWhere('p.fecha_entrega <= :fin',  { fin: finMes })
-        .getCount(),
+      this.pedidoRepo.count(),
       this.productoRepo.count({ where: { activo: true } }),
     ]);
 
@@ -68,7 +64,7 @@ export class KpiService implements IKpiService {
 
     return estados.map(estado => ({
       estado,
-      cantidad: pedidos.filter(p => p.estado === estado).length,
+      cantidad: Number(pedidos.filter(p => p.estado === estado).length),
     }));
   }
 
