@@ -29,7 +29,7 @@ async function bootstrap() {
       'https://nueva-tendencia-frontend.vercel.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-silent'],
     credentials: true,
   });
 
