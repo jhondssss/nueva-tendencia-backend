@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
+import { Insumo }   from '../insumo/entities/insumo.entity';
 import { IKpiService } from './interfaces/dashboard.interface';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class KpiService implements IKpiService {
   constructor(
     @InjectRepository(Pedido)   private readonly pedidoRepo:   Repository<Pedido>,
     @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
+    @InjectRepository(Insumo)   private readonly insumoRepo:   Repository<Insumo>,
   ) {}
 
   async getKpis() {
@@ -21,9 +23,10 @@ export class KpiService implements IKpiService {
     const inicioMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-01`;
     const finMes    = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).toISOString().split('T')[0];
 
-    const [pedidos, productos, totalPedidos, itemsInventario] = await Promise.all([
+    const [pedidos, productos, insumos, totalPedidos, itemsInventario] = await Promise.all([
       this.pedidoRepo.find(),
       this.productoRepo.find(),
+      this.insumoRepo.find({ where: { activo: true } }),
       this.pedidoRepo.count(),
       this.productoRepo.count({ where: { activo: true } }),
     ]);
@@ -47,7 +50,8 @@ export class KpiService implements IKpiService {
     const totalVentas = Math.round(
       pedidosTerminados.reduce((acc, p) => acc + Number(p.total), 0) * 100
     ) / 100;
-    const alertasStock = productos.filter(p => p.stock <= 5).length;
+    const alertasStock   = productos.filter(p => Number(p.stock) <= Number(p.nivel_minimo)).length;
+    const alertasInsumos = insumos.filter(i => Number(i.stock) <= Number(i.nivel_minimo)).length;
     const produccionMensual = pedidos
       .filter(p => {
         const fe = String(p.fecha_entrega).slice(0, 10);
@@ -55,7 +59,7 @@ export class KpiService implements IKpiService {
       })
       .reduce((acc, p) => acc + (p.cantidad_pares ?? 0), 0);
 
-    return { totalVentas, totalPedidos, itemsInventario, alertasStock, produccionMensual };
+    return { totalVentas, totalPedidos, itemsInventario, alertasStock, alertasInsumos, produccionMensual };
   }
 
   async getOrdersStatus() {
