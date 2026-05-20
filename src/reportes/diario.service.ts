@@ -23,8 +23,8 @@ export class DiarioService implements IReporteDiario {
     const ahora  = new Date();
     const local  = new Date(ahora.getTime() + (-4 * 60) * 60000);
     const fecha  = local.toISOString().slice(0, 10); // 'YYYY-MM-DD' en hora boliviana
-    const start  = new Date(`${fecha}T00:00:00.000`);
-    const end    = new Date(`${fecha}T23:59:59.999`);
+    const start  = new Date(`${fecha}T04:00:00.000Z`); // Bolivia 00:00 = UTC 04:00
+    const end    = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1); // Bolivia 23:59:59.999 = UTC siguiente día 03:59:59.999
 
     console.log('FECHA HOY:', fecha);
     console.log('START:', start.toISOString());
