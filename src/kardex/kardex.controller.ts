@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { KardexService } from './kardex.service';
 import { CreateKardexDto } from './dto/create-kardex.dto';
 
@@ -7,10 +7,18 @@ export class KardexController {
   constructor(private readonly kardexService: KardexService) {}
 
   /** POST /kardex
-   *  Registra un movimiento de stock y actualiza producto.stock */
+   *  Registra un movimiento de stock de producto o insumo.
+   *  Debe incluir producto_id o insumo_id (no ambos). */
   @Post()
   registrar(@Body() dto: CreateKardexDto, @Req() req: any) {
-    return this.kardexService.registrarMovimiento(dto, req.user?.sub as number);
+    if (!dto.producto_id && !dto.insumo_id) {
+      throw new BadRequestException('Debe proporcionar producto_id o insumo_id');
+    }
+    const usuarioId = req.user?.sub as number;
+    if (dto.insumo_id) {
+      return this.kardexService.registrarMovimientoInsumo(dto as any, usuarioId);
+    }
+    return this.kardexService.registrarMovimiento(dto, usuarioId);
   }
 
   /** GET /kardex

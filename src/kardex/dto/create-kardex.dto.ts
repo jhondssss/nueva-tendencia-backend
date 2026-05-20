@@ -11,8 +11,13 @@ export class CreateKardexDto {
   @Min(0)
   cantidad: number;
 
+  @IsOptional()
   @IsInt()
-  producto_id: number;
+  producto_id?: number;
+
+  @IsOptional()
+  @IsInt()
+  insumo_id?: number;
 
   @IsOptional()
   @IsString()
