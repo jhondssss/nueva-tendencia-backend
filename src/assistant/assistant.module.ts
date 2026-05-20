@@ -11,5 +11,6 @@ import { Insumo } from '../insumo/entities/insumo.entity';
   imports: [TypeOrmModule.forFeature([Pedido, Cliente, Producto, Insumo])],
   controllers: [AssistantController],
   providers: [AssistantService],
+  exports: [AssistantService],
 })
 export class AssistantModule {}

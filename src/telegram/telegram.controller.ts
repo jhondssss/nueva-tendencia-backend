@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Post, Body } from '@nestjs/common';
 import { TelegramService } from './telegram.service';
 import { Public } from '../auth/decorators/public.decorator';
 
@@ -15,5 +15,11 @@ export class TelegramController {
     } catch (error) {
       return { ok: false, error: error.message, stack: error.stack };
     }
+  }
+
+  @Public()
+  @Post('webhook')
+  async webhook(@Body() body: any): Promise<void> {
+    await this.telegramService.handleWebhook(body);
   }
 }

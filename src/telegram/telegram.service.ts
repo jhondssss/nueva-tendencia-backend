@@ -4,6 +4,7 @@ import { Repository, Not, Between } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
+import { AssistantService } from '../assistant/assistant.service';
 
 @Injectable()
 export class TelegramService {
@@ -13,10 +14,11 @@ export class TelegramService {
   constructor(
     @InjectRepository(Pedido) private readonly pedidoRepo: Repository<Pedido>,
     @InjectRepository(Insumo) private readonly insumoRepo: Repository<Insumo>,
+    private readonly assistantService: AssistantService,
   ) {}
 
-  async sendMessage(message: string): Promise<void> {
-    if (!this.botToken || !this.chatId) return;
+  async sendMessage(message: string, chatId = this.chatId): Promise<void> {
+    if (!this.botToken || !chatId) return;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
@@ -27,7 +29,7 @@ export class TelegramService {
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ chat_id: this.chatId, text: message }),
+          body:    JSON.stringify({ chat_id: chatId, text: message }),
           signal:  controller.signal,
         },
       );
@@ -38,6 +40,36 @@ export class TelegramService {
       console.error('[Telegram] sendMessage falló:', err);
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  async handleWebhook(body: any): Promise<void> {
+    const text: string | undefined = body?.message?.text;
+    const chatId: number | undefined = body?.message?.chat?.id;
+
+    if (!text || !chatId) return;
+
+    // En grupos Telegram agrega "@botname" al comando: "/nt@MiBot pregunta"
+    const normalized = text.replace(/^(\/nt)@\S+/i, '$1');
+
+    if (!normalized.match(/^\/nt(\s|$)/i)) return;
+
+    const pregunta = normalized.slice(3).trim();
+
+    if (!pregunta) {
+      await this.sendMessage(
+        '¿Cuál es tu pregunta? Ejemplo:\n/nt ¿cuántos pedidos hay pendientes?',
+        String(chatId),
+      );
+      return;
+    }
+
+    try {
+      const respuesta = await this.assistantService.chat(pregunta);
+      await this.sendMessage(respuesta, String(chatId));
+    } catch (err) {
+      console.error('[Telegram webhook] Error al procesar /nt:', err);
+      await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', String(chatId));
     }
   }
 
