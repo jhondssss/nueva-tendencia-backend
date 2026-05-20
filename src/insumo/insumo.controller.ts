@@ -10,18 +10,25 @@ import {
   Req,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { memoryStorage } from 'multer';
 import { InsumoService } from './insumo.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateInsumoDto } from './dto/create-insumo.dto';
 import { UpdateInsumoDto } from './dto/update-insumo.dto';
 
+const ALLOWED_MIMETYPES = /^image\/(jpeg|png|webp)$/;
+
 @Controller('insumos')
 export class InsumoController {
-  constructor(private readonly insumoService: InsumoService) {}
+  constructor(
+    private readonly insumoService: InsumoService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @Get()
   findAll() {
@@ -58,29 +65,29 @@ export class InsumoController {
   @Post(':id/imagen')
   @UseInterceptors(
     FileInterceptor('imagen', {
-      storage: diskStorage({
-        destination: './uploads/insumos',
-        filename: (req, file, callback) => {
-          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `insumo-${uniqueSuffix}${ext}`);
-        },
-      }),
+      storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-          return callback(new Error('Solo se permiten imágenes'), false);
+        if (!ALLOWED_MIMETYPES.test(file.mimetype)) {
+          (req as any).fileValidationError = 'Solo se permiten imágenes JPG, PNG o WEBP';
+          return callback(null, false);
         }
         callback(null, true);
       },
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   )
-  uploadImagen(
+  async uploadImagen(
     @Param('id', ParseIntPipe) id: number,
     @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    const imagen_url = `/uploads/insumos/${file.filename}`;
+    if (req.fileValidationError) throw new BadRequestException(req.fileValidationError);
+    let imagen_url: string;
+    try {
+      imagen_url = await this.cloudinaryService.uploadImage(file, 'insumos');
+    } catch {
+      throw new InternalServerErrorException('Error al subir la imagen, intenta de nuevo');
+    }
     return this.insumoService.update(id, { imagen_url } as UpdateInsumoDto, req.user?.sub as number);
   }
 

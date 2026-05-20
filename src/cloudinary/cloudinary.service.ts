@@ -11,10 +11,10 @@ export class CloudinaryService {
     });
   }
 
-  uploadImage(file: Express.Multer.File): Promise<string> {
+  uploadImage(file: Express.Multer.File, folder = 'productos'): Promise<string> {
     return new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: 'productos' },
+        { folder },
         (error, result) => {
           if (error || !result) return reject(error ?? new Error('Upload falló'));
           resolve(result.secure_url);
