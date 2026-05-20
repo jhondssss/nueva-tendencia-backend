@@ -41,7 +41,7 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     }
 
     const estadoAnterior = pedido.estado;
-    await this.pedidoRepo.update(id, { estado: nuevoEstado });
+    await this.pedidoRepo.update(id, { estado: nuevoEstado, fecha_actualizacion: new Date() });
 
     this.telegramService.sendMessage(
       `📦 Pedido #${id} avanzó\nEstado: ${estadoAnterior} → ${nuevoEstado}\nCliente: ${pedido.cliente?.nombre ?? 'N/A'}`,
