@@ -7,7 +7,10 @@ import {
   Matches,
   MinLength,
   IsIn,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateDireccionClienteDto } from './create-direccion-cliente.dto';
 
 export class CreateClienteDto {
   @IsIn(['persona_natural', 'empresa'], {
@@ -22,10 +25,6 @@ export class CreateClienteDto {
   @IsOptional()
   @IsString()
   apellido?: string;
-
-  @IsOptional()
-  @IsString()
-  nombre_completo?: string;
 
   @IsNotEmpty({ message: 'El CI o RUC es obligatorio' })
   @IsString()
@@ -44,25 +43,10 @@ export class CreateClienteDto {
   @IsString()
   telefono_alternativo?: string;
 
-  @IsString()
-  direccion_calle: string;
-
-  @IsString()
-  direccion_colonia: string;
-
-  @IsNotEmpty({ message: 'La ciudad es obligatoria' })
-  @IsString()
-  ciudad: string;
-
-  @IsString()
-  estado_provincia: string;
-
-  @IsString()
-  codigo_postal: string;
-
-  @IsNotEmpty({ message: 'El país es obligatorio' })
-  @IsString()
-  pais: string;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateDireccionClienteDto)
+  direccion?: CreateDireccionClienteDto;
 
   @IsOptional()
   @IsBoolean()

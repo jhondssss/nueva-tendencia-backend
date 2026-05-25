@@ -1,5 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne, JoinColumn } from 'typeorm';
 import { Pedido } from '../../pedido/entities/pedido.entity';
+import { DireccionCliente } from './direccion-cliente.entity';
 
 @Entity()
 export class Cliente {
@@ -16,9 +17,6 @@ export class Cliente {
   apellido: string;
 
   @Column({ nullable: true })
-  nombre_completo: string;
-
-  @Column({ nullable: true })
   documento_identidad: string;
 
   @Column()
@@ -30,23 +28,9 @@ export class Cliente {
   @Column({ nullable: true })
   telefono_alternativo: string;
 
-  @Column()
-  direccion_calle: string;
-
-  @Column()
-  direccion_colonia: string;
-
-  @Column()
-  ciudad: string;
-
-  @Column()
-  estado_provincia: string;
-
-  @Column()
-  codigo_postal: string;
-
-  @Column()
-  pais: string;
+  @OneToOne(() => DireccionCliente, (d) => d.cliente, { eager: true, cascade: true })
+  @JoinColumn()
+  direccion: DireccionCliente;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   fecha_registro: Date;

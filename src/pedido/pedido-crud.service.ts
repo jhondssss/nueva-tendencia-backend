@@ -27,8 +27,8 @@ export class PedidoCrudService implements IPedidoCrudService {
   async create(createPedidoDto: CreatePedidoDto) {
     console.log('📥 DTO recibido:', createPedidoDto);
 
-    const cliente = await this.clienteRepo.findOneBy({ id_cliente: createPedidoDto.clienteId });
-    const producto = await this.productoRepo.findOneBy({ id_producto: createPedidoDto.productoId });
+    const cliente = await this.clienteRepo.findOneBy({ id_cliente: createPedidoDto.cliente_id });
+    const producto = await this.productoRepo.findOneBy({ id_producto: createPedidoDto.producto_id });
 
     console.log('👤 Cliente encontrado:', cliente);
     console.log('👟 Producto encontrado:', producto);

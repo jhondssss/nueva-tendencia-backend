@@ -14,4 +14,10 @@ export class User {
 
   @Column({ default: 'user' })
   role: string;
+
+  @Column({ nullable: true })
+  nombre: string;
+
+  @Column({ nullable: true })
+  apellido: string;
 }

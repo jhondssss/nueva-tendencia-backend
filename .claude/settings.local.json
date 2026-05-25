@@ -14,7 +14,10 @@
       "Bash(ls -la /c/Users/jhonc/OneDrive/Documentos/UAB/proyecto_grado\\\\\\(app\\\\\\)/nueva_tendencia/src)",
       "Bash(done)",
       "Bash(Get-ChildItem -Path \"src/telegram\",\"src/pedidos\" -Recurse)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(psql --version)",
+      "Bash(where psql *)",
+      "Bash(Get-ChildItem -Path src -Recurse -Filter \"*.entity.ts\")"
     ]
   }
 }

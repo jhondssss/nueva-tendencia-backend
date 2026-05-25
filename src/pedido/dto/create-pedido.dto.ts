@@ -12,10 +12,10 @@ export class TallaPersonalizadaDto {
 
 export class CreatePedidoDto {
   @IsNumber()
-  clienteId: number;
+  cliente_id: number;
 
   @IsNumber()
-  productoId: number;
+  producto_id: number;
 
   @IsNumber()
   total: number;

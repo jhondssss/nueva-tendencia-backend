@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Cliente } from '../../cliente/entities/cliente.entity';
 import { Producto } from '../../producto/entities/producto.entity';
 import { TallaDetalle } from '../../talla/entities/talla-detalle.entity';
@@ -12,9 +12,11 @@ export class Pedido {
   id_pedido: number;
 
   @ManyToOne(() => Cliente, cliente => cliente.id_cliente, { eager: true })
+  @JoinColumn({ name: 'cliente_id' })
   cliente: Cliente;
 
   @ManyToOne(() => Producto, producto => producto.id_producto, { eager: true })
+  @JoinColumn({ name: 'producto_id' })
   producto: Producto;
 
   @Column('decimal', { precision: 10, scale: 2 })

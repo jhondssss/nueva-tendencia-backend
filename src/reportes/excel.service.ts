@@ -180,7 +180,7 @@ export class ExcelService implements IReporteExcel {
   // ══════════════════════════════════════════════════════════════════════════
 
   async exportarExcelClientes(): Promise<Buffer> {
-    const clientes = await this.clienteRepo.find();
+    const clientes = await this.clienteRepo.find({ relations: ['direccion'] });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Clientes');
@@ -209,8 +209,8 @@ export class ExcelService implements IReporteExcel {
         doc:      c.documento_identidad ?? '',
         email:    c.correo_electronico,
         tel:      c.telefono_principal,
-        ciudad:   c.ciudad,
-        dir:      `${c.direccion_calle}, ${c.direccion_colonia}`,
+        ciudad:   c.direccion?.ciudad ?? '',
+        dir:      `${c.direccion?.calle ?? ''}, ${c.direccion?.colonia ?? ''}`,
         fecha:    c.fecha_registro
           ? new Date(c.fecha_registro).toLocaleDateString('es-BO')
           : '',
