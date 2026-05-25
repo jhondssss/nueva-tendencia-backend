@@ -30,7 +30,6 @@ export class TallaService {
         talla: config.talla,
         cantidad_pares: config.pares * cantidadDocenas,
         pedido: { id_pedido: pedidoId } as any,
-        producto: null,
       }),
     );
 
@@ -60,7 +59,6 @@ export class TallaService {
         talla: t.talla,
         cantidad_pares: t.cantidad_pares,
         pedido: { id_pedido: pedidoId } as any,
-        producto: null,
       }),
     );
 
@@ -73,9 +71,4 @@ export class TallaService {
     });
   }
 
-  getTallasByProducto(productoId: number): Promise<TallaDetalle[]> {
-    return this.tallaRepository.find({
-      where: { producto: { id_producto: productoId } },
-    });
-  }
 }

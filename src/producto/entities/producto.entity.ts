@@ -1,6 +1,5 @@
 // src/producto/entities/producto.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { TallaDetalle } from '../../talla/entities/talla-detalle.entity';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
 export type CategoriaCalzado = 'nino' | 'juvenil' | 'adulto';
 
@@ -59,6 +58,4 @@ export class Producto {
   })
   categoria: CategoriaCalzado | null;
 
-  @OneToMany(() => TallaDetalle, (talla) => talla.producto)
-  talles: TallaDetalle[];
 }

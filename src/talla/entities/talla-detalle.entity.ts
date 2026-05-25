@@ -6,7 +6,6 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Pedido } from '../../pedido/entities/pedido.entity';
-import { Producto } from '../../producto/entities/producto.entity';
 
 export type CategoriaCalzado = 'nino' | 'juvenil' | 'adulto';
 
@@ -30,11 +29,4 @@ export class TallaDetalle {
   })
   @JoinColumn({ name: 'pedido_id' })
   pedido: Pedido | null;
-
-  @ManyToOne(() => Producto, (producto) => producto.talles, {
-    nullable: true,
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'producto_id' })
-  producto: Producto | null;
 }
