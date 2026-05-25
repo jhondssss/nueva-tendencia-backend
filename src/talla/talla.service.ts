@@ -1,7 +1,8 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { TallaDetalle, CategoriaCalzado } from './entities/talla-detalle.entity';
+import { TallaDetalle } from './entities/talla-detalle.entity';
+import { CategoriaCalzado } from '../pedido/entities/pedido.entity';
 import { DISTRIBUCION_TALLAS } from './talla.constants';
 
 const RANGOS_CATEGORIA: Record<CategoriaCalzado, { min: number; max: number }> = {
@@ -26,7 +27,6 @@ export class TallaService {
 
     const talles = distribucion.map((config) =>
       this.tallaRepository.create({
-        categoria,
         talla: config.talla,
         cantidad_pares: config.pares * cantidadDocenas,
         pedido: { id_pedido: pedidoId } as any,
@@ -55,7 +55,6 @@ export class TallaService {
 
     const nuevas = tallas.map(t =>
       this.tallaRepository.create({
-        categoria,
         talla: t.talla,
         cantidad_pares: t.cantidad_pares,
         pedido: { id_pedido: pedidoId } as any,

@@ -134,11 +134,12 @@ export class PedidoCrudService implements IPedidoCrudService {
       pedido.producto = producto;
     }
 
-    if (updatePedidoDto.total !== undefined)  pedido.total         = updatePedidoDto.total;
-    if (updatePedidoDto.fecha_entrega)        pedido.fecha_entrega = updatePedidoDto.fecha_entrega;
-    if (updatePedidoDto.estado)               pedido.estado        = updatePedidoDto.estado;
-    if (updatePedidoDto.cantidad !== undefined) pedido.cantidad    = updatePedidoDto.cantidad;
-    if (updatePedidoDto.unidad)               pedido.unidad        = updatePedidoDto.unidad;
+    if (updatePedidoDto.total !== undefined)     pedido.total         = updatePedidoDto.total;
+    if (updatePedidoDto.fecha_entrega)           pedido.fecha_entrega = updatePedidoDto.fecha_entrega;
+    if (updatePedidoDto.estado)                  pedido.estado        = updatePedidoDto.estado;
+    if (updatePedidoDto.cantidad !== undefined)  pedido.cantidad      = updatePedidoDto.cantidad;
+    if (updatePedidoDto.unidad)                  pedido.unidad        = updatePedidoDto.unidad;
+    if (updatePedidoDto.categoria !== undefined) pedido.categoria     = updatePedidoDto.categoria;
 
     if (updatePedidoDto.cantidad !== undefined || updatePedidoDto.unidad) {
       const multiplicador = { docena: 12, media_docena: 6, par: 1 } as const;

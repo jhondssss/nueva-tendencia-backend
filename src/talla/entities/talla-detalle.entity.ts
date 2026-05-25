@@ -7,15 +7,10 @@ import {
 } from 'typeorm';
 import { Pedido } from '../../pedido/entities/pedido.entity';
 
-export type CategoriaCalzado = 'nino' | 'juvenil' | 'adulto';
-
 @Entity('talla_detalles')
 export class TallaDetalle {
   @PrimaryGeneratedColumn()
   id_talla: number;
-
-  @Column({ type: 'enum', enum: ['nino', 'juvenil', 'adulto'] })
-  categoria: CategoriaCalzado;
 
   @Column({ type: 'int' })
   talla: number;
