@@ -12,7 +12,9 @@
       "Bash(npx tsc:*)",
       "Bash(ls -la /c/Users/jhonc/OneDrive/Documentos/UAB/proyecto_grado\\\\\\(app\\\\\\)/nueva_tendencia/)",
       "Bash(ls -la /c/Users/jhonc/OneDrive/Documentos/UAB/proyecto_grado\\\\\\(app\\\\\\)/nueva_tendencia/src)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(Get-ChildItem -Path \"src/telegram\",\"src/pedidos\" -Recurse)",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

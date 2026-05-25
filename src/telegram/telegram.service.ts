@@ -109,8 +109,8 @@ export class TelegramService {
     const [
       terminadosAyer,
       enProduccion,
-      vencenHoy,
-      vencenManana,
+      pedidosVencenHoy,
+      pedidosVencenManana,
       pedidosMes,
       pedidosNuevosAyer,
       insumosStockCritico,
@@ -126,14 +126,18 @@ export class TelegramService {
       this.pedidoRepo.count({ where: { estado: Not('Terminado') } }),
       // Vencen hoy (fecha_entrega es string 'YYYY-MM-DD')
       this.pedidoRepo.createQueryBuilder('p')
+        .leftJoinAndSelect('p.cliente', 'cliente')
+        .leftJoinAndSelect('p.producto', 'producto')
         .where('p.fecha_entrega = :hoy', { hoy: hoyStr })
         .andWhere('p.estado != :estado', { estado: 'Terminado' })
-        .getCount(),
+        .getMany(),
       // Vencen mañana (fecha_entrega es string 'YYYY-MM-DD')
       this.pedidoRepo.createQueryBuilder('p')
+        .leftJoinAndSelect('p.cliente', 'cliente')
+        .leftJoinAndSelect('p.producto', 'producto')
         .where('p.fecha_entrega = :manana', { manana: mananaStr })
         .andWhere('p.estado != :estado', { estado: 'Terminado' })
-        .getCount(),
+        .getMany(),
       // Ventas del mes: pedidos Terminados con fecha_entrega en el mes actual
       this.pedidoRepo
         .createQueryBuilder('p')
@@ -173,8 +177,8 @@ export class TelegramService {
       `📦 PRODUCCIÓN\n` +
       `✅ Terminados ayer: ${terminadosAyer}\n` +
       `🔄 En producción ahora: ${enProduccion}\n` +
-      `📅 Vencen HOY: ${vencenHoy} pedidos\n` +
-      `📅 Vencen mañana: ${vencenManana} pedidos\n\n` +
+      `📅 Vencen HOY: ${pedidosVencenHoy.length} pedidos\n` +
+      `📅 Vencen mañana: ${pedidosVencenManana.length} pedidos\n\n` +
       `💰 VENTAS\n` +
       `💵 Ventas del mes: Bs. ${ventasMes.toFixed(2)}\n` +
       `🆕 Pedidos nuevos ayer: ${pedidosNuevosAyer}\n\n` +
@@ -182,6 +186,20 @@ export class TelegramService {
       `⚠️ Insumos en stock crítico: ${insumosStockCritico.length}` +
       (topInsumosLineas ? `\n${topInsumosLineas}` : '');
 
-    await this.sendMessage(mensaje);
+    let seccionEntregas = '';
+    if (pedidosVencenHoy.length > 0 || pedidosVencenManana.length > 0) {
+      const fmtPedido = (p: Pedido) =>
+        `  • #${p.id_pedido} ${p.producto?.nombre_modelo ?? 'N/A'} — ${p.cliente?.nombre ?? 'N/A'} [${p.estado}]`;
+
+      seccionEntregas = '\n\n📅 ENTREGAS PRÓXIMAS';
+      if (pedidosVencenHoy.length > 0)
+        seccionEntregas += `\n🔴 Vencen HOY (${pedidosVencenHoy.length})\n` +
+          pedidosVencenHoy.map(fmtPedido).join('\n');
+      if (pedidosVencenManana.length > 0)
+        seccionEntregas += `\n🟠 Vencen mañana (${pedidosVencenManana.length})\n` +
+          pedidosVencenManana.map(fmtPedido).join('\n');
+    }
+
+    await this.sendMessage(mensaje + seccionEntregas);
   }
 }
