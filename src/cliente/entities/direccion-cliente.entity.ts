@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn } from 'typeorm';
 import { Cliente } from './cliente.entity';
 
 @Entity('direccion_cliente')
@@ -28,5 +28,6 @@ export class DireccionCliente {
   es_principal: boolean;
 
   @OneToOne(() => Cliente, (cliente) => cliente.direccion)
+  @JoinColumn({ name: 'cliente_id' })
   cliente: Cliente;
 }
