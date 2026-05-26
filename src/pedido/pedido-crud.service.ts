@@ -91,7 +91,7 @@ export class PedidoCrudService implements IPedidoCrudService {
       `Producto: ${producto.nombre_modelo}\n` +
       `Entrega: ${savedPedido.fecha_entrega}`.trim();
     const seguimientoUrl = `https://nueva-tendencia-frontend.vercel.app/seguimiento/token/${savedPedido.token_seguimiento}`;
-    const qrUrl = `https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(seguimientoUrl)}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(seguimientoUrl)}`;
     this.telegramService.sendPhoto(qrUrl, caption).catch(() => {});
 
     return this.pedidoRepo.findOne({
