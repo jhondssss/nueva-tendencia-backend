@@ -17,6 +17,32 @@ export class TelegramService {
     private readonly assistantService: AssistantService,
   ) {}
 
+  async sendPhoto(photoUrl: string, caption: string, chatId = this.chatId): Promise<void> {
+    if (!this.botToken || !chatId) return;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${this.botToken}/sendPhoto`,
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ chat_id: chatId, photo: photoUrl, caption }),
+          signal:  controller.signal,
+        },
+      );
+      if (!res.ok) {
+        console.error(`[Telegram] sendPhoto HTTP ${res.status}:`, await res.text());
+      }
+    } catch (err) {
+      console.error('[Telegram] sendPhoto falló:', err);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async sendMessage(message: string, chatId = this.chatId): Promise<void> {
     if (!this.botToken || !chatId) return;
 

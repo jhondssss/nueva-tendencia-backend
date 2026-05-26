@@ -85,9 +85,14 @@ export class PedidoCrudService implements IPedidoCrudService {
       descripcion: `Creó pedido #${savedPedido.id_pedido}`,
     });
 
-    this.telegramService.sendMessage(
-      `🔔 Nuevo pedido #${savedPedido.id_pedido}\nCliente: ${cliente.nombre} ${cliente.apellido ?? ''}\nProducto: ${producto.nombre_modelo}\nEntrega: ${savedPedido.fecha_entrega}`.trim(),
-    ).catch(() => {});
+    const caption =
+      `🔔 Nuevo pedido #${savedPedido.id_pedido}\n` +
+      `Cliente: ${cliente.nombre} ${cliente.apellido ?? ''}\n` +
+      `Producto: ${producto.nombre_modelo}\n` +
+      `Entrega: ${savedPedido.fecha_entrega}`.trim();
+    const seguimientoUrl = `https://nueva-tendencia-frontend.vercel.app/seguimiento/token/${savedPedido.token_seguimiento}`;
+    const qrUrl = `https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(seguimientoUrl)}`;
+    this.telegramService.sendPhoto(qrUrl, caption).catch(() => {});
 
     return this.pedidoRepo.findOne({
       where: { id_pedido: savedPedido.id_pedido },

@@ -19,7 +19,7 @@ export class PedidoEstadoService implements IPedidoEstadoService {
   ) {}
 
   async moverEstado(id: number, nuevoEstado: EstadoPedido) {
-    const pedido = await this.pedidoRepo.findOne({ where: { id_pedido: id }, relations: ['cliente'] });
+    const pedido = await this.pedidoRepo.findOne({ where: { id_pedido: id }, relations: ['cliente', 'producto'] });
 
     if (!pedido) throw new BadRequestException(`Pedido #${id} no encontrado`);
 
@@ -43,9 +43,16 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     await this.pedidoRepo.update(id, { estado: nuevoEstado, fecha_actualizacion: new Date() });
 
     if (nuevoEstado === 'Terminado') {
-      this.telegramService.sendMessage(
-        `✅ Pedido #${id} listo para entregar\nCliente: ${pedido.cliente?.nombre ?? 'N/A'}\nProducto: ya puede ser retirado`,
-      ).catch(() => {});
+      const caption =
+        `✅ Pedido #${id} listo para entregar\n` +
+        `Cliente: ${pedido.cliente?.nombre ?? 'N/A'}\n` +
+        `Producto: ${pedido.producto?.nombre_modelo ?? 'N/A'}`;
+      const imagenUrl: string | undefined = (pedido.producto as any)?.imagen_url;
+      if (imagenUrl) {
+        this.telegramService.sendPhoto(imagenUrl, caption).catch(() => {});
+      } else {
+        this.telegramService.sendMessage(caption).catch(() => {});
+      }
     }
 
     void this.auditoriaService.registrar({
