@@ -19,6 +19,7 @@ import { InsumoModule } from './insumo/insumo.module';
 import { TallaModule } from './talla/talla.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { KeepAliveModule } from './keep-alive/keep-alive.module';
+import { SeedModule } from './seed/seed.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { KeepAliveModule } from './keep-alive/keep-alive.module';
     TallaModule,
     TelegramModule,
     KeepAliveModule,
+    SeedModule,
   ],
   providers: [
     // ── Rate limiting global ──
