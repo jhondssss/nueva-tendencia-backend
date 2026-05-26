@@ -5,6 +5,8 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
+import { KardexMovimiento } from '../kardex/entities/kardex.entity';
+import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 export interface ChatMessage {
@@ -14,9 +16,13 @@ export interface ChatMessage {
 
 const SYSTEM_PROMPT = `Eres NT Assistant, el asistente inteligente de Calzados Nueva Tendencia, un taller de calzado artesanal masculino e infantil ubicado en Cochabamba, Bolivia. Conoces el negocio en detalle y ayudas al administrador a tomar decisiones basadas en los datos reales del sistema.
 
-Tienes acceso a los datos reales del negocio en tiempo real.
+Tienes acceso a los datos reales del negocio en tiempo real, incluyendo:
+- Pedidos, clientes, productos e insumos
+- Movimientos de inventario (Kardex): entradas, salidas y ajustes de stock de productos e insumos, con fecha, motivo y usuario responsable
+- Auditoría del sistema: registro de acciones realizadas (login, creación, modificación, etc.), módulo afectado, descripción y usuario que las ejecutó
+
 Responde SIEMPRE en español natural y amigable.
-Usa emojis relevantes: 👟 pedidos, 📦 stock, 💰 ventas, 👤 clientes, ⚠️ alertas, 📊 estadísticas, 🧴 insumos.
+Usa emojis relevantes: 👟 pedidos, 📦 stock, 💰 ventas, 👤 clientes, ⚠️ alertas, 📊 estadísticas, 🧴 insumos, 🔄 movimientos de inventario, 🔍 auditoría.
 Sé conciso pero completo. Máximo 150 palabras por respuesta.
 Si te preguntan algo que no está en los datos responde honestamente que no tienes esa información.
 El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
@@ -26,10 +32,12 @@ export class AssistantService {
   private readonly model: GenerativeModel | null;
 
   constructor(
-    @InjectRepository(Pedido)   private readonly pedidoRepo:   Repository<Pedido>,
-    @InjectRepository(Cliente)  private readonly clienteRepo:  Repository<Cliente>,
-    @InjectRepository(Producto) private readonly productoRepo: Repository<Producto>,
-    @InjectRepository(Insumo)   private readonly insumoRepo:   Repository<Insumo>,
+    @InjectRepository(Pedido)           private readonly pedidoRepo:   Repository<Pedido>,
+    @InjectRepository(Cliente)          private readonly clienteRepo:  Repository<Cliente>,
+    @InjectRepository(Producto)         private readonly productoRepo: Repository<Producto>,
+    @InjectRepository(Insumo)           private readonly insumoRepo:   Repository<Insumo>,
+    @InjectRepository(KardexMovimiento) private readonly kardexRepo:   Repository<KardexMovimiento>,
+    @InjectRepository(Auditoria)        private readonly auditoriaRepo: Repository<Auditoria>,
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
@@ -53,11 +61,21 @@ export class AssistantService {
     const anio = new Date().getFullYear();
     const mesActual = new Date().getMonth(); // 0-based
 
-    const [pedidos, clientes, productos, insumos] = await Promise.all([
+    const [pedidos, clientes, productos, insumos, movimientosKardex, accionesAuditoria] = await Promise.all([
       this.pedidoRepo.find({ relations: ['cliente', 'producto'] }),
       this.clienteRepo.find(),
       this.productoRepo.find(),
       this.insumoRepo.find(),
+      this.kardexRepo.find({
+        relations: ['producto', 'insumo', 'usuario'],
+        order: { fecha: 'DESC' },
+        take: 30,
+      }),
+      this.auditoriaRepo.find({
+        relations: ['usuario'],
+        order: { fecha: 'DESC' },
+        take: 20,
+      }),
     ]);
 
     // ── Pedidos por estado ─────────────────────────────────────────────────
@@ -143,6 +161,31 @@ export class AssistantService {
       .map(x => `  ${x.nombre}: ${x.pares} pares`)
       .join('\n') || '  Sin datos';
 
+    // ── Movimientos de Kardex ──────────────────────────────────────────────
+    const listaKardex = movimientosKardex.length > 0
+      ? movimientosKardex.map(m => {
+          const item = m.tipo_registro === 'producto'
+            ? (m.producto?.nombre_modelo ?? '—')
+            : (m.insumo?.nombre ?? '—');
+          const usuario = m.usuario
+            ? `${m.usuario.nombre ?? ''} ${m.usuario.apellido ?? ''}`.trim() || m.usuario.email
+            : 'Sistema';
+          const fecha = new Date(m.fecha).toISOString().slice(0, 16).replace('T', ' ');
+          return `  [${fecha}] ${m.tipo.toUpperCase()} | ${m.tipo_registro}: ${item} | cant: ${m.cantidad} | stock: ${m.stock_anterior}→${m.stock_nuevo} | motivo: ${m.motivo ?? '—'} | usuario: ${usuario}`;
+        }).join('\n')
+      : '  Sin movimientos registrados';
+
+    // ── Auditoría ──────────────────────────────────────────────────────────
+    const listaAuditoria = accionesAuditoria.length > 0
+      ? accionesAuditoria.map(a => {
+          const usuario = a.usuario
+            ? `${a.usuario.nombre ?? ''} ${a.usuario.apellido ?? ''}`.trim() || a.usuario.email
+            : 'Sistema';
+          const fecha = new Date(a.fecha).toISOString().slice(0, 16).replace('T', ' ');
+          return `  [${fecha}] ${a.accion} | ${a.modulo} | ${a.descripcion} | usuario: ${usuario}`;
+        }).join('\n')
+      : '  Sin acciones registradas';
+
     return `
 === DATOS EN TIEMPO REAL — ${hoy} ===
 
@@ -175,6 +218,12 @@ ${paresPorCat}
 
 🏆 TOP PRODUCTOS DEL MES (${meses[mesActual]}):
 ${topProductos}
+
+=== MOVIMIENTOS DE KARDEX (últimos 30) ===
+${listaKardex}
+
+=== AUDITORÍA (últimas 20 acciones) ===
+${listaAuditoria}
 `.trim();
   }
 

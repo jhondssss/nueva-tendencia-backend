@@ -6,9 +6,11 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
+import { KardexMovimiento } from '../kardex/entities/kardex.entity';
+import { Auditoria } from '../auditoria/entities/auditoria.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pedido, Cliente, Producto, Insumo])],
+  imports: [TypeOrmModule.forFeature([Pedido, Cliente, Producto, Insumo, KardexMovimiento, Auditoria])],
   controllers: [AssistantController],
   providers: [AssistantService],
   exports: [AssistantService],
