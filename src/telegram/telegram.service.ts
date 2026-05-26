@@ -75,28 +75,65 @@ export class TelegramService {
 
     if (!text || !chatId) return;
 
-    // En grupos Telegram agrega "@botname" al comando: "/nt@MiBot pregunta"
-    const normalized = text.replace(/^(\/nt)@\S+/i, '$1');
+    const strChatId = String(chatId);
+    const cmd = text.trim().split(/\s+/)[0].replace(/@\S+$/, '').toLowerCase();
 
+    if (cmd === '/resumen') {
+      await this.sendResumenDiario(strChatId);
+      return;
+    }
+
+    if (cmd === '/pendientes') {
+      await this.handlePendientesCommand(strChatId);
+      return;
+    }
+
+    // /nt — AI assistant (en grupos Telegram agrega "@botname")
+    const normalized = text.replace(/^(\/nt)@\S+/i, '$1');
     if (!normalized.match(/^\/nt(\s|$)/i)) return;
 
     const pregunta = normalized.slice(3).trim();
-
     if (!pregunta) {
       await this.sendMessage(
         '¿Cuál es tu pregunta? Ejemplo:\n/nt ¿cuántos pedidos hay pendientes?',
-        String(chatId),
+        strChatId,
       );
       return;
     }
 
     try {
       const respuesta = await this.assistantService.chat(pregunta);
-      await this.sendMessage(respuesta, String(chatId));
+      await this.sendMessage(respuesta, strChatId);
     } catch (err) {
       console.error('[Telegram webhook] Error al procesar /nt:', err);
-      await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', String(chatId));
+      await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', strChatId);
     }
+  }
+
+  private async handlePendientesCommand(chatId: string): Promise<void> {
+    const pedidos = await this.pedidoRepo.find({
+      where: { estado: Not('Terminado') },
+      relations: ['cliente'],
+      order: { fecha_entrega: 'ASC' },
+    });
+
+    if (pedidos.length === 0) {
+      await this.sendMessage('✅ No hay pedidos pendientes.', chatId);
+      return;
+    }
+
+    const hoy = new Date();
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+    const lineas = pedidos.map(p => {
+      const [y, m, d] = p.fecha_entrega.split('-').map(Number);
+      const entrega = new Date(y, m - 1, d);
+      const dias = Math.floor((entrega.getTime() - hoyMidnight.getTime()) / (1000 * 60 * 60 * 24));
+      const emoji = dias <= 0 ? '🔴' : dias === 1 ? '🟠' : dias <= 3 ? '🟡' : '🟢';
+      return `• #${p.id_pedido} [${p.estado}] — ${p.cliente?.nombre ?? 'N/A'} — Entrega: ${p.fecha_entrega} ${emoji}`;
+    });
+
+    await this.sendMessage(`📋 Pedidos pendientes (${pedidos.length})\n${lineas.join('\n')}`, chatId);
   }
 
   @Cron('*/10 * * * *', { timeZone: 'America/La_Paz' })
@@ -106,7 +143,7 @@ export class TelegramService {
 
   // 7am Bolivia
   @Cron('0 7 * * *', { timeZone: 'America/La_Paz' })
-  async sendResumenDiario(): Promise<void> {
+  async sendResumenDiario(chatId = this.chatId): Promise<void> {
     console.log(`[Telegram Cron] Ejecutando sendResumenDiario - ${new Date().toISOString()}`);
     // Fecha actual en Bolivia (UTC-4)
     const ahora = new Date();
@@ -226,7 +263,21 @@ export class TelegramService {
           pedidosVencenManana.map(fmtPedido).join('\n');
     }
 
-    await this.sendMessage(mensaje + seccionEntregas);
+    await this.sendMessage(mensaje + seccionEntregas, chatId);
+  }
+
+  // 8am Bolivia
+  @Cron('0 8 * * *', { timeZone: 'America/La_Paz' })
+  async alertarStockEnCero(): Promise<void> {
+    const sinStock = await this.insumoRepo
+      .createQueryBuilder('i')
+      .where('i.stock = 0')
+      .getMany();
+
+    if (sinStock.length === 0) return;
+
+    const lineas = sinStock.map(i => `• ${i.nombre}: 0 unidades`).join('\n');
+    await this.sendMessage(`🚨 STOCK EN CERO — requiere atención inmediata\n${lineas}`);
   }
 
   // Lunes 7am Bolivia

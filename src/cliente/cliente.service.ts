@@ -56,7 +56,7 @@ export class ClienteService {
   }
 
   async update(id: number, updateClienteDto: UpdateClienteDto) {
-    await this.findOne(id);
+    const cliente = await this.findOne(id);
 
     if (updateClienteDto.correo_electronico) {
       const existente = await this.clienteRepository.findOneBy({
@@ -78,14 +78,14 @@ export class ClienteService {
       }
     }
 
-    const result = await this.clienteRepository.update(id, updateClienteDto);
-    const nombre = updateClienteDto.nombre ?? `ID ${id}`;
+    Object.assign(cliente, updateClienteDto);
+    const saved = await this.clienteRepository.save(cliente);
     void this.auditoriaService.registrar({
       accion: 'UPDATE',
       modulo: 'clientes',
-      descripcion: `Actualizó cliente ${nombre}`,
+      descripcion: `Actualizó cliente ${saved.nombre}`,
     });
-    return result;
+    return saved;
   }
 
   async remove(id: number) {

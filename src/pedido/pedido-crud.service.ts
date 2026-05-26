@@ -94,6 +94,17 @@ export class PedidoCrudService implements IPedidoCrudService {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(seguimientoUrl)}`;
     this.telegramService.sendPhoto(qrUrl, caption).catch(() => {});
 
+    const dias = this.calcDiasHastaEntrega(savedPedido.fecha_entrega);
+    if (dias <= 3) {
+      const etiqueta = dias <= 0 ? 'HOY' : dias === 1 ? 'mañana' : `en ${dias} días`;
+      const nombreCliente = [cliente.nombre, cliente.apellido].filter(Boolean).join(' ');
+      this.telegramService.sendMessage(
+        `⚡ Pedido urgente #${savedPedido.id_pedido} creado\n` +
+        `Cliente: ${nombreCliente}\n` +
+        `Entrega: ${savedPedido.fecha_entrega} 🔴 (${etiqueta})`,
+      ).catch(() => {});
+    }
+
     return this.pedidoRepo.findOne({
       where: { id_pedido: savedPedido.id_pedido },
       relations: ['cliente', 'producto', 'talles'],
@@ -186,6 +197,14 @@ export class PedidoCrudService implements IPedidoCrudService {
       descripcion: `Eliminó pedido #${id}`,
     });
     return result;
+  }
+
+  private calcDiasHastaEntrega(fechaStr: string): number {
+    const [y, m, d] = fechaStr.split('-').map(Number);
+    const entrega = new Date(y, m - 1, d);
+    const hoy = new Date();
+    const hoyMidnight = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    return Math.floor((entrega.getTime() - hoyMidnight.getTime()) / (1000 * 60 * 60 * 24));
   }
 
   // 7am Bolivia (UTC-4) = 11am UTC
