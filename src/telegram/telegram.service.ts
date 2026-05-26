@@ -312,7 +312,8 @@ export class TelegramService {
     try {
       cuerpo = await this.assistantService.chat(promptGemini);
     } catch (err) {
-      console.error('[Telegram Cron] Gemini falló en resumen semanal, usando fallback:', err);
+      console.error('[Telegram Cron] Gemini falló en resumen semanal:',
+        err?.message, err?.status, JSON.stringify(err));
       cuerpo = contextoNumericos;
     }
 
