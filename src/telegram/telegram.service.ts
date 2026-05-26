@@ -202,4 +202,94 @@ export class TelegramService {
 
     await this.sendMessage(mensaje + seccionEntregas);
   }
+
+  // Lunes 7am Bolivia
+  @Cron('0 7 * * 1', { timeZone: 'America/La_Paz' })
+  async sendResumenSemanal(): Promise<void> {
+    console.log(`[Telegram Cron] Ejecutando sendResumenSemanal - ${new Date().toISOString()}`);
+
+    const ahora = new Date();
+    const offsetBolivia = -4 * 60;
+    const boliviaMs = ahora.getTime() + (offsetBolivia - ahora.getTimezoneOffset()) * 60000;
+    const boliviaHoy = new Date(boliviaMs);
+
+    const anoHoy = boliviaHoy.getUTCFullYear();
+    const mesHoy = boliviaHoy.getUTCMonth();
+    const diaHoy = boliviaHoy.getUTCDate();
+
+    // Rango: últimos 7 días en UTC (Bolivia UTC-4)
+    const inicioSemanaUTC = new Date(Date.UTC(anoHoy, mesHoy, diaHoy - 7, 4, 0, 0, 0));
+    const finSemanaUTC    = new Date(Date.UTC(anoHoy, mesHoy, diaHoy,     3, 59, 59, 999));
+
+    const hoyStr = `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-${String(diaHoy).padStart(2, '0')}`;
+
+    const mesesNombre = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    const fechaFormateada = `${diaHoy} de ${mesesNombre[mesHoy]} de ${anoHoy}`;
+
+    const [
+      terminadosSemana,
+      nuevosSemana,
+      ventasSemanaRaw,
+      enProduccion,
+      insumosStockCritico,
+      vencidosHoy,
+    ] = await Promise.all([
+      this.pedidoRepo.count({
+        where: { estado: 'Terminado', fecha_actualizacion: Between(inicioSemanaUTC, finSemanaUTC) },
+      }),
+      this.pedidoRepo
+        .createQueryBuilder('p')
+        .where('p.fecha_creacion >= :inicio', { inicio: inicioSemanaUTC })
+        .andWhere('p.fecha_creacion <= :fin', { fin: finSemanaUTC })
+        .getCount(),
+      this.pedidoRepo
+        .createQueryBuilder('p')
+        .select('SUM(p.total)', 'sum')
+        .where('p.estado = :estado', { estado: 'Terminado' })
+        .andWhere('p.fecha_actualizacion >= :inicio', { inicio: inicioSemanaUTC })
+        .andWhere('p.fecha_actualizacion <= :fin', { fin: finSemanaUTC })
+        .getRawOne(),
+      this.pedidoRepo.count({ where: { estado: Not('Terminado') } }),
+      this.insumoRepo
+        .createQueryBuilder('i')
+        .where('i.stock <= i.nivel_minimo')
+        .getMany(),
+      this.pedidoRepo
+        .createQueryBuilder('p')
+        .where('p.fecha_entrega <= :hoy', { hoy: hoyStr })
+        .andWhere('p.estado != :estado', { estado: 'Terminado' })
+        .getCount(),
+    ]);
+
+    const ventasSemana = parseFloat((ventasSemanaRaw as any)?.sum ?? '0');
+
+    const contextoNumericos =
+      `Semana del ${fechaFormateada}:\n` +
+      `- Pedidos terminados: ${terminadosSemana}\n` +
+      `- Pedidos nuevos: ${nuevosSemana}\n` +
+      `- Ventas acumuladas: Bs. ${ventasSemana.toFixed(2)}\n` +
+      `- En producción ahora: ${enProduccion}\n` +
+      `- Pedidos vencidos sin terminar: ${vencidosHoy}\n` +
+      `- Insumos en stock crítico: ${insumosStockCritico.length}` +
+      (insumosStockCritico.length > 0
+        ? '\n' + insumosStockCritico.slice(0, 5).map(i => `  • ${i.nombre}: ${i.stock} (mín. ${i.nivel_minimo})`).join('\n')
+        : '');
+
+    const promptGemini =
+      `Datos reales de la semana:\n${contextoNumericos}\n\n` +
+      `Genera un resumen ejecutivo de la semana para el dueño del taller. ` +
+      `Analiza el rendimiento, tendencias, alertas importantes y 2-3 recomendaciones concretas. ` +
+      `Máximo 200 palabras. Usa emojis. Sé directo y útil.`;
+
+    let cuerpo: string;
+    try {
+      cuerpo = await this.assistantService.chat(promptGemini);
+    } catch (err) {
+      console.error('[Telegram Cron] Gemini falló en resumen semanal, usando fallback:', err);
+      cuerpo = contextoNumericos;
+    }
+
+    await this.sendMessage(`📊 Análisis semanal — ${fechaFormateada}\n\n${cuerpo}`);
+  }
 }
