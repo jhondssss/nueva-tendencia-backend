@@ -70,13 +70,21 @@ export class TelegramService {
   }
 
   async handleWebhook(body: any): Promise<void> {
-    const text: string | undefined = body?.message?.text;
-    const chatId: number | undefined = body?.message?.chat?.id;
+    const message = body?.message;
+    if (!message) return;
+
+    const text: string | undefined = message.text;
+    const chatId: number | undefined = message.chat?.id;
+    const chatType: string | undefined = message.chat?.type;
 
     if (!text || !chatId) return;
 
     const strChatId = String(chatId);
-    const cmd = text.trim().split(/\s+/)[0].replace(/@\S+$/, '').toLowerCase();
+    const trimmed = text.trim();
+    const isCommand = trimmed.startsWith('/');
+    const cmd = isCommand
+      ? trimmed.split(/\s+/)[0].replace(/@\S+$/, '').toLowerCase()
+      : null;
 
     if (cmd === '/resumen') {
       await this.sendResumenDiario(strChatId);
@@ -88,26 +96,84 @@ export class TelegramService {
       return;
     }
 
-    // /nt — AI assistant (en grupos Telegram agrega "@botname")
-    const normalized = text.replace(/^(\/nt)@\S+/i, '$1');
-    if (!normalized.match(/^\/nt(\s|$)/i)) return;
-
-    const pregunta = normalized.slice(3).trim();
-    if (!pregunta) {
-      await this.sendMessage(
-        '¿Cuál es tu pregunta? Ejemplo:\n/nt ¿cuántos pedidos hay pendientes?',
-        strChatId,
-      );
+    if (cmd === '/estado') {
+      await this.handleEstadoCommand(strChatId);
       return;
     }
 
+    // /nt — compatibilidad con comportamiento anterior
+    if (cmd === '/nt') {
+      const pregunta = trimmed.replace(/^\/nt(@\S+)?/i, '').trim();
+      if (!pregunta) {
+        await this.sendMessage(
+          '¿Cuál es tu pregunta? Ejemplo:\n/nt ¿cuántos pedidos hay pendientes?',
+          strChatId,
+        );
+        return;
+      }
+      try {
+        await this.sendChatAction(strChatId, 'typing');
+        const respuesta = await this.assistantService.chat(pregunta);
+        await this.sendMessage(respuesta, strChatId);
+      } catch (err) {
+        console.error('[Telegram webhook] Error al procesar /nt:', err);
+        await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', strChatId);
+      }
+      return;
+    }
+
+    // Comando desconocido → ignorar
+    if (isCommand) return;
+
+    // Texto libre: en grupos solo responder si el bot fue mencionado o es reply al bot
+    if (chatType !== 'private') {
+      const botUsername = (process.env.TELEGRAM_BOT_USERNAME ?? '').toLowerCase();
+      const isMentioned = botUsername !== '' && trimmed.toLowerCase().includes(`@${botUsername}`);
+      const isReplyToBot = message.reply_to_message?.from?.is_bot === true;
+      if (!isMentioned && !isReplyToBot) return;
+    }
+
+    // Eliminar la mención @bot antes de enviar a Gemini
+    const botUsername = process.env.TELEGRAM_BOT_USERNAME ?? '';
+    const cleanText = botUsername
+      ? trimmed.replace(new RegExp(`@${botUsername}`, 'gi'), '').trim()
+      : trimmed;
+
     try {
-      const respuesta = await this.assistantService.chat(pregunta);
+      await this.sendChatAction(strChatId, 'typing');
+      const respuesta = await this.assistantService.chat(cleanText || trimmed);
       await this.sendMessage(respuesta, strChatId);
     } catch (err) {
-      console.error('[Telegram webhook] Error al procesar /nt:', err);
+      console.error('[Telegram webhook] Error al procesar mensaje libre:', err);
       await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', strChatId);
     }
+  }
+
+  private async sendChatAction(chatId: string, action: string): Promise<void> {
+    if (!this.botToken) return;
+    try {
+      await fetch(
+        `https://api.telegram.org/bot${this.botToken}/sendChatAction`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: chatId, action }),
+        },
+      );
+    } catch { /* best-effort */ }
+  }
+
+  private async handleEstadoCommand(chatId: string): Promise<void> {
+    const estados = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque'] as const;
+    const counts = await Promise.all(
+      estados.map(estado => this.pedidoRepo.count({ where: { estado } })),
+    );
+    const lineas = estados.map((estado, i) => `• ${estado}: ${counts[i]}`);
+    const total = counts.reduce((a, b) => a + b, 0);
+    await this.sendMessage(
+      `🏭 Estado de producción\n\n${lineas.join('\n')}\n\nTotal en proceso: ${total}`,
+      chatId,
+    );
   }
 
   private async handlePendientesCommand(chatId: string): Promise<void> {
