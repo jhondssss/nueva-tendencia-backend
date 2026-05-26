@@ -39,6 +39,7 @@ export class AssistantService {
     @InjectRepository(KardexMovimiento) private readonly kardexRepo:   Repository<KardexMovimiento>,
     @InjectRepository(Auditoria)        private readonly auditoriaRepo: Repository<Auditoria>,
   ) {
+    console.log('[AssistantService] GEMINI_API_KEY presente:', !!process.env.GEMINI_API_KEY);
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       const genAI = new GoogleGenerativeAI(apiKey);
@@ -357,9 +358,11 @@ ${listaAuditoria}
       ];
 
       const chatSession = this.model.startChat({ history: geminiHistory });
+      console.log('[AssistantService] Llamando a Gemini con mensaje:', message.slice(0, 100));
       const result = await chatSession.sendMessage(message);
       return result.response.text().trim();
-    } catch {
+    } catch (err) {
+      console.error('[AssistantService] Gemini falló:', err?.message, err?.status, JSON.stringify(err));
       return this.fallbackChat(message);
     }
   }
