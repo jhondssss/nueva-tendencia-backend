@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, Not, MoreThanOrEqual } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
@@ -23,7 +23,7 @@ Tienes acceso a los datos reales del negocio en tiempo real, incluyendo:
 
 Responde SIEMPRE en español natural y amigable.
 Usa emojis relevantes: 👟 pedidos, 📦 stock, 💰 ventas, 👤 clientes, ⚠️ alertas, 📊 estadísticas, 🧴 insumos, 🔄 movimientos de inventario, 🔍 auditoría.
-Sé conciso pero completo. Máximo 150 palabras por respuesta.
+Sé conciso pero completo. Máximo 100 palabras por respuesta.
 Si te preguntan algo que no está en los datos responde honestamente que no tienes esa información.
 El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
 
@@ -44,7 +44,7 @@ export class AssistantService {
     if (apiKey) {
       const genAI = new GoogleGenerativeAI(apiKey);
       this.model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-1.5-flash',
         generationConfig: { temperature: 0.3 },
         systemInstruction: SYSTEM_PROMPT,
       });
@@ -62,20 +62,30 @@ export class AssistantService {
     const anio = new Date().getFullYear();
     const mesActual = new Date().getMonth(); // 0-based
 
+    const unMesAtras = new Date();
+    unMesAtras.setMonth(unMesAtras.getMonth() - 1);
+    const unMesAtrasStr = unMesAtras.toISOString().slice(0, 10);
+
     const [pedidos, clientes, productos, insumos, movimientosKardex, accionesAuditoria] = await Promise.all([
-      this.pedidoRepo.find({ relations: ['cliente', 'producto'] }),
+      this.pedidoRepo.find({
+        relations: ['cliente', 'producto'],
+        where: [
+          { estado: Not('Terminado') },
+          { estado: 'Terminado', fecha_entrega: MoreThanOrEqual(unMesAtrasStr) },
+        ],
+      }),
       this.clienteRepo.find(),
       this.productoRepo.find(),
       this.insumoRepo.find(),
       this.kardexRepo.find({
         relations: ['producto', 'insumo', 'usuario'],
         order: { fecha: 'DESC' },
-        take: 30,
+        take: 10,
       }),
       this.auditoriaRepo.find({
         relations: ['usuario'],
         order: { fecha: 'DESC' },
-        take: 20,
+        take: 10,
       }),
     ]);
 
@@ -168,22 +178,16 @@ export class AssistantService {
           const item = m.tipo_registro === 'producto'
             ? (m.producto?.nombre_modelo ?? '—')
             : (m.insumo?.nombre ?? '—');
-          const usuario = m.usuario
-            ? `${m.usuario.nombre ?? ''} ${m.usuario.apellido ?? ''}`.trim() || m.usuario.email
-            : 'Sistema';
-          const fecha = new Date(m.fecha).toISOString().slice(0, 16).replace('T', ' ');
-          return `  [${fecha}] ${m.tipo.toUpperCase()} | ${m.tipo_registro}: ${item} | cant: ${m.cantidad} | stock: ${m.stock_anterior}→${m.stock_nuevo} | motivo: ${m.motivo ?? '—'} | usuario: ${usuario}`;
+          const fecha = new Date(m.fecha).toISOString().slice(0, 10);
+          return `  ${fecha} ${m.tipo.toUpperCase()} ${item} ×${m.cantidad} (${m.stock_anterior}→${m.stock_nuevo}) ${m.motivo ?? '—'}`;
         }).join('\n')
       : '  Sin movimientos registrados';
 
     // ── Auditoría ──────────────────────────────────────────────────────────
     const listaAuditoria = accionesAuditoria.length > 0
       ? accionesAuditoria.map(a => {
-          const usuario = a.usuario
-            ? `${a.usuario.nombre ?? ''} ${a.usuario.apellido ?? ''}`.trim() || a.usuario.email
-            : 'Sistema';
-          const fecha = new Date(a.fecha).toISOString().slice(0, 16).replace('T', ' ');
-          return `  [${fecha}] ${a.accion} | ${a.modulo} | ${a.descripcion} | usuario: ${usuario}`;
+          const fecha = new Date(a.fecha).toISOString().slice(0, 10);
+          return `  ${fecha} ${a.accion} [${a.modulo}] ${a.descripcion}`;
         }).join('\n')
       : '  Sin acciones registradas';
 
@@ -220,10 +224,10 @@ ${paresPorCat}
 🏆 TOP PRODUCTOS DEL MES (${meses[mesActual]}):
 ${topProductos}
 
-=== MOVIMIENTOS DE KARDEX (últimos 30) ===
+=== MOVIMIENTOS DE KARDEX (últimos 10) ===
 ${listaKardex}
 
-=== AUDITORÍA (últimas 20 acciones) ===
+=== AUDITORÍA (últimas 10 acciones) ===
 ${listaAuditoria}
 `.trim();
   }
