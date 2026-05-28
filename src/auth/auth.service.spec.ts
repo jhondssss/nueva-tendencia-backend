@@ -6,6 +6,11 @@ import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 
+jest.mock('resend', () => ({
+  Resend: jest.fn().mockImplementation(() => ({
+    emails: { send: jest.fn().mockResolvedValue({ id: 'mock-id' }) },
+  })),
+}));
 jest.mock('bcrypt');
 
 describe('AuthService', () => {

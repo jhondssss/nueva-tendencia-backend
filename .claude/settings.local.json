@@ -20,7 +20,9 @@
       "Bash(Get-ChildItem -Path src -Recurse -Filter \"*.entity.ts\")",
       "Bash(Find C:\\\\Users\\\\jhonc\\\\OneDrive\\\\Documentos\\\\UAB\\\\proyecto_grado\\(app\\)\\\\nueva_tendencia *)",
       "Bash(npx jest *)",
-      "Bash(Test-Path *)"
+      "Bash(Test-Path *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(npm run *)"
     ]
   }
 }

@@ -1,4 +1,3 @@
-// src/user/entities/user.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
@@ -20,4 +19,13 @@ export class User {
 
   @Column({ nullable: true })
   apellido: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  reset_token: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  reset_token_expires: Date | null;
+
+  @Column({ default: true })
+  activo: boolean;
 }
