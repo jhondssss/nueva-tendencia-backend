@@ -1,0 +1,18 @@
+services:
+  backend:
+    build:
+      context: .
+      target: production
+    env_file:
+      - .env
+    ports:
+      - "10000:10000"
+    restart: unless-stopped
+
+  test:
+    build:
+      context: .
+      target: builder
+    env_file:
+      - .env
+    command: npm run test
