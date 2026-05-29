@@ -97,11 +97,12 @@ export class AuthService {
     const resetUrl = `https://nueva-tendencia-frontend.vercel.app/reset-password?token=${token}`;
     const nombre = user.nombre ?? user.email;
 
-    await this.resend.emails.send({
-      from: 'Nueva Tendencia <onboarding@resend.dev>',
-      to: user.email,
-      subject: 'Recuperación de contraseña — Calzados Nueva Tendencia',
-      html: `
+    try {
+      const result = await this.resend.emails.send({
+        from: 'Nueva Tendencia <onboarding@resend.dev>',
+        to: user.email,
+        subject: 'Recuperación de contraseña — Calzados Nueva Tendencia',
+        html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
           <h2>Recuperación de contraseña</h2>
           <p>Hola <strong>${nombre}</strong>,</p>
@@ -121,7 +122,12 @@ export class AuthService {
           <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
         </div>
       `,
-    });
+      });
+      console.log('[Resend] Email enviado:', JSON.stringify(result));
+    } catch (err) {
+      console.error('[Resend] Error al enviar email:', err?.message, JSON.stringify(err));
+      throw err;
+    }
 
     return genericResponse;
   }
