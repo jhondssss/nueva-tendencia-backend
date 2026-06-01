@@ -13,7 +13,22 @@ export class PrediccionService implements IPrediccionService {
   ) {}
 
   async getTopProductos() {
+    const ahora        = new Date();
+    const ahoraBolivia = new Date(ahora.getTime() - 4 * 60 * 60 * 1000);
+    const anio         = ahoraBolivia.getUTCFullYear();
+    const mes          = ahoraBolivia.getUTCMonth(); // 0-indexed
+
+    const inicioMes = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
+    const lastDay   = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+    const finMes    = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
     const pedidos = await this.pedidoRepo.find({ relations: ['producto'] });
+
+    const pedidosFiltrados = pedidos.filter(p =>
+      p.estado === 'Terminado' &&
+      String(p.fecha_entrega) >= inicioMes &&
+      String(p.fecha_entrega) <= finMes,
+    );
 
     const resumen: Record<string, {
       nombre: string;
@@ -23,15 +38,20 @@ export class PrediccionService implements IPrediccionService {
       total: number;
     }> = {};
 
-    pedidos.forEach(p => {
-      const fecha = new Date(p.fecha_entrega);
-      const mes   = fecha.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
-      const key   = `${p.producto?.id_producto}-${mes}`;
+    pedidosFiltrados.forEach(p => {
+      const partes   = String(p.fecha_entrega).split('-');
+      const fecha    = new Date(
+        Number(partes[0]),
+        Number(partes[1]) - 1,
+        Number(partes[2]),
+      );
+      const mesLabel = fecha.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
+      const key      = `${p.producto?.id_producto}-${mesLabel}`;
 
       if (!resumen[key]) {
         resumen[key] = {
           nombre:         p.producto?.nombre_modelo ?? 'Desconocido',
-          mes,
+          mes:            mesLabel,
           cantidad:       0,
           cantidad_pares: 0,
           total:          0,
