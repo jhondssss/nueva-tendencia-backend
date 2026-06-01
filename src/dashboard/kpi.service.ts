@@ -29,13 +29,17 @@ export class KpiService implements IKpiService {
     const lastDay   = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
     const finMes    = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-    const [pedidos, productos, insumos, totalPedidos, itemsInventario] = await Promise.all([
+    const [pedidos, productos, insumos, itemsInventario] = await Promise.all([
       this.pedidoRepo.find(),
       this.productoRepo.find(),
       this.insumoRepo.find({ where: { activo: true } }),
-      this.pedidoRepo.count(),
       this.productoRepo.count({ where: { activo: true } }),
     ]);
+
+    const totalPedidos = pedidos.filter(p => {
+      const fc = toBoliviaDate(new Date(p.fecha_creacion));
+      return fc >= inicioMes && fc <= finMes;
+    }).length;
 
     console.log('QUERY INICIO MES:', inicioMes);
     console.log('TOTAL PEDIDOS RESULTADO:', totalPedidos);
