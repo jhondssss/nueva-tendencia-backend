@@ -15,13 +15,19 @@ export class KpiService implements IKpiService {
   ) {}
 
   async getKpis() {
-    const ahora        = new Date();
-    const primerDiaMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const anio         = ahora.getFullYear();
-    const mes          = ahora.getMonth();
+    const toBoliviaDate = (date: Date): string => {
+      const bolivia = new Date(date.getTime() - 4 * 60 * 60 * 1000);
+      return bolivia.toISOString().slice(0, 10);
+    };
 
-    const inicioMes = `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-01`;
-    const finMes    = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).toISOString().split('T')[0];
+    const ahora        = new Date();
+    const ahoraBolivia = new Date(ahora.getTime() - 4 * 60 * 60 * 1000);
+    const anio         = ahoraBolivia.getUTCFullYear();
+    const mes          = ahoraBolivia.getUTCMonth();
+
+    const inicioMes = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
+    const lastDay   = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
+    const finMes    = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     const [pedidos, productos, insumos, totalPedidos, itemsInventario] = await Promise.all([
       this.pedidoRepo.find(),
@@ -43,7 +49,7 @@ export class KpiService implements IKpiService {
     console.log('MUESTRA FECHAS:', JSON.stringify(muestra));
 
     const pedidosTerminados = pedidos.filter(p => {
-      const fa = new Date(p.fecha_actualizacion).toISOString().slice(0, 10);
+      const fa = toBoliviaDate(new Date(p.fecha_actualizacion));
       return p.estado === 'Terminado' && fa >= inicioMes && fa <= finMes;
     });
     const totalVentas = Math.round(
@@ -53,7 +59,7 @@ export class KpiService implements IKpiService {
     const alertasInsumos = insumos.filter(i => Number(i.stock) <= Number(i.nivel_minimo)).length;
     const produccionMensual = pedidos
       .filter(p => {
-        const fa = new Date(p.fecha_actualizacion).toISOString().slice(0, 10);
+        const fa = toBoliviaDate(new Date(p.fecha_actualizacion));
         return p.estado === 'Terminado' && fa >= inicioMes && fa <= finMes;
       })
       .reduce((acc, p) => acc + (p.cantidad_pares ?? 0), 0);
