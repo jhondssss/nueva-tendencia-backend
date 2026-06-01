@@ -44,8 +44,8 @@ export class KpiService implements IKpiService {
 
     const pedidosTerminados = pedidos.filter(p =>
       p.estado === 'Terminado' &&
-      String(p.fecha_entrega).slice(0, 10) >= inicioMes &&
-      String(p.fecha_entrega).slice(0, 10) <= finMes
+      String(p.fecha_actualizacion).slice(0, 10) >= inicioMes &&
+      String(p.fecha_actualizacion).slice(0, 10) <= finMes
     );
     const totalVentas = Math.round(
       pedidosTerminados.reduce((acc, p) => acc + Number(p.total), 0) * 100
@@ -54,8 +54,8 @@ export class KpiService implements IKpiService {
     const alertasInsumos = insumos.filter(i => Number(i.stock) <= Number(i.nivel_minimo)).length;
     const produccionMensual = pedidos
       .filter(p => {
-        const fe = String(p.fecha_entrega).slice(0, 10);
-        return p.estado === 'Terminado' && fe >= inicioMes && fe <= finMes;
+        const fa = String(p.fecha_actualizacion).slice(0, 10);
+        return p.estado === 'Terminado' && fa >= inicioMes && fa <= finMes;
       })
       .reduce((acc, p) => acc + (p.cantidad_pares ?? 0), 0);
 
