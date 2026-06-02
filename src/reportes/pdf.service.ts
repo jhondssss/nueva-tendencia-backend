@@ -397,28 +397,30 @@ export class PdfService implements IReportePDF {
     const pedidos = await this.pedidoRepo.find({
       where: { estado: 'Terminado' },
       relations: ['cliente', 'producto'],
+      order: { id_pedido: 'ASC' },
     });
 
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, 'Reporte de Pedidos Entregados');
 
-    const widths = [25, 80, 85, 55, 45, 50, 40, 60, 55];
+    const widths = [28, 72, 55, 75, 50, 38, 42, 35, 55, 45];
     const aligns: ('left' | 'right' | 'center')[] =
-      ['center', 'left', 'left', 'center', 'right', 'center', 'right', 'right', 'center'];
+      ['center', 'left', 'center', 'left', 'center', 'right', 'center', 'right', 'right', 'center'];
 
     let y = this.buildTable(doc, doc.y, [
-      'N°', 'Cliente', 'Producto', 'Categoría',
+      'ID', 'Cliente', 'ID Cliente', 'Producto', 'Categoría',
       'Cantidad', 'Unidad', 'Pares', 'Total Bs.', 'F. Entrega',
     ], widths);
 
     let sumaTotal = 0;
+    const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
     pedidos.forEach((p, i) => {
       y = this.maybePageBreak(doc, y);
       sumaTotal += Number(p.total);
-      const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
       y = this.drawDataRow(doc, y, [
-        i + 1,
+        p.id_pedido,
         p.cliente?.nombre ?? '—',
+        p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.categoria ? catMap[p.categoria] : '—',
         p.cantidad ?? 1,
@@ -432,10 +434,7 @@ export class PdfService implements IReportePDF {
     y = this.maybePageBreak(doc, y);
     const totalW = widths.reduce((a, b) => a + b, 0);
     this.buildFooter(doc, y, [
-      `Total pedidos entregados: ${pedidos.length}`,
-      '', '', '', '', '', '',
-      `Bs. ${sumaTotal.toFixed(2)}`,
-      '',
+      'TOTAL', '', '', '', '', '', '', '', `Bs. ${sumaTotal.toFixed(2)}`, '',
     ], widths);
 
     doc.moveDown(1.5);
