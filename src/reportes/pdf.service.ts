@@ -201,7 +201,10 @@ export class PdfService implements IReportePDF {
   // ══════════════════════════════════════════════════════════════════════════
 
   async generarPDFPedidos(): Promise<Buffer> {
-    const pedidos = await this.pedidoRepo.find({ relations: ['cliente', 'producto'] });
+    const pedidos = await this.pedidoRepo.find({
+      relations: ['cliente', 'producto'],
+      order: { id_pedido: 'ASC' },
+    });
 
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, 'Reporte de Pedidos');
@@ -227,28 +230,42 @@ export class PdfService implements IReportePDF {
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Detalle de Pedidos');
     doc.moveDown(0.3);
 
-    const dWidths = [30, 90, 90, 60, 60, 65, 65, 75];
+    const dWidths = [28, 72, 48, 75, 55, 40, 42, 35, 55, 45];
     const dAligns: ('left' | 'right' | 'center')[] =
-      ['center', 'left', 'left', 'center', 'right', 'right', 'right', 'center'];
+      ['center', 'left', 'center', 'left', 'center', 'right', 'right', 'right', 'center', 'right'];
 
     y = this.buildTable(doc, doc.y,
-      ['#ID', 'Cliente', 'Producto', 'Estado', 'Cant.', 'Unidad', 'Pares', 'Total Bs.'],
+      ['#ID', 'Cliente', 'ID Cliente', 'Producto', 'Estado', 'Cant.', 'Unidad', 'Pares', 'Fecha Entrega', 'Total Bs.'],
       dWidths,
     );
 
+    let sumaPares = 0;
+    let sumaTotal = 0;
     pedidos.forEach((p, i) => {
       y = this.maybePageBreak(doc, y);
+      sumaPares += p.cantidad_pares ?? 0;
+      sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
         p.id_pedido,
         p.cliente?.nombre ?? '—',
+        p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.estado,
         p.cantidad ?? 1,
         p.unidad ?? 'docena',
         p.cantidad_pares ?? 0,
+        p.fecha_entrega ? this.fmtDate(p.fecha_entrega) : '—',
         `Bs. ${Number(p.total).toFixed(2)}`,
       ], dWidths, dAligns, i % 2 === 1);
     });
+
+    y = this.maybePageBreak(doc, y);
+    this.buildFooter(doc, y, [
+      '', 'TOTAL GENERAL', '', '', '', '', '',
+      String(sumaPares),
+      '',
+      `Bs. ${sumaTotal.toFixed(2)}`,
+    ], dWidths);
 
     doc.end();
     return finish;
