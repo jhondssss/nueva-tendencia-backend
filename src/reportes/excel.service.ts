@@ -137,7 +137,10 @@ export class ExcelService implements IReporteExcel {
   // ══════════════════════════════════════════════════════════════════════════
 
   async exportarExcelPedidos(): Promise<Buffer> {
-    const pedidos = await this.pedidoRepo.find({ relations: ['cliente', 'producto'] });
+    const pedidos = await this.pedidoRepo.find({
+      relations: ['cliente', 'producto'],
+      order: { id_pedido: 'ASC' },
+    });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Pedidos');
@@ -145,6 +148,7 @@ export class ExcelService implements IReporteExcel {
     ws.columns = [
       { header: '#ID',           key: 'id',             width: 8  },
       { header: 'Cliente',       key: 'cliente',        width: 26 },
+      { header: 'ID Cliente',    key: 'id_cliente',     width: 12 },
       { header: 'Producto',      key: 'producto',       width: 26 },
       { header: 'Estado',        key: 'estado',         width: 14 },
       { header: 'Cantidad',      key: 'cantidad',       width: 10 },
@@ -153,12 +157,13 @@ export class ExcelService implements IReporteExcel {
       { header: 'Total (Bs.)',   key: 'total',          width: 14 },
       { header: 'Fecha Entrega', key: 'fecha_entrega',  width: 16 },
     ];
-    this.applyHeaderStyle(ws, 9);
+    this.applyHeaderStyle(ws, 10);
 
     pedidos.forEach(p =>
       ws.addRow({
         id:             p.id_pedido,
         cliente:        p.cliente?.nombre ?? '',
+        id_cliente:     p.cliente?.id_cliente ?? '',
         producto:       p.producto?.nombre_modelo ?? '',
         estado:         p.estado,
         cantidad:       p.cantidad ?? 1,
@@ -180,7 +185,10 @@ export class ExcelService implements IReporteExcel {
   // ══════════════════════════════════════════════════════════════════════════
 
   async exportarExcelClientes(): Promise<Buffer> {
-    const clientes = await this.clienteRepo.find({ relations: ['direccion'] });
+    const clientes = await this.clienteRepo.find({
+      relations: ['direccion'],
+      order: { id_cliente: 'ASC' },
+    });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Clientes');
@@ -229,7 +237,7 @@ export class ExcelService implements IReporteExcel {
   // ══════════════════════════════════════════════════════════════════════════
 
   async exportarExcelStock(): Promise<Buffer> {
-    const productos = await this.productoRepo.find();
+    const productos = await this.productoRepo.find({ order: { id_producto: 'ASC' } });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Stock');
@@ -246,8 +254,9 @@ export class ExcelService implements IReporteExcel {
       { header: 'Nivel Mínimo', key: 'nivel',  width: 13 },
       { header: 'Unidad',       key: 'unidad', width: 12 },
       { header: 'Activo',       key: 'activo', width: 10 },
+      { header: 'Alerta',       key: 'alerta', width: 10 },
     ];
-    this.applyHeaderStyle(ws, 11);
+    this.applyHeaderStyle(ws, 12);
 
     productos.forEach(p =>
       ws.addRow({
@@ -262,6 +271,7 @@ export class ExcelService implements IReporteExcel {
         nivel:  p.nivel_minimo,
         unidad: p.unidad_medida,
         activo: p.activo ? 'Sí' : 'No',
+        alerta: p.stock <= p.nivel_minimo ? 'CRÍTICO' : 'Normal',
       }),
     );
 
@@ -288,14 +298,16 @@ export class ExcelService implements IReporteExcel {
     const pedidos = await this.pedidoRepo.find({
       where: { estado: 'Terminado' },
       relations: ['cliente', 'producto'],
+      order: { id_pedido: 'ASC' },
     });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Pedidos Entregados');
 
     ws.columns = [
-      { header: 'N°',            key: 'n',              width: 6  },
+      { header: 'ID',            key: 'n',              width: 8  },
       { header: 'Cliente',       key: 'cliente',        width: 26 },
+      { header: 'ID Cliente',    key: 'id_cliente',     width: 12 },
       { header: 'Producto',      key: 'producto',       width: 26 },
       { header: 'Categoría',     key: 'categoria',      width: 13 },
       { header: 'Cantidad',      key: 'cantidad',       width: 10 },
@@ -304,13 +316,14 @@ export class ExcelService implements IReporteExcel {
       { header: 'Total (Bs.)',   key: 'total',          width: 14 },
       { header: 'Fecha Entrega', key: 'fecha_entrega',  width: 16 },
     ];
-    this.applyHeaderStyle(ws, 9);
+    this.applyHeaderStyle(ws, 10);
 
     const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
-    pedidos.forEach((p, i) =>
+    pedidos.forEach(p =>
       ws.addRow({
-        n:              i + 1,
+        n:              p.id_pedido,
         cliente:        p.cliente?.nombre ?? '',
+        id_cliente:     p.cliente?.id_cliente ?? '',
         producto:       p.producto?.nombre_modelo ?? '',
         categoria:      p.categoria ? catMap[p.categoria] : '—',
         cantidad:       p.cantidad ?? 1,
@@ -327,6 +340,7 @@ export class ExcelService implements IReporteExcel {
     const totalRow = ws.addRow({
       n:              '',
       cliente:        `Total pedidos: ${pedidos.length}`,
+      id_cliente:     '',
       producto:       '',
       categoria:      '',
       cantidad:       '',
@@ -355,6 +369,7 @@ export class ExcelService implements IReporteExcel {
         fecha_entrega: Between(`${year}-${mm}-01`, `${year}-${mm}-${lastDay}`) as any,
       },
       relations: ['cliente', 'producto'],
+      order: { id_pedido: 'ASC' },
     });
 
     const mesNombre = MESES[month - 1] ?? String(month);
@@ -362,21 +377,25 @@ export class ExcelService implements IReporteExcel {
     const ws = wb.addWorksheet(`Ganancias ${mesNombre} ${year}`);
 
     ws.columns = [
-      { header: 'N°',          key: 'n',        width: 6  },
-      { header: 'Cliente',     key: 'cliente',  width: 26 },
-      { header: 'Producto',    key: 'producto', width: 30 },
-      { header: 'Cantidad',    key: 'cantidad', width: 10 },
-      { header: 'Total (Bs.)', key: 'total',    width: 16 },
+      { header: 'ID',            key: 'n',             width: 8  },
+      { header: 'Cliente',       key: 'cliente',       width: 26 },
+      { header: 'ID Cliente',    key: 'id_cliente',    width: 12 },
+      { header: 'Producto',      key: 'producto',      width: 30 },
+      { header: 'Cantidad',      key: 'cantidad',      width: 10 },
+      { header: 'Total (Bs.)',   key: 'total',         width: 16 },
+      { header: 'Fecha Entrega', key: 'fecha_entrega', width: 16 },
     ];
-    this.applyHeaderStyle(ws, 5);
+    this.applyHeaderStyle(ws, 7);
 
-    pedidos.forEach((p, i) =>
+    pedidos.forEach(p =>
       ws.addRow({
-        n:        i + 1,
-        cliente:  p.cliente?.nombre ?? '',
-        producto: p.producto?.nombre_modelo ?? '',
-        cantidad: p.cantidad ?? 1,
-        total:    Number(p.total),
+        n:            p.id_pedido,
+        cliente:      p.cliente?.nombre ?? '',
+        id_cliente:   p.cliente?.id_cliente ?? '',
+        producto:     p.producto?.nombre_modelo ?? '',
+        cantidad:     p.cantidad ?? 1,
+        total:        Number(p.total),
+        fecha_entrega: this.fmtDate(p.fecha_entrega),
       }),
     );
 
@@ -397,10 +416,13 @@ export class ExcelService implements IReporteExcel {
     ];
 
     summaryData.forEach(([label, value]) => {
-      const row = ws.addRow({ n: label, cliente: '', producto: '', cantidad: '', total: value });
+      const row = ws.addRow({
+        n: label, cliente: '', id_cliente: '', producto: '',
+        cantidad: '', total: value, fecha_entrega: '',
+      });
       this.styleTotalRow(ws, row);
       if (typeof value === 'number' && (label as string).includes('Bs')) {
-        row.getCell(5).numFmt = '#,##0.00';
+        row.getCell(6).numFmt = '#,##0.00';
       }
     });
 
