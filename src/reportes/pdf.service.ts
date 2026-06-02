@@ -69,16 +69,16 @@ export class PdfService implements IReportePDF {
     labels: string[],
     widths: number[],
   ): number {
-    const H = 24;
+    const H = 20;
     const totalW = widths.reduce((a, b) => a + b, 0);
     doc.rect(50, y, totalW, H).fill(CAFE);
 
     let x = 50;
     for (let i = 0; i < labels.length; i++) {
       doc
-        .fillColor('white').fontSize(8.5).font('Helvetica-Bold')
-        .text(labels[i], x + 4, y + 7, {
-          width: widths[i] - 8,
+        .fillColor('white').fontSize(7.5).font('Helvetica-Bold')
+        .text(labels[i], x + 4, y + 6, {
+          width: widths[i] - 6,
           align: 'center',
           lineBreak: false,
         });
@@ -96,7 +96,7 @@ export class PdfService implements IReportePDF {
     alt: boolean,
     redBg = false,
   ): number {
-    const H = 20;
+    const H = 18;
     const totalW = widths.reduce((a, b) => a + b, 0);
 
     if (redBg)    doc.rect(50, y, totalW, H).fill('#FFDEDE');
@@ -107,9 +107,9 @@ export class PdfService implements IReportePDF {
     let x = 50;
     for (let i = 0; i < cells.length; i++) {
       doc
-        .fillColor(redBg ? '#8B0000' : '#222222').fontSize(8.5).font('Helvetica')
+        .fillColor(redBg ? '#8B0000' : '#222222').fontSize(7).font('Helvetica')
         .text(String(cells[i]), x + 4, y + 5, {
-          width: widths[i] - 8,
+          width: widths[i] - 6,
           align: aligns[i],
           lineBreak: false,
         });
