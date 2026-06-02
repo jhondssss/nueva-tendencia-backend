@@ -164,7 +164,7 @@ export class PdfService implements IReportePDF {
 
   async generarPDFVentas(year: number): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
-      where: { fecha_entrega: Between(`${year}-01-01`, `${year}-12-31`) as any },
+      where: { estado: 'Terminado', fecha_entrega: Between(`${year}-01-01`, `${year}-12-31`) as any },
     });
 
     const totalesMes = Array<number>(12).fill(0);
