@@ -516,7 +516,8 @@ export class PdfService implements IReportePDF {
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Resumen del mes');
     doc.moveDown(0.3);
     summaryLines.forEach(line => {
-      doc.fillColor('#333333').fontSize(9.5).font('Helvetica').text(line);
+      doc.fillColor('#333333').fontSize(9).font('Helvetica')
+         .text(line, 50, doc.y, { width: 495 });
     });
 
     doc.end();
