@@ -463,17 +463,18 @@ export class PdfService implements IReportePDF {
         fecha_entrega: Between(`${year}-${mm}-01`, `${year}-${mm}-${lastDay}`) as any,
       },
       relations: ['cliente', 'producto'],
+      order: { id_pedido: 'ASC' },
     });
 
     const mesNombre = MESES[month - 1] ?? String(month);
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, `Reporte de Ganancias — ${mesNombre} ${year}`);
 
-    const widths = [30, 130, 175, 70, 90];
-    const aligns: ('left' | 'right' | 'center')[] = ['center', 'left', 'left', 'right', 'right'];
+    const widths = [45, 100, 50, 115, 50, 75, 60];
+    const aligns: ('left' | 'right' | 'center')[] = ['center', 'left', 'center', 'left', 'right', 'right', 'center'];
 
     let y = this.buildTable(doc, doc.y, [
-      'N°', 'Cliente', 'Producto', 'Cantidad', 'Total Bs.',
+      'N°', 'Cliente', 'ID Cli.', 'Producto', 'Cantidad', 'Total Bs.', 'F. Entrega',
     ], widths);
 
     let sumaTotal = 0;
@@ -482,20 +483,26 @@ export class PdfService implements IReportePDF {
       y = this.maybePageBreak(doc, y);
       sumaTotal += Number(p.total);
       sumaPares += p.cantidad_pares ?? 0;
+      const fechaEntrega = p.fecha_entrega
+        ? p.fecha_entrega.split('-').reverse().join('/')
+        : '—';
       y = this.drawDataRow(doc, y, [
-        i + 1,
+        p.id_pedido,
         p.cliente?.nombre ?? '—',
+        p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.cantidad ?? 1,
         `Bs. ${Number(p.total).toFixed(2)}`,
+        fechaEntrega,
       ], widths, aligns, i % 2 === 1);
     });
 
     y = this.maybePageBreak(doc, y);
     y = this.buildFooter(doc, y, [
-      'TOTAL', '', '',
+      'TOTAL', '', '', '',
       String(pedidos.reduce((a, p) => a + (p.cantidad ?? 1), 0)),
       `Bs. ${sumaTotal.toFixed(2)}`,
+      '',
     ], widths);
 
     const promedio = pedidos.length > 0 ? sumaTotal / pedidos.length : 0;
