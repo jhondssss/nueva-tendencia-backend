@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
+import { Insumo } from '../insumo/entities/insumo.entity';
 import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -23,6 +24,7 @@ export class PdfService implements IReportePDF {
   constructor(
     @InjectRepository(Pedido)   private pedidoRepo:   Repository<Pedido>,
     @InjectRepository(Producto) private productoRepo: Repository<Producto>,
+    @InjectRepository(Insumo)   private insumoRepo:   Repository<Insumo>,
   ) {}
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -281,34 +283,105 @@ export class PdfService implements IReportePDF {
       .where('p.stock <= p.nivel_minimo')
       .getMany();
 
+    const insumoCriticos = await this.insumoRepo
+      .createQueryBuilder('i')
+      .where('i.stock <= i.nivel_minimo')
+      .andWhere('i.activo = :activo', { activo: true })
+      .getMany();
+
+    const inversionEstimada = criticos.reduce((sum, p) => {
+      const cantSugerida = Math.max(0, p.nivel_minimo - p.stock);
+      return sum + cantSugerida * Number(p.costo_unidad);
+    }, 0);
+
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, 'Reporte de Stock Crítico');
 
+    // ── Resumen ejecutivo ─────────────────────────────────────────────────
+    const rWidths = [330, 165];
+    let y = this.buildTable(doc, doc.y, ['Resumen Ejecutivo', 'Valor'], rWidths);
+    const resumenItems: [string, string][] = [
+      ['Total productos críticos',                      String(criticos.length)],
+      ['Total insumos críticos',                        String(insumoCriticos.length)],
+      ['Inversión estimada (reposición de productos)',  `Bs. ${inversionEstimada.toFixed(2)}`],
+    ];
+    resumenItems.forEach(([label, val], i) => {
+      y = this.maybePageBreak(doc, y);
+      y = this.drawDataRow(doc, y, [label, val], rWidths, ['left', 'right'], i % 2 === 1);
+    });
+    doc.moveDown(1.2);
+
+    // ── Sección productos ─────────────────────────────────────────────────
+    doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Productos con Stock Crítico');
+    doc.moveDown(0.3);
     doc
       .fillColor('#CC0000').fontSize(9).font('Helvetica')
       .text(`${criticos.length} producto(s) con stock igual o por debajo del nivel mínimo.`);
     doc.moveDown(0.5);
 
-    const widths = [175, 75, 80, 85, 80];
-    const aligns: ('left' | 'right' | 'center')[] = ['left', 'left', 'right', 'right', 'right'];
-    let y = this.buildTable(doc, doc.y,
-      ['Producto', 'Marca', 'Stock Actual', 'Nivel Mínimo', 'Diferencia'],
-      widths,
+    const pWidths = [130, 60, 60, 60, 55, 65, 65];
+    const pAligns: ('left' | 'right' | 'center')[] = ['left', 'left', 'right', 'right', 'right', 'right', 'right'];
+    y = this.buildTable(doc, doc.y,
+      ['Producto', 'Marca', 'Stock Actual', 'Nivel Mínimo', 'Diferencia', 'Precio Venta', 'Cant. Sugerida'],
+      pWidths,
     );
 
     if (criticos.length === 0) {
       doc.moveDown(0.5).fillColor('#007700').fontSize(10).font('Helvetica')
         .text('Sin productos críticos.', { align: 'center' });
+      y = doc.y;
     } else {
       criticos.forEach((p, i) => {
         y = this.maybePageBreak(doc, y);
+        const cantSugerida = Math.max(0, p.nivel_minimo - p.stock);
         y = this.drawDataRow(doc, y, [
           p.nombre_modelo,
           p.marca,
           String(p.stock),
           String(p.nivel_minimo),
           String(p.stock - p.nivel_minimo),
-        ], widths, aligns, i % 2 === 1, true);
+          `Bs. ${Number(p.precio_venta).toFixed(2)}`,
+          String(cantSugerida),
+        ], pWidths, pAligns, i % 2 === 1, true);
+      });
+    }
+
+    doc.moveDown(1.2);
+
+    // ── Sección insumos ───────────────────────────────────────────────────
+    y = doc.y;
+    y = this.maybePageBreak(doc, y, 60);
+    doc.y = y;
+    doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Insumos con Stock Crítico');
+    doc.moveDown(0.3);
+    doc
+      .fillColor('#CC0000').fontSize(9).font('Helvetica')
+      .text(`${insumoCriticos.length} insumo(s) con stock igual o por debajo del nivel mínimo.`);
+    doc.moveDown(0.5);
+
+    const iWidths = [135, 65, 60, 60, 55, 65, 55];
+    const iAligns: ('left' | 'right' | 'center')[] = ['left', 'left', 'right', 'right', 'right', 'right', 'right'];
+    y = this.buildTable(doc, doc.y,
+      ['Insumo', 'Categoría', 'Stock Actual', 'Nivel Mínimo', 'Diferencia', 'Precio Unitario', 'Cant. Sugerida'],
+      iWidths,
+    );
+
+    if (insumoCriticos.length === 0) {
+      doc.moveDown(0.5).fillColor('#007700').fontSize(10).font('Helvetica')
+        .text('Sin insumos críticos.', { align: 'center' });
+    } else {
+      insumoCriticos.forEach((ins, i) => {
+        y = this.maybePageBreak(doc, y);
+        const cantSugerida = Math.max(0, Number(ins.nivel_minimo) - Number(ins.stock));
+        y = this.drawDataRow(doc, y, [
+          ins.nombre,
+          ins.categoria,
+          Number(ins.stock).toFixed(2),
+          Number(ins.nivel_minimo).toFixed(2),
+          (Number(ins.stock) - Number(ins.nivel_minimo)).toFixed(2),
+          `Bs. ${Number(ins.precio_unitario).toFixed(2)}`,
+          cantSugerida.toFixed(2),
+        ], iWidths, iAligns, i % 2 === 1, true);
       });
     }
 
