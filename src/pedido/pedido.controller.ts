@@ -18,7 +18,6 @@ export class PedidoController {
   @Roles('admin')
   @Post()
   create(@Body() createPedidoDto: CreatePedidoDto) {
-    console.log('3. BACKEND RECIBE:', JSON.stringify(createPedidoDto));
     return this.pedidoService.create(createPedidoDto);
   }
 

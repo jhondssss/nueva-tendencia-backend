@@ -11,8 +11,8 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
     UserModule,
     AuditoriaModule,
     JwtModule.register({
-      global: true, // JwtService disponible en toda la app
-      secret: 'miSecretoSuperSecreto',
+      global: true,
+      secret: process.env.JWT_SECRET ?? 'fallback-dev-secret-change-in-prod',
       signOptions: { expiresIn: '1h' },
     }),
   ],

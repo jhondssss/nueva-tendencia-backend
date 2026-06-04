@@ -24,15 +24,10 @@ export class KardexController {
   /** GET /kardex
    *  Lista todos los movimientos (más recientes primero) */
   @Get()
-  async getMovimientos(@Query('producto') productoId?: string) {
-    try {
-      return await this.kardexService.getMovimientos(
-        productoId ? Number(productoId) : undefined,
-      );
-    } catch (error) {
-      console.error('[kardex GET error]', error.message, error.stack);
-      throw error;
-    }
+  getMovimientos(@Query('producto') productoId?: string) {
+    return this.kardexService.getMovimientos(
+      productoId ? Number(productoId) : undefined,
+    );
   }
 
   /** GET /kardex/producto/:id
