@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { RegisterDto } from '../auth/dto/register.dto';
@@ -31,6 +31,15 @@ export class UserService {
 
   async findByClienteId(clienteId: number): Promise<User | null> {
     return this.userRepository.findOne({ where: { clienteId } });
+  }
+
+  async findClienteIdsConUsuario(clienteIds: number[]): Promise<Set<number>> {
+    if (clienteIds.length === 0) return new Set();
+    const users = await this.userRepository.find({
+      where: { clienteId: In(clienteIds) },
+      select: ['clienteId'],
+    });
+    return new Set(users.map((u) => u.clienteId as number));
   }
 
   async createClienteUser(data: {

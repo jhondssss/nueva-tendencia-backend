@@ -51,8 +51,15 @@ export class ClienteService {
     return saved;
   }
 
-  findAll() {
-    return this.clienteRepository.find({ relations: ['direccion'] });
+  async findAll() {
+    const clientes = await this.clienteRepository.find({ relations: ['direccion'] });
+    const idsConUsuario = await this.userService.findClienteIdsConUsuario(
+      clientes.map((c) => c.id_cliente),
+    );
+    return clientes.map((cliente) => ({
+      ...cliente,
+      tieneUsuario: idsConUsuario.has(cliente.id_cliente),
+    }));
   }
 
   async findOne(id: number) {
@@ -63,7 +70,8 @@ export class ClienteService {
     if (!cliente) {
       throw new NotFoundException(`Cliente con ID ${id} no encontrado`);
     }
-    return cliente;
+    const usuario = await this.userService.findByClienteId(cliente.id_cliente);
+    return { ...cliente, tieneUsuario: !!usuario };
   }
 
   async update(id: number, updateClienteDto: UpdateClienteDto) {
