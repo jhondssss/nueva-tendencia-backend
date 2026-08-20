@@ -1,4 +1,5 @@
 import { IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { Role } from '../../auth/enums/role.enum';
 
 export class CreateUserDto {
   @IsEmail({}, { message: 'Email inválido' })
@@ -11,7 +12,7 @@ export class CreateUserDto {
   password: string;
 
   @IsOptional()
-  @IsIn(['admin', 'operario'], { message: 'El rol debe ser admin u operario' })
+  @IsIn([Role.ADMIN, Role.OPERARIO], { message: 'El rol debe ser admin u operario' })
   role?: string;
 
   @IsOptional()

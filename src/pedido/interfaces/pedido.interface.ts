@@ -7,6 +7,8 @@ export interface IPedidoCrudService {
   create(dto: CreatePedidoDto): Promise<any>;
   findAll(clienteNombre?: string, productoNombre?: string): Promise<any[]>;
   findOne(id: number): Promise<any>;
+  findByClienteId(clienteId: number): Promise<any[]>;
+  findOneByClienteId(id: number, clienteId: number): Promise<any>;
   update(id: number, dto: UpdatePedidoDto): Promise<any>;
   remove(id: number): Promise<any>;
 }

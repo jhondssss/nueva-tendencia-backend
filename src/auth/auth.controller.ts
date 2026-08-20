@@ -6,6 +6,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { CambiarPasswordInicialDto } from './dto/cambiar-password-inicial.dto';
 import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
@@ -45,5 +46,15 @@ export class AuthController {
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Roles('admin', 'operario', 'user', 'cliente')
+  @Post('cambiar-password-inicial')
+  async cambiarPasswordInicial(
+    @Body() dto: CambiarPasswordInicialDto,
+    @Req() req: Request,
+  ) {
+    const userId = (req as any).user?.sub as number;
+    return this.authService.cambiarPasswordInicial(userId, dto.password);
   }
 }

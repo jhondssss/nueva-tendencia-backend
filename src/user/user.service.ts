@@ -10,6 +10,7 @@ import { User } from './entities/user.entity';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { Role } from '../auth/enums/role.enum';
 
 @Injectable()
 export class UserService {
@@ -26,6 +27,27 @@ export class UserService {
 
   async findByResetToken(token: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { reset_token: token } });
+  }
+
+  async findByClienteId(clienteId: number): Promise<User | null> {
+    return this.userRepository.findOne({ where: { clienteId } });
+  }
+
+  async createClienteUser(data: {
+    email: string;
+    plainPassword: string;
+    clienteId: number;
+  }): Promise<User> {
+    const hashedPassword = await bcrypt.hash(data.plainPassword, 10);
+    const user = this.userRepository.create({
+      email: data.email,
+      password: hashedPassword,
+      role: Role.CLIENTE,
+      clienteId: data.clienteId,
+      requiereCambioPassword: true,
+      activo: true,
+    });
+    return this.userRepository.save(user);
   }
 
   async create(registerDto: RegisterDto): Promise<User> {
@@ -55,6 +77,13 @@ export class UserService {
 
   async updatePassword(id: number, hashedPassword: string): Promise<void> {
     await this.userRepository.update(id, { password: hashedPassword });
+  }
+
+  async setPasswordAndClearFlag(id: number, hashedPassword: string): Promise<void> {
+    await this.userRepository.update(id, {
+      password: hashedPassword,
+      requiereCambioPassword: false,
+    });
   }
 
   // ── Admin CRUD ──────────────────────────────────────────────────────

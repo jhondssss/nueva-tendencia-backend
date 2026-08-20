@@ -1,4 +1,5 @@
 import { IsIn, IsOptional, IsString } from 'class-validator';
+import { Role } from '../../auth/enums/role.enum';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -10,6 +11,6 @@ export class UpdateUserDto {
   apellido?: string;
 
   @IsOptional()
-  @IsIn(['admin', 'operario', 'user'], { message: 'Rol inválido' })
+  @IsIn([Role.ADMIN, Role.OPERARIO, Role.USER], { message: 'Rol inválido' })
   role?: string;
 }

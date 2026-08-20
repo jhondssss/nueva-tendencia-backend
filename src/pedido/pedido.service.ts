@@ -26,6 +26,14 @@ export class PedidoService {
     return this.crudService.findOne(id);
   }
 
+  findByClienteId(clienteId: number) {
+    return this.crudService.findByClienteId(clienteId);
+  }
+
+  findOneByClienteId(id: number, clienteId: number) {
+    return this.crudService.findOneByClienteId(id, clienteId);
+  }
+
   update(id: number, dto: UpdatePedidoDto) {
     return this.crudService.update(id, dto);
   }

@@ -33,7 +33,7 @@ export class RolesGuard implements CanActivate {
       throw new UnauthorizedException('Token de autenticación no proporcionado');
     }
 
-    let payload: { sub: number; email: string; role: string };
+    let payload: { sub: number; email: string; role: string; clienteId?: number };
     try {
       payload = this.jwtService.verify(token);
     } catch {

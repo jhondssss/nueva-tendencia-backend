@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/commo
 import { ClienteService } from './cliente.service';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
+import { DarAccesoDto } from './dto/dar-acceso.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('clientes')
@@ -34,5 +35,11 @@ export class ClienteController {
   @Delete(':id')
   remove(@Param('id') id: number) {
     return this.clienteService.remove(id);
+  }
+
+  @Roles('admin', 'operario')
+  @Post(':id/dar-acceso')
+  darAcceso(@Param('id') id: number, @Body() dto: DarAccesoDto) {
+    return this.clienteService.darAcceso(id, dto);
   }
 }

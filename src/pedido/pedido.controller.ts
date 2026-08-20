@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req, ForbiddenException } from '@nestjs/common';
 import { PedidoService } from './pedido.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
@@ -37,6 +37,26 @@ export class PedidoController {
     @Body('nuevoEstado') nuevoEstado: 'Pendiente' | 'Aparado' | 'Solado' | 'Empaque' | 'Terminado',
   ) {
     return this.pedidoService.moverPedido(id, nuevoEstado);
+  }
+
+  @Roles('cliente')
+  @Get('mis-pedidos')
+  misPedidos(@Req() req: any) {
+    const clienteId = req.user?.clienteId as number | undefined;
+    if (!clienteId) {
+      throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
+    }
+    return this.pedidoService.findByClienteId(clienteId);
+  }
+
+  @Roles('cliente')
+  @Get('mis-pedidos/:id')
+  misPedidoDetalle(@Param('id') id: string, @Req() req: any) {
+    const clienteId = req.user?.clienteId as number | undefined;
+    if (!clienteId) {
+      throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
+    }
+    return this.pedidoService.findOneByClienteId(+id, clienteId);
   }
 
   @Get(':id')

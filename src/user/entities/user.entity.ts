@@ -28,4 +28,10 @@ export class User {
 
   @Column({ default: true })
   activo: boolean;
+
+  @Column({ name: 'cliente_id', type: 'int', nullable: true, unique: true })
+  clienteId: number | null;
+
+  @Column({ name: 'requiere_cambio_password', default: false })
+  requiereCambioPassword: boolean;
 }

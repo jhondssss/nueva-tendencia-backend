@@ -5,22 +5,21 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
-import { Resend } from 'resend';
 import * as bcrypt from 'bcrypt';
 import { UserService } from '../user/user.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
-  private resend = new Resend(process.env.RESEND_API_KEY);
-
   constructor(
     private usersService: UserService,
     private jwtService: JwtService,
     private readonly auditoriaService: AuditoriaService,
+    private readonly mailService: MailService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -55,7 +54,13 @@ export class AuthService {
   }
 
   async login(user: any, ip?: string) {
-    const payload = { email: user.email, sub: user.id, role: user.role };
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      role: user.role,
+      clienteId: user.clienteId ?? undefined,
+      requiereCambioPassword: !!user.requiereCambioPassword,
+    };
 
     void this.auditoriaService.registrar({
       accion: 'LOGIN',
@@ -97,12 +102,10 @@ export class AuthService {
     const resetUrl = `https://nueva-tendencia-frontend.vercel.app/reset-password?token=${token}`;
     const nombre = user.nombre ?? user.email;
 
-    try {
-      const result = await this.resend.emails.send({
-        from: 'Nueva Tendencia <onboarding@resend.dev>',
-        to: user.email,
-        subject: 'Recuperación de contraseña — Calzados Nueva Tendencia',
-        html: `
+    await this.mailService.sendMail({
+      to: user.email,
+      subject: 'Recuperación de contraseña — Calzados Nueva Tendencia',
+      html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
           <h2>Recuperación de contraseña</h2>
           <p>Hola <strong>${nombre}</strong>,</p>
@@ -122,12 +125,7 @@ export class AuthService {
           <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
         </div>
       `,
-      });
-      console.log('[Resend] Email enviado:', JSON.stringify(result));
-    } catch (err) {
-      console.error('[Resend] Error al enviar email:', err?.message, JSON.stringify(err));
-      throw err;
-    }
+    });
 
     return genericResponse;
   }
@@ -148,6 +146,12 @@ export class AuthService {
     await this.usersService.updatePassword(user.id, hashedPassword);
     await this.usersService.clearResetToken(user.id);
 
+    return { message: 'Contraseña actualizada correctamente' };
+  }
+
+  async cambiarPasswordInicial(userId: number, newPassword: string): Promise<{ message: string }> {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.usersService.setPasswordAndClearFlag(userId, hashedPassword);
     return { message: 'Contraseña actualizada correctamente' };
   }
 }

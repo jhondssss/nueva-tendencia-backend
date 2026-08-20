@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, Not } from 'typeorm';
@@ -126,6 +126,23 @@ export class PedidoCrudService implements IPedidoCrudService {
       where: { id_pedido: id },
       relations: ['cliente', 'producto'],
     });
+  }
+
+  findByClienteId(clienteId: number) {
+    return this.pedidoRepo.find({
+      where: { cliente: { id_cliente: clienteId } },
+      relations: ['cliente', 'producto', 'talles'],
+      order: { fecha_creacion: 'DESC' },
+    });
+  }
+
+  async findOneByClienteId(id: number, clienteId: number) {
+    const pedido = await this.pedidoRepo.findOne({
+      where: { id_pedido: id, cliente: { id_cliente: clienteId } },
+      relations: ['cliente', 'producto', 'talles'],
+    });
+    if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
+    return pedido;
   }
 
   async update(id: number, updatePedidoDto: UpdatePedidoDto) {
