@@ -1,7 +1,8 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, OneToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Cliente } from '../../cliente/entities/cliente.entity';
 import { Producto } from '../../producto/entities/producto.entity';
 import { TallaDetalle } from '../../talla/entities/talla-detalle.entity';
+import { CalificacionPedido } from './calificacion-pedido.entity';
 
 export type UnidadPedido = 'docena' | 'media_docena' | 'par';
 export type CategoriaCalzado = 'nino' | 'juvenil' | 'adulto';
@@ -59,4 +60,7 @@ export class Pedido {
 
   @OneToMany(() => TallaDetalle, (talla) => talla.pedido)
   talles: TallaDetalle[];
+
+  @OneToOne(() => CalificacionPedido, (calificacion) => calificacion.pedido)
+  calificacion: CalificacionPedido | null;
 }

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req, Forbidde
 import { PedidoService } from './pedido.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { CalificarPedidoDto } from './dto/calificar-pedido.dto';
 import { TallaService } from '../talla/talla.service';
 import { CategoriaCalzado } from './entities/pedido.entity';
 import { ApiTags } from '@nestjs/swagger';
@@ -41,12 +42,17 @@ export class PedidoController {
 
   @Roles('cliente')
   @Get('mis-pedidos')
-  misPedidos(@Req() req: any) {
+  misPedidos(
+    @Req() req: any,
+    @Query('desde') desde?: string,
+    @Query('hasta') hasta?: string,
+    @Query('estado') estado?: string,
+  ) {
     const clienteId = req.user?.clienteId as number | undefined;
     if (!clienteId) {
       throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
     }
-    return this.pedidoService.findByClienteId(clienteId);
+    return this.pedidoService.findByClienteId(clienteId, desde, hasta, estado);
   }
 
   @Roles('cliente')
@@ -57,6 +63,16 @@ export class PedidoController {
       throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
     }
     return this.pedidoService.findOneByClienteId(+id, clienteId);
+  }
+
+  @Roles('cliente')
+  @Post('mis-pedidos/:id/calificar')
+  calificarPedido(@Param('id') id: string, @Body() dto: CalificarPedidoDto, @Req() req: any) {
+    const clienteId = req.user?.clienteId as number | undefined;
+    if (!clienteId) {
+      throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
+    }
+    return this.pedidoService.calificarPedido(+id, clienteId, dto);
   }
 
   @Get(':id')

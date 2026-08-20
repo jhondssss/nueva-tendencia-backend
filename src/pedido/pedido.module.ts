@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Pedido } from './entities/pedido.entity';
+import { CalificacionPedido } from './entities/calificacion-pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { PedidoCrudService } from './pedido-crud.service';
@@ -12,7 +13,7 @@ import { AuditoriaModule } from '../auditoria/auditoria.module';
 import { TallaModule } from '../talla/talla.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Pedido, Cliente, Producto]), AuditoriaModule, TallaModule],
+  imports: [TypeOrmModule.forFeature([Pedido, CalificacionPedido, Cliente, Producto]), AuditoriaModule, TallaModule],
   controllers: [PedidoController, PedidoPublicoController],
   providers: [PedidoCrudService, PedidoEstadoService, PedidoService],
   exports: [PedidoService],

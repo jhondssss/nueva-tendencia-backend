@@ -3,6 +3,7 @@ import { PedidoCrudService } from './pedido-crud.service';
 import { PedidoEstadoService } from './pedido-estado.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { CalificarPedidoDto } from './dto/calificar-pedido.dto';
 
 // Facade Pattern: delega a PedidoCrudService y PedidoEstadoService (SRP + OCP + DIP)
 @Injectable()
@@ -26,12 +27,16 @@ export class PedidoService {
     return this.crudService.findOne(id);
   }
 
-  findByClienteId(clienteId: number) {
-    return this.crudService.findByClienteId(clienteId);
+  findByClienteId(clienteId: number, desde?: string, hasta?: string, estado?: string) {
+    return this.crudService.findByClienteId(clienteId, desde, hasta, estado);
   }
 
   findOneByClienteId(id: number, clienteId: number) {
     return this.crudService.findOneByClienteId(id, clienteId);
+  }
+
+  calificarPedido(pedidoId: number, clienteId: number, dto: CalificarPedidoDto) {
+    return this.crudService.calificarPedido(pedidoId, clienteId, dto);
   }
 
   update(id: number, dto: UpdatePedidoDto) {

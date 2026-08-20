@@ -1,13 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, Not } from 'typeorm';
+import { Repository, Like, Not, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
 import { Pedido } from './entities/pedido.entity';
+import { CalificacionPedido } from './entities/calificacion-pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
+import { CalificarPedidoDto } from './dto/calificar-pedido.dto';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TallaService } from '../talla/talla.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -16,9 +18,10 @@ import { IPedidoCrudService } from './interfaces/pedido.interface';
 @Injectable()
 export class PedidoCrudService implements IPedidoCrudService {
   constructor(
-    @InjectRepository(Pedido)   private pedidoRepo:   Repository<Pedido>,
-    @InjectRepository(Cliente)  private clienteRepo:  Repository<Cliente>,
-    @InjectRepository(Producto) private productoRepo: Repository<Producto>,
+    @InjectRepository(Pedido)              private pedidoRepo:       Repository<Pedido>,
+    @InjectRepository(Cliente)             private clienteRepo:      Repository<Cliente>,
+    @InjectRepository(Producto)            private productoRepo:     Repository<Producto>,
+    @InjectRepository(CalificacionPedido)  private calificacionRepo: Repository<CalificacionPedido>,
     private readonly auditoriaService: AuditoriaService,
     private readonly tallaService: TallaService,
     private readonly telegramService: TelegramService,
@@ -128,9 +131,22 @@ export class PedidoCrudService implements IPedidoCrudService {
     });
   }
 
-  findByClienteId(clienteId: number) {
+  findByClienteId(clienteId: number, desde?: string, hasta?: string, estado?: string) {
+    const rangoFecha =
+      desde && hasta
+        ? Between(new Date(`${desde}T00:00:00`), new Date(`${hasta}T23:59:59.999`))
+        : desde
+          ? MoreThanOrEqual(new Date(`${desde}T00:00:00`))
+          : hasta
+            ? LessThanOrEqual(new Date(`${hasta}T23:59:59.999`))
+            : undefined;
+
     return this.pedidoRepo.find({
-      where: { cliente: { id_cliente: clienteId } },
+      where: {
+        cliente: { id_cliente: clienteId },
+        ...(rangoFecha && { fecha_creacion: rangoFecha }),
+        ...(estado && { estado: estado as Pedido['estado'] }),
+      },
       relations: ['cliente', 'producto', 'talles'],
       order: { fecha_creacion: 'DESC' },
     });
@@ -139,10 +155,30 @@ export class PedidoCrudService implements IPedidoCrudService {
   async findOneByClienteId(id: number, clienteId: number) {
     const pedido = await this.pedidoRepo.findOne({
       where: { id_pedido: id, cliente: { id_cliente: clienteId } },
-      relations: ['cliente', 'producto', 'talles'],
+      relations: ['cliente', 'producto', 'talles', 'calificacion'],
     });
     if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
     return pedido;
+  }
+
+  async calificarPedido(pedidoId: number, clienteId: number, dto: CalificarPedidoDto) {
+    const pedido = await this.findOneByClienteId(pedidoId, clienteId);
+
+    if (pedido.estado !== 'Terminado') {
+      throw new BadRequestException('Solo se puede calificar un pedido en estado "Terminado"');
+    }
+
+    if (pedido.calificacion) {
+      throw new ConflictException(`El pedido #${pedidoId} ya tiene una calificación registrada`);
+    }
+
+    const calificacion = this.calificacionRepo.create({
+      pedido,
+      puntuacion: dto.puntuacion,
+      comentario: dto.comentario ?? null,
+    });
+
+    return this.calificacionRepo.save(calificacion);
   }
 
   async update(id: number, updatePedidoDto: UpdatePedidoDto) {
