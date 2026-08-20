@@ -11,6 +11,7 @@ import { ProductoService } from './producto.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
+import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
 
 const ALLOWED_MIMETYPES = /^image\/(jpeg|png|webp)$/;
 
@@ -84,6 +85,12 @@ export class ProductoController {
   @Get('alertas-stock')
   findAlertas() {
     return this.productoService.productosConAlerta();
+  }
+
+  @Roles('cliente', 'admin', 'operario')
+  @Get('catalogo')
+  findCatalogo(): Promise<ProductoCatalogoDto[]> {
+    return this.productoService.findCatalogo();
   }
 
   @Get(':id')

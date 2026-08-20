@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
+import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 
@@ -121,5 +122,21 @@ export class ProductoService {
       .createQueryBuilder('producto')
       .where('producto.stock <= producto.nivel_minimo')
       .getMany();
+  }
+
+  async findCatalogo(): Promise<ProductoCatalogoDto[]> {
+    const productos = await this.repo.find({
+      where: { activo: true },
+      select: ['nombre_modelo', 'descripcion_corta', 'precio_venta', 'imagen_url', 'categoria', 'stock'],
+    });
+
+    return productos.map((producto) => ({
+      nombre: producto.nombre_modelo,
+      descripcion: producto.descripcion_corta,
+      precio: producto.precio_venta,
+      imagen: producto.imagen_url ?? null,
+      categoria: producto.categoria,
+      disponible: producto.stock > 0,
+    }));
   }
 }
