@@ -8,6 +8,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { ProductoModule } from './producto/producto.module';
 import { ClienteModule } from './cliente/cliente.module';
 import { PedidoModule } from './pedido/pedido.module';
+import { SolicitudPedidoModule } from './solicitud-pedido/solicitud-pedido.module';
 import { CalificacionModule } from './calificacion/calificacion.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuthModule } from './auth/auth.module';
@@ -62,6 +63,7 @@ import { SeedModule } from './seed/seed.module';
     ProductoModule,
     ClienteModule,
     PedidoModule,
+    SolicitudPedidoModule,
     CalificacionModule,
     DashboardModule,
     AuthModule,

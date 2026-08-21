@@ -14,7 +14,12 @@ export interface ChatMessage {
   text: string;
 }
 
-const SYSTEM_PROMPT = `Eres NT Assistant, el asistente inteligente de Calzados Nueva Tendencia, un taller de calzado artesanal masculino e infantil ubicado en Cochabamba, Bolivia. Conoces el negocio en detalle y ayudas al administrador a tomar decisiones basadas en los datos reales del sistema.
+export interface AssistantUser {
+  role: string;
+  clienteId?: number;
+}
+
+const SYSTEM_PROMPT_INTERNO = `Eres NT Assistant, el asistente inteligente de Calzados Nueva Tendencia, un taller de calzado artesanal masculino e infantil ubicado en Cochabamba, Bolivia. Conoces el negocio en detalle y ayudas al administrador a tomar decisiones basadas en los datos reales del sistema.
 
 Tienes acceso a los datos reales del negocio en tiempo real, incluyendo:
 - Pedidos, clientes, productos e insumos
@@ -27,9 +32,23 @@ Sé conciso pero completo. Máximo 100 palabras por respuesta.
 Si te preguntan algo que no está en los datos responde honestamente que no tienes esa información.
 El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
 
+const SYSTEM_PROMPT_CLIENTE = `Eres NT Assistant, el asistente de atención al cliente de Calzados Nueva Tendencia, un taller de calzado artesanal masculino e infantil ubicado en Cochabamba, Bolivia. Estás hablando directamente con un cliente de la tienda, no con personal interno.
+
+Tienes acceso únicamente a:
+- Los pedidos del cliente que te está escribiendo (estado, fecha de entrega, productos, tallas)
+- El catálogo de productos disponibles (modelos, precios, stock disponible)
+
+NUNCA reveles información de otros clientes, costos internos, insumos, movimientos de inventario (Kardex), auditoría del sistema ni ningún dato de producción interno. Si te preguntan por algo fuera de este alcance, explica amablemente que no tienes acceso a esa información y sugiere contactar directamente a la tienda.
+
+Responde SIEMPRE en español natural, cálido y amigable, como atención al cliente.
+Usa emojis relevantes: 👟 pedidos, 📦 productos, ✅ entregas, ⏳ en proceso, 😊 cordialidad.
+Sé conciso pero completo. Máximo 100 palabras por respuesta.
+El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
+
 @Injectable()
 export class AssistantService {
-  private readonly model: GenerativeModel | null;
+  private readonly modelInterno: GenerativeModel | null;
+  private readonly modelCliente: GenerativeModel | null;
 
   constructor(
     @InjectRepository(Pedido)           private readonly pedidoRepo:   Repository<Pedido>,
@@ -43,13 +62,19 @@ export class AssistantService {
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       const genAI = new GoogleGenerativeAI(apiKey);
-      this.model = genAI.getGenerativeModel({
+      this.modelInterno = genAI.getGenerativeModel({
         model: 'gemini-1.5-flash',
         generationConfig: { temperature: 0.3 },
-        systemInstruction: SYSTEM_PROMPT,
+        systemInstruction: SYSTEM_PROMPT_INTERNO,
+      });
+      this.modelCliente = genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: { temperature: 0.3 },
+        systemInstruction: SYSTEM_PROMPT_CLIENTE,
       });
     } else {
-      this.model = null;
+      this.modelInterno = null;
+      this.modelCliente = null;
     }
   }
 
@@ -57,7 +82,7 @@ export class AssistantService {
   // Recolección de datos en paralelo
   // ══════════════════════════════════════════════════════════════════════════
 
-  private async buildContext(): Promise<string> {
+  private async buildContextInterno(): Promise<string> {
     const hoy = new Date().toISOString().slice(0, 10);
     const anio = new Date().getFullYear();
     const mesActual = new Date().getMonth(); // 0-based
@@ -233,10 +258,53 @@ ${listaAuditoria}
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // Contexto acotado para rol cliente: solo sus pedidos + catálogo
+  // ══════════════════════════════════════════════════════════════════════════
+
+  private async buildContextCliente(clienteId: number): Promise<string> {
+    const hoy = new Date().toISOString().slice(0, 10);
+
+    const [misPedidos, productos] = await Promise.all([
+      this.pedidoRepo.find({
+        relations: ['producto'],
+        where: { cliente: { id_cliente: clienteId } },
+        order: { fecha_entrega: 'DESC' },
+      }),
+      this.productoRepo.find(),
+    ]);
+
+    const listaPedidos = misPedidos.length > 0
+      ? misPedidos.map(p =>
+          `  #${p.id_pedido} | ${p.producto?.nombre_modelo ?? '—'} | Estado: ${p.estado} | Entrega: ${p.fecha_entrega} | Pares: ${p.cantidad_pares ?? '—'}`
+        ).join('\n')
+      : '  No tienes pedidos registrados todavía';
+
+    const listaCatalogo = productos.length > 0
+      ? productos.map(p =>
+          `  ${p.nombre_modelo} (${p.marca}) — Bs. ${p.precio_venta ?? '—'} ${p.stock > 0 ? `— disponible` : '— agotado'}`
+        ).join('\n')
+      : '  Catálogo no disponible en este momento';
+
+    return `
+=== DATOS DEL CLIENTE — ${hoy} ===
+
+👟 TUS PEDIDOS (${misPedidos.length}):
+${listaPedidos}
+
+📦 CATÁLOGO DE PRODUCTOS DISPONIBLES:
+${listaCatalogo}
+`.trim();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Fallback por palabras clave (si Gemini no disponible o falla)
   // ══════════════════════════════════════════════════════════════════════════
 
-  private async fallbackChat(message: string): Promise<string> {
+  private async fallbackChat(message: string, user?: AssistantUser): Promise<string> {
+    if (user?.role === 'cliente') {
+      return this.fallbackChatCliente(message, user.clienteId);
+    }
+
     const mensajeLower = message.toLowerCase().trim();
 
     // ── Saludos y cortesía ─────────────────────────────────────────────────
@@ -334,16 +402,76 @@ ${listaAuditoria}
   }
 
   // ══════════════════════════════════════════════════════════════════════════
+  // Fallback por palabras clave — rol cliente (contexto acotado)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  private async fallbackChatCliente(message: string, clienteId?: number): Promise<string> {
+    const mensajeLower = message.toLowerCase().trim();
+
+    if (mensajeLower.match(/^(hola|buenos|buenas|hey|hi|hello)/)) {
+      return '¡Hola! 👋 Soy NT Assistant. ¿En qué puedo ayudarte? Puedo contarte sobre tus pedidos o el catálogo de productos.';
+    }
+
+    if (mensajeLower.match(/gracias|thank|genial|perfecto|excelente|ok|bien|bueno/)) {
+      return '¡De nada! 😊 ¿Algo más en lo que te pueda ayudar?';
+    }
+
+    if (mensajeLower.match(/adios|chau|bye|hasta|nos vemos/)) {
+      return '¡Hasta luego! 👋 Aquí estaré cuando me necesites.';
+    }
+
+    if (!clienteId) {
+      return 'No encuentro una cuenta de cliente asociada a tu usuario. Por favor contactá al soporte de Nueva Tendencia para que revisen tu cuenta. 😊';
+    }
+
+    const q = mensajeLower;
+
+    if (/pedido|pedidos|estado|entrega/.test(q)) {
+      const pedidos = await this.pedidoRepo.find({
+        relations: ['producto'],
+        where: { cliente: { id_cliente: clienteId } },
+        order: { fecha_entrega: 'DESC' },
+      });
+      if (pedidos.length === 0) return '👟 Todavía no tienes pedidos registrados con nosotros.';
+      const lista = pedidos
+        .map(p => `  • #${p.id_pedido} — ${p.producto?.nombre_modelo ?? '—'} — Estado: ${p.estado} — Entrega: ${p.fecha_entrega}`)
+        .join('\n');
+      return `👟 Tus pedidos (${pedidos.length}):\n${lista}`;
+    }
+
+    if (/producto|catalogo|catálogo|modelo|precio/.test(q)) {
+      const productos = await this.productoRepo.find();
+      if (productos.length === 0) return '📦 El catálogo no está disponible en este momento.';
+      const lista = productos
+        .map(p => `  • ${p.nombre_modelo} (${p.marca}) — Bs. ${p.precio_venta ?? '—'}`)
+        .join('\n');
+      return `📦 Catálogo disponible:\n${lista}`;
+    }
+
+    return 'No entendí tu consulta 🙂 Puedo contarte sobre el estado de tus pedidos o el catálogo de productos disponibles.';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
   // Punto de entrada principal
   // ══════════════════════════════════════════════════════════════════════════
 
-  async chat(message: string, history: ChatMessage[] = []): Promise<string> {
-    if (!this.model) {
-      return this.fallbackChat(message);
+  async chat(message: string, history: ChatMessage[] = [], user?: AssistantUser): Promise<string> {
+    const isCliente = user?.role === 'cliente';
+
+    if (isCliente && !user?.clienteId) {
+      return 'No encuentro una cuenta de cliente asociada a tu usuario. Por favor contactá al soporte de Nueva Tendencia para que revisen tu cuenta. 😊';
+    }
+
+    const model = isCliente ? this.modelCliente : this.modelInterno;
+
+    if (!model) {
+      return this.fallbackChat(message, user);
     }
 
     try {
-      const contexto = await this.buildContext();
+      const contexto = isCliente
+        ? await this.buildContextCliente(user!.clienteId!)
+        : await this.buildContextInterno();
 
       // El contexto de BD se inyecta como primer turno del historial
       const geminiHistory = [
@@ -361,13 +489,13 @@ ${listaAuditoria}
         })),
       ];
 
-      const chatSession = this.model.startChat({ history: geminiHistory });
+      const chatSession = model.startChat({ history: geminiHistory });
       console.log('[AssistantService] Llamando a Gemini con mensaje:', message.slice(0, 100));
       const result = await chatSession.sendMessage(message);
       return result.response.text().trim();
     } catch (err) {
       console.error('[AssistantService] Gemini falló:', err?.message, err?.status, JSON.stringify(err));
-      return this.fallbackChat(message);
+      return this.fallbackChat(message, user);
     }
   }
 }

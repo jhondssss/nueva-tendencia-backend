@@ -1,6 +1,6 @@
 import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, IsNull, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -126,16 +126,17 @@ export class ProductoService {
 
   async findCatalogo(): Promise<ProductoCatalogoDto[]> {
     const productos = await this.repo.find({
-      where: { activo: true },
-      select: ['nombre_modelo', 'descripcion_corta', 'precio_venta', 'imagen_url', 'categoria', 'stock'],
+      where: { activo: true, categoria: Not(IsNull()) },
+      select: ['id_producto', 'nombre_modelo', 'descripcion_corta', 'precio_venta', 'imagen_url', 'categoria', 'stock'],
     });
 
     return productos.map((producto) => ({
+      id_producto: producto.id_producto,
       nombre: producto.nombre_modelo,
       descripcion: producto.descripcion_corta,
       precio: producto.precio_venta,
       imagen: producto.imagen_url ?? null,
-      categoria: producto.categoria,
+      categoria: producto.categoria as NonNullable<typeof producto.categoria>,
       disponible: producto.stock > 0,
     }));
   }

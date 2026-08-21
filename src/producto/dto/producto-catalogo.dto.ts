@@ -1,7 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { CategoriaCalzado } from '../entities/producto.entity';
+import type { CategoriaCalzado } from '../entities/producto.entity';
 
 export class ProductoCatalogoDto {
+  @ApiProperty()
+  id_producto: number;
+
   @ApiProperty()
   nombre: string;
 
@@ -14,8 +17,8 @@ export class ProductoCatalogoDto {
   @ApiProperty({ nullable: true })
   imagen: string | null;
 
-  @ApiProperty({ nullable: true })
-  categoria: CategoriaCalzado | null;
+  @ApiProperty()
+  categoria: CategoriaCalzado;
 
   @ApiProperty()
   disponible: boolean;
