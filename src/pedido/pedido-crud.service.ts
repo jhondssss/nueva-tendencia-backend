@@ -127,7 +127,7 @@ export class PedidoCrudService implements IPedidoCrudService {
   findOne(id: number) {
     return this.pedidoRepo.findOne({
       where: { id_pedido: id },
-      relations: ['cliente', 'producto'],
+      relations: ['cliente', 'producto', 'calificacion'],
     });
   }
 
