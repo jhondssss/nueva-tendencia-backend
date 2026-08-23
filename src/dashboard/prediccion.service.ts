@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThanOrEqual, Repository } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { IPrediccionService } from './interfaces/dashboard.interface';
@@ -83,12 +83,19 @@ export class PrediccionService implements IPrediccionService {
   }
 
   async getPrediccionStock() {
+    const MESES_VENTANA = 3;
+    const fechaLimite = new Date();
+    fechaLimite.setMonth(fechaLimite.getMonth() - MESES_VENTANA);
+
     const productos = await this.productoRepo.find();
-    const pedidos   = await this.pedidoRepo.find({ relations: ['producto'] });
+    const pedidos   = await this.pedidoRepo.find({
+      relations: ['producto'],
+      where: { fecha_creacion: MoreThanOrEqual(fechaLimite) },
+    });
 
     return productos.map(p => {
       const pedidosProducto = pedidos.filter(ped => ped.producto?.id_producto === p.id_producto);
-      const demandaMensual  = pedidosProducto.length / 3;
+      const demandaMensual  = pedidosProducto.length / MESES_VENTANA;
       const semanasRestantes = demandaMensual > 0
         ? Math.round((p.stock / demandaMensual) * 4 * 10) / 10
         : null;
