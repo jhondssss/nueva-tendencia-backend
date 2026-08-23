@@ -3,7 +3,6 @@ import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 
-@Roles('admin', 'operario')
 @Controller('reportes')
 export class ReportesController {
   constructor(private readonly reportesService: ReportesService) {}
@@ -11,6 +10,7 @@ export class ReportesController {
   // ── PDF endpoints ──────────────────────────────────────────────────────────
 
   /** GET /reportes/pdf/ventas?year=2025 */
+  @Roles('admin')
   @Get('pdf/ventas')
   async pdfVentas(@Query('year') year: string, @Res() res: Response) {
     const y = parseInt(year, 10) || new Date().getFullYear();
@@ -24,6 +24,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/pdf/pedidos */
+  @Roles('admin', 'operario')
   @Get('pdf/pedidos')
   async pdfPedidos(@Res() res: Response) {
     const buffer = await this.reportesService.generarPDFPedidos();
@@ -36,6 +37,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/pdf/stock */
+  @Roles('admin', 'operario')
   @Get('pdf/stock')
   async pdfStock(@Res() res: Response) {
     const buffer = await this.reportesService.generarPDFStock();
@@ -48,6 +50,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/pdf/stock-critico */
+  @Roles('admin', 'operario')
   @Get('pdf/stock-critico')
   async pdfStockCritico(@Res() res: Response) {
     const buffer = await this.reportesService.generarPDFStock();
@@ -60,6 +63,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/pdf/pedidos-entregados */
+  @Roles('admin', 'operario')
   @Get('pdf/pedidos-entregados')
   async pdfPedidosEntregados(@Res() res: Response) {
     const buffer = await this.reportesService.generarPDFPedidosEntregados();
@@ -72,6 +76,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/pdf/ganancias?month=3&year=2026 */
+  @Roles('admin')
   @Get('pdf/ganancias')
   async pdfGanancias(
     @Query('month') month: string,
@@ -93,6 +98,7 @@ export class ReportesController {
   // ── Excel endpoints ────────────────────────────────────────────────────────
 
   /** GET /reportes/excel/pedidos-entregados */
+  @Roles('admin', 'operario')
   @Get('excel/pedidos-entregados')
   async excelPedidosEntregados(@Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelPedidosEntregados();
@@ -106,6 +112,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/excel/ganancias?month=3&year=2026 */
+  @Roles('admin')
   @Get('excel/ganancias')
   async excelGanancias(
     @Query('month') month: string,
@@ -126,6 +133,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/excel/pedidos */
+  @Roles('admin', 'operario')
   @Get('excel/pedidos')
   async excelPedidos(@Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelPedidos();
@@ -139,6 +147,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/excel/clientes */
+  @Roles('admin')
   @Get('excel/clientes')
   async excelClientes(@Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelClientes();
@@ -152,6 +161,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/excel/stock */
+  @Roles('admin', 'operario')
   @Get('excel/stock')
   async excelStock(@Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelStock();
@@ -167,12 +177,14 @@ export class ReportesController {
   // ── Diario ─────────────────────────────────────────────────────────────────
 
   /** GET /reportes/diario */
+  @Roles('admin')
   @Get('diario')
   async getDiario() {
     return this.reportesService.getResumenDiario();
   }
 
   /** GET /reportes/pdf/diario */
+  @Roles('admin')
   @Get('pdf/diario')
   async pdfDiario(@Res() res: Response) {
     const now    = new Date();
@@ -187,6 +199,7 @@ export class ReportesController {
   }
 
   /** GET /reportes/excel/diario */
+  @Roles('admin')
   @Get('excel/diario')
   async excelDiario(@Res() res: Response) {
     const now    = new Date();
