@@ -69,13 +69,13 @@ export class PedidoEstadoService implements IPedidoEstadoService {
 
   async getKanban() {
     const pedidos = await this.pedidoRepo.find({ relations: ['cliente', 'producto'] });
-    return {
-      Pendiente: pedidos.filter(p => p.estado === 'Pendiente'),
-      Cortado:   pedidos.filter(p => p.estado === 'Cortado'),
-      Aparado:   pedidos.filter(p => p.estado === 'Aparado'),
-      Solado:    pedidos.filter(p => p.estado === 'Solado'),
-      Empaque:   pedidos.filter(p => p.estado === 'Empaque'),
-      Terminado: pedidos.filter(p => p.estado === 'Terminado'),
+
+    const buckets: Record<EstadoPedido, Pedido[]> = {
+      Pendiente: [], Cortado: [], Aparado: [], Solado: [], Empaque: [], Terminado: [],
     };
+    for (const p of pedidos) {
+      buckets[p.estado as EstadoPedido]?.push(p);
+    }
+    return buckets;
   }
 }

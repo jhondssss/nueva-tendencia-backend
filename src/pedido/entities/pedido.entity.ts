@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, OneToOne, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, OneToOne, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Cliente } from '../../cliente/entities/cliente.entity';
 import { Producto } from '../../producto/entities/producto.entity';
 import { TallaDetalle } from '../../talla/entities/talla-detalle.entity';
@@ -12,6 +12,7 @@ export class Pedido {
   @PrimaryGeneratedColumn()
   id_pedido: number;
 
+  @Index()
   @ManyToOne(() => Cliente, cliente => cliente.id_cliente, { eager: true })
   @JoinColumn({ name: 'cliente_id' })
   cliente: Cliente;
@@ -49,9 +50,11 @@ export class Pedido {
   })
   categoria: CategoriaCalzado | null;
 
+  @Index()
   @Column({ unique: true, nullable: true })
   token_seguimiento: string;
 
+  @Index()
   @CreateDateColumn()
   fecha_creacion: Date;
 

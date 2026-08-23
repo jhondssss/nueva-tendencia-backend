@@ -10,6 +10,7 @@ import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto';
 import { PedidoService } from '../pedido/pedido.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { MailService } from '../mail/mail.service';
+import { paginate } from '../common/pagination';
 
 @Injectable()
 export class SolicitudPedidoService {
@@ -66,11 +67,14 @@ export class SolicitudPedidoService {
     });
   }
 
-  findAll(estado?: string) {
-    return this.solicitudRepo.find({
+  async findAll(estado?: string, page = 1, limit = 30) {
+    const [data, total] = await this.solicitudRepo.findAndCount({
       where: estado ? { estado: estado as SolicitudPedido['estado'] } : {},
       order: { fecha_creacion: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return paginate(data, total, page, limit);
   }
 
   private async findOneOrFail(id: number) {

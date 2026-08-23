@@ -6,6 +6,8 @@ import { Producto } from '../producto/entities/producto.entity';
 import { Insumo }   from '../insumo/entities/insumo.entity';
 import { IKpiService } from './interfaces/dashboard.interface';
 
+const ESTADOS = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'];
+
 @Injectable()
 export class KpiService implements IKpiService {
   constructor(
@@ -14,81 +16,86 @@ export class KpiService implements IKpiService {
     @InjectRepository(Insumo)   private readonly insumoRepo:   Repository<Insumo>,
   ) {}
 
-  async getKpis() {
-    const toBoliviaDate = (date: Date): string => {
-      const bolivia = new Date(date.getTime() - 4 * 60 * 60 * 1000);
-      return bolivia.toISOString().slice(0, 10);
-    };
-
-    const ahora        = new Date();
-    const ahoraBolivia = new Date(ahora.getTime() - 4 * 60 * 60 * 1000);
-    const anio         = ahoraBolivia.getUTCFullYear();
-    const mes          = ahoraBolivia.getUTCMonth();
+  private rangoMesActualBolivia() {
+    const ahoraBolivia = new Date(Date.now() - 4 * 60 * 60 * 1000);
+    const anio = ahoraBolivia.getUTCFullYear();
+    const mes  = ahoraBolivia.getUTCMonth();
 
     const inicioMes = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
     const lastDay   = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
     const finMes    = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-    const [pedidos, productos, insumos, itemsInventario] = await Promise.all([
-      this.pedidoRepo.find(),
-      this.productoRepo.find(),
-      this.insumoRepo.find({ where: { activo: true } }),
+    return { inicioMes, finMes };
+  }
+
+  private async getEstadoCounts(): Promise<Map<string, number>> {
+    const rows = await this.pedidoRepo
+      .createQueryBuilder('p')
+      .select('p.estado', 'estado')
+      .addSelect('COUNT(*)', 'cantidad')
+      .groupBy('p.estado')
+      .getRawMany();
+
+    return new Map(rows.map(r => [r.estado, Number(r.cantidad)]));
+  }
+
+  async getKpis() {
+    const { inicioMes, finMes } = this.rangoMesActualBolivia();
+
+    const [
+      totalPedidos,
+      ventasYProduccion,
+      itemsInventario,
+      alertasStock,
+      alertasInsumos,
+    ] = await Promise.all([
+      this.pedidoRepo
+        .createQueryBuilder('p')
+        .where(`(p.fecha_creacion - INTERVAL '4 hours')::date BETWEEN :inicio AND :fin`, {
+          inicio: inicioMes,
+          fin: finMes,
+        })
+        .getCount(),
+      this.pedidoRepo
+        .createQueryBuilder('p')
+        .select('COALESCE(SUM(p.total), 0)', 'totalVentas')
+        .addSelect('COALESCE(SUM(p.cantidad_pares), 0)', 'produccionMensual')
+        .where('p.estado = :terminado', { terminado: 'Terminado' })
+        .andWhere(`(p.fecha_actualizacion - INTERVAL '4 hours')::date BETWEEN :inicio AND :fin`, {
+          inicio: inicioMes,
+          fin: finMes,
+        })
+        .getRawOne(),
       this.productoRepo.count({ where: { activo: true } }),
+      this.productoRepo
+        .createQueryBuilder('p')
+        .where('p.stock <= p.nivel_minimo')
+        .getCount(),
+      this.insumoRepo
+        .createQueryBuilder('i')
+        .where('i.activo = true')
+        .andWhere('i.stock <= i.nivel_minimo')
+        .getCount(),
     ]);
 
-    const totalPedidos = pedidos.filter(p => {
-      const fc = toBoliviaDate(new Date(p.fecha_creacion));
-      return fc >= inicioMes && fc <= finMes;
-    }).length;
-
-    console.log('QUERY INICIO MES:', inicioMes);
-    console.log('TOTAL PEDIDOS RESULTADO:', totalPedidos);
-
-    const muestra = await this.pedidoRepo
-      .createQueryBuilder('p')
-      .select(['p.id_pedido', 'p.fecha_creacion'])
-      .orderBy('p.id_pedido', 'ASC')
-      .limit(5)
-      .getRawMany();
-    console.log('MUESTRA FECHAS:', JSON.stringify(muestra));
-
-    const pedidosTerminados = pedidos.filter(p => {
-      const fa = toBoliviaDate(new Date(p.fecha_actualizacion));
-      return p.estado === 'Terminado' && fa >= inicioMes && fa <= finMes;
-    });
-    const totalVentas = Math.round(
-      pedidosTerminados.reduce((acc, p) => acc + Number(p.total), 0) * 100
-    ) / 100;
-    const alertasStock   = productos.filter(p => Number(p.stock) <= Number(p.nivel_minimo)).length;
-    const alertasInsumos = insumos.filter(i => Number(i.stock) <= Number(i.nivel_minimo)).length;
-    const produccionMensual = pedidos
-      .filter(p => {
-        const fa = toBoliviaDate(new Date(p.fecha_actualizacion));
-        return p.estado === 'Terminado' && fa >= inicioMes && fa <= finMes;
-      })
-      .reduce((acc, p) => acc + (p.cantidad_pares ?? 0), 0);
-
-    return { totalVentas, totalPedidos, itemsInventario, alertasStock, alertasInsumos, produccionMensual };
+    return {
+      totalVentas: Math.round(Number(ventasYProduccion.totalVentas) * 100) / 100,
+      totalPedidos,
+      itemsInventario,
+      alertasStock,
+      alertasInsumos,
+      produccionMensual: Number(ventasYProduccion.produccionMensual),
+    };
   }
 
   async getOrdersStatus() {
-    const pedidos = await this.pedidoRepo.find();
-    const estados = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'];
-
-    return estados.map(estado => ({
-      estado,
-      cantidad: Number(pedidos.filter(p => p.estado === estado).length),
-    }));
+    const counts = await this.getEstadoCounts();
+    return ESTADOS.map(estado => ({ estado, cantidad: counts.get(estado) ?? 0 }));
   }
 
   async getProductionFunnel() {
-    const pedidos = await this.pedidoRepo.find();
-    const etapas  = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'];
-
-    return etapas.map(etapa => ({
-      etapa,
-      cantidad: pedidos.filter(p => p.estado === etapa).length,
-    }));
+    const counts = await this.getEstadoCounts();
+    return ESTADOS.map(etapa => ({ etapa, cantidad: counts.get(etapa) ?? 0 }));
   }
 
   async getProximosAEntregar() {
@@ -108,12 +115,6 @@ export class KpiService implements IKpiService {
       .andWhere('p.fecha_entrega <= :en7dias', { en7dias: en7diasStr })
       .orderBy('p.fecha_entrega', 'ASC')
       .getMany();
-
-    console.log('PROXIMOS:', JSON.stringify(pedidos.map(p => ({
-      id: p.id_pedido,
-      cliente: p.cliente?.nombre,
-      producto: p.producto?.nombre_modelo
-    }))));
 
     return pedidos.map(p => ({
       id:             p.id_pedido,

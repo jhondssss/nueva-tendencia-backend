@@ -14,6 +14,7 @@ import { DarAccesoDto } from './dto/dar-acceso.dto';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { UserService } from '../user/user.service';
 import { MailService } from '../mail/mail.service';
+import { paginate } from '../common/pagination';
 
 @Injectable()
 export class ClienteService {
@@ -51,15 +52,21 @@ export class ClienteService {
     return saved;
   }
 
-  async findAll() {
-    const clientes = await this.clienteRepository.find({ relations: ['direccion'] });
+  async findAll(page = 1, limit = 30) {
+    const [clientes, total] = await this.clienteRepository.findAndCount({
+      relations: ['direccion'],
+      order: { id_cliente: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
     const idsConUsuario = await this.userService.findClienteIdsConUsuario(
       clientes.map((c) => c.id_cliente),
     );
-    return clientes.map((cliente) => ({
+    const data = clientes.map((cliente) => ({
       ...cliente,
       tieneUsuario: idsConUsuario.has(cliente.id_cliente),
     }));
+    return paginate(data, total, page, limit);
   }
 
   async findOne(id: number) {

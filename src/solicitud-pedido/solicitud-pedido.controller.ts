@@ -5,6 +5,7 @@ import { CreateSolicitudPedidoDto } from './dto/create-solicitud-pedido.dto';
 import { AprobarSolicitudDto } from './dto/aprobar-solicitud.dto';
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('solicitudes-pedido')
 @Controller('solicitudes-pedido')
@@ -29,8 +30,8 @@ export class SolicitudPedidoController {
 
   @Roles('admin', 'operario')
   @Get()
-  findAll(@Query('estado') estado?: string) {
-    return this.solicitudPedidoService.findAll(estado);
+  findAll(@Query('estado') estado?: string, @Query() paginacion?: PaginationQueryDto) {
+    return this.solicitudPedidoService.findAll(estado, paginacion?.page, paginacion?.limit);
   }
 
   @Roles('admin', 'operario')

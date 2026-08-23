@@ -19,8 +19,8 @@ export class PedidoService {
     return this.crudService.create(dto);
   }
 
-  findAll(clienteNombre?: string, productoNombre?: string) {
-    return this.crudService.findAll(clienteNombre, productoNombre);
+  findAll(clienteNombre?: string, productoNombre?: string, page?: number, limit?: number) {
+    return this.crudService.findAll(clienteNombre, productoNombre, page, limit);
   }
 
   findOne(id: number) {

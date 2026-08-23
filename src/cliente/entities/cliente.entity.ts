@@ -28,7 +28,7 @@ export class Cliente {
   @Column({ nullable: true })
   telefono_alternativo: string;
 
-  @OneToOne(() => DireccionCliente, (d) => d.cliente, { eager: true, cascade: true })
+  @OneToOne(() => DireccionCliente, (d) => d.cliente, { cascade: true })
   direccion: DireccionCliente;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })

@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req } f
 import { KardexService } from './kardex.service';
 import { CreateKardexDto } from './dto/create-kardex.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @Controller('kardex')
 export class KardexController {
@@ -26,9 +27,11 @@ export class KardexController {
   /** GET /kardex
    *  Lista todos los movimientos (más recientes primero) */
   @Get()
-  getMovimientos(@Query('producto') productoId?: string) {
+  getMovimientos(@Query('producto') productoId?: string, @Query() paginacion?: PaginationQueryDto) {
     return this.kardexService.getMovimientos(
       productoId ? Number(productoId) : undefined,
+      paginacion?.page,
+      paginacion?.limit,
     );
   }
 

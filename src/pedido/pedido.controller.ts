@@ -7,6 +7,7 @@ import { TallaService } from '../talla/talla.service';
 import { CategoriaCalzado } from './entities/pedido.entity';
 import { ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('pedidos')
 @Controller('pedidos')
@@ -23,8 +24,12 @@ export class PedidoController {
   }
 
   @Get()
-  findAll(@Query('cliente') cliente?: string, @Query('producto') producto?: string) {
-    return this.pedidoService.findAll(cliente, producto);
+  findAll(
+    @Query('cliente') cliente?: string,
+    @Query('producto') producto?: string,
+    @Query() paginacion?: PaginationQueryDto,
+  ) {
+    return this.pedidoService.findAll(cliente, producto, paginacion?.page, paginacion?.limit);
   }
 
   @Get('kanban')

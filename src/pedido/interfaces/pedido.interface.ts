@@ -6,7 +6,7 @@ import { CalificarPedidoDto } from '../dto/calificar-pedido.dto';
 
 export interface IPedidoCrudService {
   create(dto: CreatePedidoDto): Promise<any>;
-  findAll(clienteNombre?: string, productoNombre?: string): Promise<any[]>;
+  findAll(clienteNombre?: string, productoNombre?: string, page?: number, limit?: number): Promise<any>;
   findOne(id: number): Promise<any>;
   findByClienteId(clienteId: number, desde?: string, hasta?: string, estado?: string): Promise<any[]>;
   findOneByClienteId(id: number, clienteId: number): Promise<any>;

@@ -9,6 +9,7 @@ import { KardexMovimiento, TipoMovimiento } from './entities/kardex.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { CreateKardexDto } from './dto/create-kardex.dto';
+import { paginate } from '../common/pagination';
 
 @Injectable()
 export class KardexService {
@@ -174,14 +175,17 @@ export class KardexService {
   // Consultas
   // ══════════════════════════════════════════════════════════════════════════
 
-  async getMovimientos(id_producto?: number): Promise<KardexMovimiento[]> {
-    return this.kardexRepo.find({
+  async getMovimientos(id_producto?: number, page = 1, limit = 30) {
+    const [data, total] = await this.kardexRepo.findAndCount({
       where: id_producto
         ? { producto: { id_producto } }
         : {},
       relations: { producto: true, insumo: true, usuario: true },
       order: { fecha: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return paginate(data, total, page, limit);
   }
 
   getMovimientosByProducto(id_producto: number): Promise<KardexMovimiento[]> {

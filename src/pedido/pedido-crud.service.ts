@@ -14,6 +14,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TallaService } from '../talla/talla.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { IPedidoCrudService } from './interfaces/pedido.interface';
+import { paginate } from '../common/pagination';
 
 @Injectable()
 export class PedidoCrudService implements IPedidoCrudService {
@@ -114,14 +115,18 @@ export class PedidoCrudService implements IPedidoCrudService {
     });
   }
 
-  findAll(clienteNombre?: string, productoNombre?: string) {
-    return this.pedidoRepo.find({
+  async findAll(clienteNombre?: string, productoNombre?: string, page = 1, limit = 30) {
+    const [data, total] = await this.pedidoRepo.findAndCount({
       where: {
         ...(clienteNombre  && { cliente:  { nombre:        Like(`%${clienteNombre}%`)  } }),
         ...(productoNombre && { producto: { nombre_modelo: Like(`%${productoNombre}%`) } }),
       },
       relations: ['cliente', 'producto', 'talles'],
+      order: { fecha_creacion: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return paginate(data, total, page, limit);
   }
 
   findOne(id: number) {

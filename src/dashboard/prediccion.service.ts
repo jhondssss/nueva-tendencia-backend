@@ -21,65 +21,47 @@ export class PrediccionService implements IPrediccionService {
     const inicioMes = `${anio}-${String(mes + 1).padStart(2, '0')}-01`;
     const lastDay   = new Date(Date.UTC(anio, mes + 1, 0)).getUTCDate();
     const finMes    = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    const mesLabel  = new Date(anio, mes, 1).toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
 
-    const pedidos = await this.pedidoRepo.find({ relations: ['producto'] });
+    const rows = await this.pedidoRepo
+      .createQueryBuilder('p')
+      .leftJoin('p.producto', 'producto')
+      .select('producto.id_producto', 'id_producto')
+      .addSelect('producto.nombre_modelo', 'nombre')
+      .addSelect('COUNT(*)', 'cantidad')
+      .addSelect('COALESCE(SUM(p.cantidad_pares), 0)', 'cantidad_pares')
+      .addSelect('COALESCE(SUM(p.total), 0)', 'total')
+      .where('p.estado = :terminado', { terminado: 'Terminado' })
+      .andWhere('p.fecha_entrega BETWEEN :inicio AND :fin', { inicio: inicioMes, fin: finMes })
+      .groupBy('producto.id_producto')
+      .addGroupBy('producto.nombre_modelo')
+      .orderBy('cantidad', 'DESC')
+      .limit(10)
+      .getRawMany();
 
-    const pedidosFiltrados = pedidos.filter(p =>
-      p.estado === 'Terminado' &&
-      String(p.fecha_entrega) >= inicioMes &&
-      String(p.fecha_entrega) <= finMes,
-    );
-
-    const resumen: Record<string, {
-      nombre: string;
-      mes: string;
-      cantidad: number;
-      cantidad_pares: number;
-      total: number;
-    }> = {};
-
-    pedidosFiltrados.forEach(p => {
-      const partes   = String(p.fecha_entrega).split('-');
-      const fecha    = new Date(
-        Number(partes[0]),
-        Number(partes[1]) - 1,
-        Number(partes[2]),
-      );
-      const mesLabel = fecha.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
-      const key      = `${p.producto?.id_producto}-${mesLabel}`;
-
-      if (!resumen[key]) {
-        resumen[key] = {
-          nombre:         p.producto?.nombre_modelo ?? 'Desconocido',
-          mes:            mesLabel,
-          cantidad:       0,
-          cantidad_pares: 0,
-          total:          0,
-        };
-      }
-      resumen[key].cantidad        += 1;
-      resumen[key].cantidad_pares  += p.cantidad_pares ?? 0;
-      resumen[key].total           += Number(p.total);
-    });
-
-    return Object.values(resumen)
-      .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 10);
+    return rows.map(r => ({
+      nombre:         r.nombre ?? 'Desconocido',
+      mes:            mesLabel,
+      cantidad:       Number(r.cantidad),
+      cantidad_pares: Number(r.cantidad_pares),
+      total:          Math.round(Number(r.total) * 100) / 100,
+    }));
   }
 
   async getVentasPorMes() {
-    const pedidos = await this.pedidoRepo.find({ where: { estado: 'Terminado' } });
-    const resumen: Record<string, number> = {};
+    const rows = await this.pedidoRepo
+      .createQueryBuilder('p')
+      .select(`TO_CHAR(p.fecha_entrega, 'YYYY-MM')`, 'mes')
+      .addSelect('COALESCE(SUM(p.total), 0)', 'total')
+      .where('p.estado = :terminado', { terminado: 'Terminado' })
+      .groupBy(`TO_CHAR(p.fecha_entrega, 'YYYY-MM')`)
+      .orderBy('mes', 'ASC')
+      .getRawMany();
 
-    pedidos.forEach(p => {
-      const [year, month] = String(p.fecha_entrega).split('-');
-      const key = `${year}-${month}`;
-      resumen[key] = (resumen[key] || 0) + Math.round(Number(p.total ?? 0) * 100) / 100;
-    });
-
-    return Object.entries(resumen)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([mes, total]) => ({ mes, total: Math.round(total * 100) / 100 }));
+    return rows.map(r => ({
+      mes:   r.mes,
+      total: Math.round(Number(r.total) * 100) / 100,
+    }));
   }
 
   async getPrediccionStock() {
