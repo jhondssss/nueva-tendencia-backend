@@ -1,8 +1,9 @@
 import {
   IsString, IsNumber, IsOptional, IsBoolean,
-  IsNotEmpty, Min,
+  IsNotEmpty, Min, IsEnum,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import type { CategoriaCalzado } from '../entities/producto.entity';
 
 export class CreateProductoDto {
   @IsString()
@@ -69,4 +70,8 @@ export class CreateProductoDto {
   nivel_minimo?: number;
 
   imagen_url?: string;
+
+  @IsOptional()
+  @IsEnum(['nino', 'juvenil', 'adulto'])
+  categoria?: CategoriaCalzado;
 }
