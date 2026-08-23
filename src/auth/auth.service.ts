@@ -10,6 +10,7 @@ import { UserService } from '../user/user.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { MailService } from '../mail/mail.service';
 import { RegisterDto } from './dto/register.dto';
+import { Role } from './enums/role.enum';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
@@ -77,13 +78,13 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const user = await this.usersService.create(registerDto);
+    const user = await this.usersService.create(registerDto, Role.USER);
     const { password, ...result } = user;
     return result;
   }
 
   async registerOperario(registerDto: RegisterDto) {
-    const user = await this.usersService.create({ ...registerDto, role: 'operario' });
+    const user = await this.usersService.create(registerDto, Role.OPERARIO);
     const { password, ...result } = user;
     return result;
   }
