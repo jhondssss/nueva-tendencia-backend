@@ -32,6 +32,7 @@ export class PedidoController {
     return this.pedidoService.getPedidosKanban();
   }
 
+  @Roles('admin', 'operario')
   @Patch(':id/mover')
   moverPedido(
     @Param('id') id: number,
@@ -88,6 +89,7 @@ export class PedidoController {
     return this.tallaService.actualizarTallasPersonalizadas(+id, body.categoria, body.tallas);
   }
 
+  @Roles('admin', 'operario')
   @Patch(':id')
   update(@Param('id') id: string, @Body() updatePedidoDto: UpdatePedidoDto) {
     return this.pedidoService.update(+id, updatePedidoDto);

@@ -39,8 +39,19 @@ export class PedidoService {
     return this.crudService.calificarPedido(pedidoId, clienteId, dto);
   }
 
-  update(id: number, dto: UpdatePedidoDto) {
-    return this.crudService.update(id, dto);
+  async update(id: number, dto: UpdatePedidoDto) {
+    const { estado, ...resto } = dto;
+    const tieneOtrosCambios = Object.keys(resto).length > 0;
+
+    const actualizado = tieneOtrosCambios
+      ? await this.crudService.update(id, resto)
+      : undefined;
+
+    if (estado) {
+      return this.estadoService.moverEstado(id, estado);
+    }
+
+    return actualizado ?? this.crudService.findOne(id);
   }
 
   remove(id: number) {

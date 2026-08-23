@@ -191,6 +191,8 @@ export class PedidoCrudService implements IPedidoCrudService {
 
     if (!pedido) throw new Error('Pedido no encontrado');
 
+    // dto.estado se ignora acá a propósito: los cambios de estado pasan por
+    // PedidoEstadoService.moverEstado (vía PedidoService.update) para respetar la máquina de estados.
     if (updatePedidoDto.cliente_id) {
       const cliente = await this.clienteRepo.findOneBy({ id_cliente: updatePedidoDto.cliente_id });
       if (!cliente) throw new Error('Cliente no encontrado');
@@ -205,7 +207,6 @@ export class PedidoCrudService implements IPedidoCrudService {
 
     if (updatePedidoDto.total !== undefined)     pedido.total         = updatePedidoDto.total;
     if (updatePedidoDto.fecha_entrega)           pedido.fecha_entrega = updatePedidoDto.fecha_entrega;
-    if (updatePedidoDto.estado)                  pedido.estado        = updatePedidoDto.estado;
     if (updatePedidoDto.cantidad !== undefined)  pedido.cantidad      = updatePedidoDto.cantidad;
     if (updatePedidoDto.unidad)                  pedido.unidad        = updatePedidoDto.unidad;
     if (updatePedidoDto.categoria !== undefined) pedido.categoria     = updatePedidoDto.categoria;

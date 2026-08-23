@@ -20,6 +20,6 @@ export class UpdatePedidoDto extends PartialType(CreatePedidoDto) {
   fecha_entrega?: string;
 
   @IsOptional()
-  @IsEnum(['Pendiente', 'Aparado', 'Solado', 'Empaque', 'Terminado'])
-  estado?: 'Pendiente' | 'Aparado' | 'Solado' | 'Empaque' | 'Terminado';
+  @IsEnum(['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'])
+  estado?: 'Pendiente' | 'Cortado' | 'Aparado' | 'Solado' | 'Empaque' | 'Terminado';
 }
