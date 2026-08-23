@@ -1,12 +1,12 @@
 import { Controller, Post, ForbiddenException } from '@nestjs/common';
-import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { SeedService } from './seed.service';
 
 @Controller('seed')
 export class SeedController {
   constructor(private readonly seedService: SeedService) {}
 
-  @Public()
+  @Roles('admin')
   @Post('pedidos')
   async seedPedidos() {
     if (process.env.NODE_ENV === 'production') {

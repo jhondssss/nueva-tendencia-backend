@@ -146,31 +146,45 @@ export class ClienteService {
 
     const loginUrl = 'https://nueva-tendencia-frontend.vercel.app/login';
 
-    await this.mailService.sendMail({
-      to: email,
-      subject: 'Acceso a tu cuenta — Calzados Nueva Tendencia',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-          <h2>Bienvenido a Nueva Tendencia</h2>
-          <p>Hola <strong>${cliente.nombre}</strong>,</p>
-          <p>Se habilitó tu acceso para consultar tus pedidos en línea.</p>
-          <p>Tu contraseña temporal es:</p>
-          <p style="margin: 24px 0; font-size: 18px; font-weight: bold; letter-spacing: 1px;">${tempPassword}</p>
-          <p style="margin: 24px 0;">
-            <a href="${loginUrl}"
-               style="display: inline-block; padding: 12px 24px; background-color: #4F46E5;
-                      color: white; text-decoration: none; border-radius: 6px;">
-              Iniciar sesión
-            </a>
-          </p>
-          <p style="color: #666; font-size: 14px;">
-            Por seguridad, te pediremos que cambies esta contraseña la primera vez que inicies sesión.
-          </p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-          <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
-        </div>
-      `,
-    });
+    try {
+      await this.mailService.sendMail({
+        to: email,
+        subject: 'Acceso a tu cuenta — Calzados Nueva Tendencia',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <h2>Bienvenido a Nueva Tendencia</h2>
+            <p>Hola <strong>${cliente.nombre}</strong>,</p>
+            <p>Se habilitó tu acceso para consultar tus pedidos en línea.</p>
+            <p>Tu contraseña temporal es:</p>
+            <p style="margin: 24px 0; font-size: 18px; font-weight: bold; letter-spacing: 1px;">${tempPassword}</p>
+            <p style="margin: 24px 0;">
+              <a href="${loginUrl}"
+                 style="display: inline-block; padding: 12px 24px; background-color: #4F46E5;
+                        color: white; text-decoration: none; border-radius: 6px;">
+                Iniciar sesión
+              </a>
+            </p>
+            <p style="color: #666; font-size: 14px;">
+              Por seguridad, te pediremos que cambies esta contraseña la primera vez que inicies sesión.
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
+            <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
+          </div>
+        `,
+      });
+    } catch (err) {
+      void this.auditoriaService.registrar({
+        accion: 'CREATE',
+        modulo: 'clientes',
+        descripcion: `Otorgó acceso de usuario al cliente ${cliente.nombre} (${email}) — el email de bienvenida FALLÓ al enviarse`,
+      });
+      return {
+        message: `Usuario creado pero el email de bienvenida falló al enviarse. Reenviá manualmente las credenciales al cliente (${email}).`,
+        email,
+        emailEnviado: false,
+        tempPassword,
+      };
+    }
 
     void this.auditoriaService.registrar({
       accion: 'CREATE',
@@ -178,6 +192,6 @@ export class ClienteService {
       descripcion: `Otorgó acceso de usuario al cliente ${cliente.nombre} (${email})`,
     });
 
-    return { message: 'Acceso otorgado. Se envió un email con las instrucciones.', email };
+    return { message: 'Acceso otorgado. Se envió un email con las instrucciones.', email, emailEnviado: true };
   }
 }

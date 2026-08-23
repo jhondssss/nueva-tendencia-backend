@@ -47,6 +47,11 @@ import { SeedModule } from './seed/seed.module';
           host, port, username, password, database,
           entities:    [__dirname + '/**/*.entity{.ts,.js}'],
           synchronize: false,
+          // rejectUnauthorized: false es necesario — el pooler de Supabase (pgbouncer)
+          // presenta un certificado que no encadena a una CA pública reconocida por
+          // Node ("self-signed certificate in certificate chain"). Se probó con
+          // rejectUnauthorized: true y la conexión falla. La conexión sigue cifrada
+          // (TLS), solo no se valida la cadena del certificado contra una CA raíz.
           ssl:         { rejectUnauthorized: false },
           keepConnectionAlive: true,
           retryAttempts:       10,
