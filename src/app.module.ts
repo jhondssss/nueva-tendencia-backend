@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -23,6 +23,8 @@ import { TelegramModule } from './telegram/telegram.module';
 import { KeepAliveModule } from './keep-alive/keep-alive.module';
 import { SeedModule } from './seed/seed.module';
 
+const dbLogger = new Logger('TypeOrmConfig');
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -41,7 +43,7 @@ import { SeedModule } from './seed/seed.module';
         const username = process.env.DB_USERNAME || 'postgres';
         const password = process.env.DB_PASSWORD || '';
         const database = process.env.DB_NAME     || 'postgres';
-        console.log('DB_HOST runtime:', host);
+        dbLogger.debug(`DB_HOST runtime: ${host}`);
         return {
           type:        'postgres',
           host, port, username, password, database,

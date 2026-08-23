@@ -1,4 +1,4 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, IsNull, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
@@ -10,6 +10,8 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 
 @Injectable()
 export class ProductoService {
+  private readonly logger = new Logger(ProductoService.name);
+
   constructor(
     @InjectRepository(Producto)
     private repo: Repository<Producto>,
@@ -61,7 +63,7 @@ export class ProductoService {
   }
 
   async update(id: number, dto: UpdateProductoDto, usuarioId?: number) {
-    console.log('ACTIVO DESPUÉS DE TRANSFORM:', dto.activo, typeof dto.activo);
+    this.logger.debug(`activo tras transform: ${dto.activo} (${typeof dto.activo})`);
     const actual = await this.findOne(id);
 
     // Separar stock del resto de campos para control independiente

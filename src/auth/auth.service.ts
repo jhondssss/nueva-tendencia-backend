@@ -103,30 +103,7 @@ export class AuthService {
     const resetUrl = `https://nueva-tendencia-frontend.vercel.app/reset-password?token=${token}`;
     const nombre = user.nombre ?? user.email;
 
-    await this.mailService.sendMail({
-      to: user.email,
-      subject: 'Recuperación de contraseña — Calzados Nueva Tendencia',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-          <h2>Recuperación de contraseña</h2>
-          <p>Hola <strong>${nombre}</strong>,</p>
-          <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta.</p>
-          <p style="margin: 24px 0;">
-            <a href="${resetUrl}"
-               style="display: inline-block; padding: 12px 24px; background-color: #4F46E5;
-                      color: white; text-decoration: none; border-radius: 6px;">
-              Restablecer contraseña
-            </a>
-          </p>
-          <p style="color: #666; font-size: 14px;">Este enlace expira en <strong>1 hora</strong>.</p>
-          <p style="color: #666; font-size: 14px;">
-            Si no solicitaste este cambio, puedes ignorar este mensaje.
-          </p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-          <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
-        </div>
-      `,
-    });
+    await this.mailService.sendPasswordResetEmail(user.email, nombre, resetUrl);
 
     return genericResponse;
   }

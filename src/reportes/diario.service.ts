@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
@@ -10,6 +10,8 @@ import { IReporteDiario, ResumenDiario } from './interfaces/reporte.interface';
 
 @Injectable()
 export class DiarioService implements IReporteDiario {
+  private readonly logger = new Logger(DiarioService.name);
+
   constructor(
     @InjectRepository(Pedido)           private pedidoRepo:    Repository<Pedido>,
     @InjectRepository(Producto)         private productoRepo:  Repository<Producto>,
@@ -26,9 +28,7 @@ export class DiarioService implements IReporteDiario {
     const start  = new Date(`${fecha}T04:00:00.000Z`); // Bolivia 00:00 = UTC 04:00
     const end    = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1); // Bolivia 23:59:59.999 = UTC siguiente día 03:59:59.999
 
-    console.log('FECHA HOY:', fecha);
-    console.log('START:', start.toISOString());
-    console.log('END:', end.toISOString());
+    this.logger.debug(`Resumen diario ${fecha}: ventana ${start.toISOString()} - ${end.toISOString()}`);
 
     // ── Pedidos ──────────────────────────────────────────────────────────────
 
@@ -36,13 +36,11 @@ export class DiarioService implements IReporteDiario {
       where: { fecha_creacion: Between(start, end) },
       relations: ['cliente', 'producto'],
     });
-    console.log('PEDIDOS CREADOS HOY:', pedidosCreados.length);
 
     const pedidosMovidos = await this.pedidoRepo.find({
       where: { fecha_actualizacion: Between(start, end) },
       relations: ['cliente', 'producto'],
     });
-    console.log('PEDIDOS MOVIDOS HOY:', pedidosMovidos.length);
 
     const pedidosTerminados = await this.pedidoRepo.find({
       where: { estado: 'Terminado', fecha_actualizacion: Between(start, end) },
@@ -79,9 +77,11 @@ export class DiarioService implements IReporteDiario {
       .where('i.stock <= i.nivel_minimo')
       .getMany();
 
-    console.log('ALERTAS PRODUCTOS:', JSON.stringify(alertasStock));
-    console.log('ALERTAS INSUMOS:', JSON.stringify(alertasInsumos));
-    console.log('LOG ACTIVIDAD:', JSON.stringify(accionesAuditoria));
+    this.logger.debug(
+      `Resumen diario ${fecha}: ${pedidosCreados.length} pedidos creados, ${pedidosMovidos.length} movidos, ` +
+      `${alertasStock.length} alertas de productos, ${alertasInsumos.length} alertas de insumos, ` +
+      `${accionesAuditoria.length} acciones de auditoría`,
+    );
 
     // ── Resumen ejecutivo ─────────────────────────────────────────────────────
 

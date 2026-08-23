@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, Not, MoreThanOrEqual } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
@@ -47,6 +47,7 @@ El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta 
 
 @Injectable()
 export class AssistantService {
+  private readonly logger = new Logger(AssistantService.name);
   private readonly modelInterno: GenerativeModel | null;
   private readonly modelCliente: GenerativeModel | null;
 
@@ -58,8 +59,8 @@ export class AssistantService {
     @InjectRepository(KardexMovimiento) private readonly kardexRepo:   Repository<KardexMovimiento>,
     @InjectRepository(Auditoria)        private readonly auditoriaRepo: Repository<Auditoria>,
   ) {
-    console.log('[AssistantService] GEMINI_API_KEY presente:', !!process.env.GEMINI_API_KEY);
     const apiKey = process.env.GEMINI_API_KEY;
+    this.logger.debug(`GEMINI_API_KEY presente: ${!!apiKey}`);
     if (apiKey) {
       const genAI = new GoogleGenerativeAI(apiKey);
       this.modelInterno = genAI.getGenerativeModel({
@@ -492,11 +493,11 @@ ${listaCatalogo}
       ];
 
       const chatSession = model.startChat({ history: geminiHistory });
-      console.log('[AssistantService] Llamando a Gemini con mensaje:', message.slice(0, 100));
+      this.logger.debug(`Llamando a Gemini con mensaje: ${message.slice(0, 100)}`);
       const result = await chatSession.sendMessage(message);
       return result.response.text().trim();
     } catch (err) {
-      console.error('[AssistantService] Gemini falló:', err?.message, err?.status, JSON.stringify(err));
+      this.logger.error(`Gemini falló: ${err?.message} (status ${err?.status})`, err?.stack);
       return this.fallbackChat(message, user);
     }
   }

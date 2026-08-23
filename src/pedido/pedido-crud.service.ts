@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like, Not, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
@@ -15,9 +15,12 @@ import { TallaService } from '../talla/talla.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { IPedidoCrudService } from './interfaces/pedido.interface';
 import { paginate } from '../common/pagination';
+import { PARES_POR_UNIDAD } from '../common/constants';
 
 @Injectable()
 export class PedidoCrudService implements IPedidoCrudService {
+  private readonly logger = new Logger(PedidoCrudService.name);
+
   constructor(
     @InjectRepository(Pedido)              private pedidoRepo:       Repository<Pedido>,
     @InjectRepository(Cliente)             private clienteRepo:      Repository<Cliente>,
@@ -29,29 +32,22 @@ export class PedidoCrudService implements IPedidoCrudService {
   ) {}
 
   async create(createPedidoDto: CreatePedidoDto) {
-    console.log('📥 DTO recibido:', createPedidoDto);
+    this.logger.debug(`Creando pedido: cliente=${createPedidoDto.cliente_id} producto=${createPedidoDto.producto_id}`);
 
     const cliente = await this.clienteRepo.findOneBy({ id_cliente: createPedidoDto.cliente_id });
     const producto = await this.productoRepo.findOneBy({ id_producto: createPedidoDto.producto_id });
-
-    console.log('👤 Cliente encontrado:', cliente);
-    console.log('👟 Producto encontrado:', producto);
 
     if (!cliente) throw new Error('Cliente no encontrado');
     if (!producto) throw new Error('Producto no encontrado');
 
     const cantidad = createPedidoDto.cantidad ?? 1;
     const unidad   = createPedidoDto.unidad   ?? 'docena';
-    const multiplicador = { docena: 12, media_docena: 6, par: 1 } as const;
-    const cantidad_pares = cantidad * multiplicador[unidad];
+    const cantidad_pares = cantidad * PARES_POR_UNIDAD[unidad];
 
     const fechaStr = createPedidoDto.fecha_entrega; // ej: '2026-03-18'
     const [y, m, d] = fechaStr.split('-').map(Number);
     const fecha = new Date(y, m - 1, d, 12, 0, 0); // mediodía local, evita timezone
-
-    console.log('FECHA STRING:', createPedidoDto.fecha_entrega);
-    console.log('FECHA CONSTRUIDA:', fecha.toISOString());
-    console.log('FECHA FINAL:', fecha.toISOString().split('T')[0]);
+    this.logger.debug(`Fecha entrega: ${fechaStr} -> ${fecha.toISOString().split('T')[0]}`);
 
     const pedido = this.pedidoRepo.create({
       total:              createPedidoDto.total,
@@ -67,7 +63,7 @@ export class PedidoCrudService implements IPedidoCrudService {
     });
 
     const savedPedido: Pedido = await this.pedidoRepo.save(pedido);
-    console.log('✅ Pedido guardado:', savedPedido);
+    this.logger.debug(`Pedido #${savedPedido.id_pedido} guardado`);
 
     if (createPedidoDto.tallas_personalizadas && createPedidoDto.categoria) {
       await this.tallaService.actualizarTallasPersonalizadas(
@@ -187,7 +183,7 @@ export class PedidoCrudService implements IPedidoCrudService {
   }
 
   async update(id: number, updatePedidoDto: UpdatePedidoDto) {
-    console.log('📝 Actualizando pedido:', id, updatePedidoDto);
+    this.logger.debug(`Actualizando pedido #${id}`);
 
     const pedido = await this.pedidoRepo.findOne({
       where: { id_pedido: id },
@@ -217,8 +213,7 @@ export class PedidoCrudService implements IPedidoCrudService {
     if (updatePedidoDto.categoria !== undefined) pedido.categoria     = updatePedidoDto.categoria;
 
     if (updatePedidoDto.cantidad !== undefined || updatePedidoDto.unidad) {
-      const multiplicador = { docena: 12, media_docena: 6, par: 1 } as const;
-      pedido.cantidad_pares = pedido.cantidad * multiplicador[pedido.unidad];
+      pedido.cantidad_pares = pedido.cantidad * PARES_POR_UNIDAD[pedido.unidad];
     }
 
     const saved = await this.pedidoRepo.save(pedido);

@@ -25,7 +25,11 @@ describe('SolicitudPedidoService', () => {
   const mockProductoRepo = { findOneBy: jest.fn() };
   const mockPedidoService = { create: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
-  const mockMailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
+  const mockMailService = {
+    sendMail: jest.fn().mockResolvedValue(undefined),
+    sendSolicitudAprobadaEmail: jest.fn().mockResolvedValue(undefined),
+    sendSolicitudRechazadaEmail: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({

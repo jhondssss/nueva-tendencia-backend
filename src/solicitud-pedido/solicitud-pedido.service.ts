@@ -112,27 +112,12 @@ export class SolicitudPedidoService {
     });
 
     this.mailService
-      .sendMail({
-        to: solicitud.cliente.correo_electronico,
-        subject: 'Tu solicitud de pedido fue aprobada — Calzados Nueva Tendencia',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-            <h2>¡Tu solicitud fue aprobada!</h2>
-            <p>Hola <strong>${solicitud.cliente.nombre}</strong>,</p>
-            <p>Tu solicitud de pedido #${solicitud.id_solicitud} fue aprobada y ya generamos tu pedido #${pedido.id_pedido}.</p>
-            <p>Producto: <strong>${solicitud.producto.nombre_modelo}</strong></p>
-            <p>Fecha de entrega estimada: <strong>${dto.fecha_entrega}</strong></p>
-            <p style="margin: 24px 0;">
-              <a href="https://nueva-tendencia-frontend.vercel.app/login"
-                 style="display: inline-block; padding: 12px 24px; background-color: #4F46E5;
-                        color: white; text-decoration: none; border-radius: 6px;">
-                Ver mi pedido
-              </a>
-            </p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-            <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
-          </div>
-        `,
+      .sendSolicitudAprobadaEmail(solicitud.cliente.correo_electronico, {
+        nombreCliente: solicitud.cliente.nombre,
+        idSolicitud: solicitud.id_solicitud,
+        idPedido: pedido.id_pedido,
+        nombreProducto: solicitud.producto.nombre_modelo,
+        fechaEntrega: dto.fecha_entrega,
       })
       .catch(() => {});
 
@@ -156,21 +141,12 @@ export class SolicitudPedidoService {
     });
 
     this.mailService
-      .sendMail({
-        to: solicitud.cliente.correo_electronico,
-        subject: 'Tu solicitud de pedido fue rechazada — Calzados Nueva Tendencia',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-            <h2>Tu solicitud fue rechazada</h2>
-            <p>Hola <strong>${solicitud.cliente.nombre}</strong>,</p>
-            <p>Lamentablemente tu solicitud de pedido #${solicitud.id_solicitud} fue rechazada.</p>
-            <p>Motivo: <strong>${dto.motivo_rechazo}</strong></p>
-            <p>Si tenés dudas, podés contactarnos para más información.</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;">
-            <p style="color: #999; font-size: 12px;">Calzados Nueva Tendencia</p>
-          </div>
-        `,
-      })
+      .sendSolicitudRechazadaEmail(
+        solicitud.cliente.correo_electronico,
+        solicitud.cliente.nombre,
+        solicitud.id_solicitud,
+        dto.motivo_rechazo,
+      )
       .catch(() => {});
 
     return saved;
