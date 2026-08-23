@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { UserService } from '../user/user.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { MailService } from '../mail/mail.service';
 
 jest.mock('resend', () => ({
   Resend: jest.fn().mockImplementation(() => ({
@@ -19,6 +20,7 @@ describe('AuthService', () => {
   const mockUserService = { findByEmail: jest.fn(), create: jest.fn() };
   const mockJwtService = { sign: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
+  const mockMailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -27,6 +29,7 @@ describe('AuthService', () => {
         { provide: UserService, useValue: mockUserService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
+        { provide: MailService, useValue: mockMailService },
       ],
     }).compile();
 
@@ -46,6 +49,8 @@ describe('AuthService', () => {
         email: user.email,
         sub: user.id,
         role: user.role,
+        clienteId: undefined,
+        requiereCambioPassword: false,
       });
       expect(result).toEqual({
         access_token: 'mock-jwt-token',
