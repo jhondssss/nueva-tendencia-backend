@@ -7,6 +7,7 @@ import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { paginate } from '../common/pagination';
 
 @Injectable()
 export class ProductoService {
@@ -126,13 +127,16 @@ export class ProductoService {
       .getMany();
   }
 
-  async findCatalogo(): Promise<ProductoCatalogoDto[]> {
-    const productos = await this.repo.find({
+  async findCatalogo(page = 1, limit = 12) {
+    const [productos, total] = await this.repo.findAndCount({
       where: { activo: true, categoria: Not(IsNull()) },
       select: ['id_producto', 'nombre_modelo', 'descripcion_corta', 'precio_venta', 'imagen_url', 'categoria', 'stock'],
+      order: { id_producto: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
 
-    return productos.map((producto) => ({
+    const data: ProductoCatalogoDto[] = productos.map((producto) => ({
       id_producto: producto.id_producto,
       nombre: producto.nombre_modelo,
       descripcion: producto.descripcion_corta,
@@ -141,5 +145,7 @@ export class ProductoService {
       categoria: producto.categoria as NonNullable<typeof producto.categoria>,
       disponible: producto.stock > 0,
     }));
+
+    return paginate(data, total, page, limit);
   }
 }

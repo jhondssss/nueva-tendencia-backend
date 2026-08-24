@@ -122,15 +122,16 @@ describe('PedidoCrudService', () => {
   describe('Autorización cruzada — mis-pedidos', () => {
     it('findByClienteId solo consulta pedidos filtrados por el cliente dueño de la sesión', async () => {
       const CLIENTE_A = 10;
-      mockPedidoRepo.find.mockResolvedValue([]);
+      mockPedidoRepo.findAndCount.mockResolvedValue([[], 0]);
 
-      await service.findByClienteId(CLIENTE_A);
+      const result = await service.findByClienteId(CLIENTE_A);
 
-      expect(mockPedidoRepo.find).toHaveBeenCalledWith(
+      expect(mockPedidoRepo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ cliente: { id_cliente: CLIENTE_A } }),
         }),
       );
+      expect(result).toEqual({ data: [], total: 0, page: 1, limit: 20, totalPages: 1 });
     });
 
     it('findOneByClienteId no expone el detalle de un pedido de otro cliente', async () => {

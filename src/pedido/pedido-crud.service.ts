@@ -132,7 +132,14 @@ export class PedidoCrudService implements IPedidoCrudService {
     });
   }
 
-  findByClienteId(clienteId: number, desde?: string, hasta?: string, estado?: string) {
+  async findByClienteId(
+    clienteId: number,
+    desde?: string,
+    hasta?: string,
+    estado?: string,
+    page = 1,
+    limit = 20,
+  ) {
     const rangoFecha =
       desde && hasta
         ? Between(new Date(`${desde}T00:00:00`), new Date(`${hasta}T23:59:59.999`))
@@ -142,7 +149,7 @@ export class PedidoCrudService implements IPedidoCrudService {
             ? LessThanOrEqual(new Date(`${hasta}T23:59:59.999`))
             : undefined;
 
-    return this.pedidoRepo.find({
+    const [data, total] = await this.pedidoRepo.findAndCount({
       where: {
         cliente: { id_cliente: clienteId },
         ...(rangoFecha && { fecha_creacion: rangoFecha }),
@@ -150,7 +157,10 @@ export class PedidoCrudService implements IPedidoCrudService {
       },
       relations: ['cliente', 'producto', 'talles'],
       order: { fecha_creacion: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return paginate(data, total, page, limit);
   }
 
   async findOneByClienteId(id: number, clienteId: number) {

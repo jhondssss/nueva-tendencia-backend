@@ -27,8 +27,15 @@ export class PedidoService {
     return this.crudService.findOne(id);
   }
 
-  findByClienteId(clienteId: number, desde?: string, hasta?: string, estado?: string) {
-    return this.crudService.findByClienteId(clienteId, desde, hasta, estado);
+  findByClienteId(
+    clienteId: number,
+    desde?: string,
+    hasta?: string,
+    estado?: string,
+    page?: number,
+    limit?: number,
+  ) {
+    return this.crudService.findByClienteId(clienteId, desde, hasta, estado, page, limit);
   }
 
   findOneByClienteId(id: number, clienteId: number) {

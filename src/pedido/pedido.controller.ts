@@ -7,7 +7,7 @@ import { TallaService } from '../talla/talla.service';
 import { CategoriaCalzado } from './entities/pedido.entity';
 import { ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginationQueryDto, ListadoClientePaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('pedidos')
 @Controller('pedidos')
@@ -53,12 +53,13 @@ export class PedidoController {
     @Query('desde') desde?: string,
     @Query('hasta') hasta?: string,
     @Query('estado') estado?: string,
+    @Query() paginacion?: ListadoClientePaginationQueryDto,
   ) {
     const clienteId = req.user?.clienteId as number | undefined;
     if (!clienteId) {
       throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
     }
-    return this.pedidoService.findByClienteId(clienteId, desde, hasta, estado);
+    return this.pedidoService.findByClienteId(clienteId, desde, hasta, estado, paginacion?.page, paginacion?.limit);
   }
 
   @Roles('cliente')

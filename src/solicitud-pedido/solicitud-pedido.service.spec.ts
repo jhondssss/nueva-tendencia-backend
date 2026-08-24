@@ -167,11 +167,11 @@ describe('SolicitudPedidoService', () => {
   describe('Autorización cruzada — mis-solicitudes', () => {
     it('findByClienteId solo consulta solicitudes filtradas por el cliente dueño de la sesión', async () => {
       const CLIENTE_A = 1;
-      mockSolicitudRepo.find.mockResolvedValue([]);
+      mockSolicitudRepo.findAndCount.mockResolvedValue([[], 0]);
 
       await service.findByClienteId(CLIENTE_A);
 
-      expect(mockSolicitudRepo.find).toHaveBeenCalledWith(
+      expect(mockSolicitudRepo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { cliente: { id_cliente: CLIENTE_A } },
         }),
@@ -180,15 +180,15 @@ describe('SolicitudPedidoService', () => {
 
     it('un cliente distinto no recibe las solicitudes de otro cliente', async () => {
       const CLIENTE_A_SOLICITUDES = [{ id_solicitud: 1, cliente: { id_cliente: 1 } }];
-      mockSolicitudRepo.find.mockResolvedValue(CLIENTE_A_SOLICITUDES);
+      mockSolicitudRepo.findAndCount.mockResolvedValue([CLIENTE_A_SOLICITUDES, 1]);
 
       const resultado = await service.findByClienteId(1);
 
-      expect(mockSolicitudRepo.find).toHaveBeenCalledWith(
+      expect(mockSolicitudRepo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({ where: { cliente: { id_cliente: 1 } } }),
       );
       // ninguna solicitud del cliente 2 puede colarse porque el where la filtra en el propio query
-      expect(resultado.every((s: any) => s.cliente.id_cliente === 1)).toBe(true);
+      expect(resultado.data.every((s: any) => s.cliente.id_cliente === 1)).toBe(true);
     });
 
     it('el rol "cliente" no está habilitado para aprobar ni rechazar solicitudes ajenas (nivel ruta)', () => {

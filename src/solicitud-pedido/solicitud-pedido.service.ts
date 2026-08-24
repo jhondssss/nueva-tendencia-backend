@@ -60,11 +60,14 @@ export class SolicitudPedidoService {
     return saved;
   }
 
-  findByClienteId(clienteId: number) {
-    return this.solicitudRepo.find({
+  async findByClienteId(clienteId: number, page = 1, limit = 20) {
+    const [data, total] = await this.solicitudRepo.findAndCount({
       where: { cliente: { id_cliente: clienteId } },
       order: { fecha_creacion: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+    return paginate(data, total, page, limit);
   }
 
   async findAll(estado?: string, page = 1, limit = 30) {

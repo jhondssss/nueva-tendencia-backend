@@ -1,6 +1,6 @@
 // src/producto/producto.controller.ts
 import {
-  Controller, Get, Post, Body, Patch, Param, Delete,
+  Controller, Get, Post, Body, Patch, Param, Delete, Query,
   UseInterceptors, UploadedFile, Req,
   BadRequestException, InternalServerErrorException,
 } from '@nestjs/common';
@@ -11,7 +11,7 @@ import { ProductoService } from './producto.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
-import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
+import { CatalogoPaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 const ALLOWED_MIMETYPES = /^image\/(jpeg|png|webp)$/;
 
@@ -89,8 +89,8 @@ export class ProductoController {
 
   @Roles('cliente', 'admin', 'operario')
   @Get('catalogo')
-  findCatalogo(): Promise<ProductoCatalogoDto[]> {
-    return this.productoService.findCatalogo();
+  findCatalogo(@Query() paginacion?: CatalogoPaginationQueryDto) {
+    return this.productoService.findCatalogo(paginacion?.page, paginacion?.limit);
   }
 
   @Get(':id')

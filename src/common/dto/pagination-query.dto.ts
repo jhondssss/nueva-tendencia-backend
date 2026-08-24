@@ -15,3 +15,21 @@ export class PaginationQueryDto {
   @Max(100)
   limit: number = 30;
 }
+
+export class CatalogoPaginationQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 12;
+}
+
+export class ListadoClientePaginationQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
+}

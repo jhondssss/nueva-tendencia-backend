@@ -5,7 +5,7 @@ import { CreateSolicitudPedidoDto } from './dto/create-solicitud-pedido.dto';
 import { AprobarSolicitudDto } from './dto/aprobar-solicitud.dto';
 import { RechazarSolicitudDto } from './dto/rechazar-solicitud.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
+import { PaginationQueryDto, ListadoClientePaginationQueryDto } from '../common/dto/pagination-query.dto';
 
 @ApiTags('solicitudes-pedido')
 @Controller('solicitudes-pedido')
@@ -22,10 +22,10 @@ export class SolicitudPedidoController {
 
   @Roles('cliente')
   @Get('mis-solicitudes')
-  misSolicitudes(@Req() req: any) {
+  misSolicitudes(@Req() req: any, @Query() paginacion?: ListadoClientePaginationQueryDto) {
     const clienteId = req.user?.clienteId as number | undefined;
     if (!clienteId) throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
-    return this.solicitudPedidoService.findByClienteId(clienteId);
+    return this.solicitudPedidoService.findByClienteId(clienteId, paginacion?.page, paginacion?.limit);
   }
 
   @Roles('admin', 'operario')
