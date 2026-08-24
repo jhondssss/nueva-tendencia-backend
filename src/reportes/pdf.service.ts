@@ -557,8 +557,7 @@ export class PdfService implements IReportePDF {
   // ══════════════════════════════════════════════════════════════════════════
 
   async generarPDFDiario(data: ResumenDiario): Promise<Buffer> {
-    const [dy, mo, yr] = data.fecha.split('-');
-    const fechaLabel   = `${dy}/${mo}/${yr}`;
+    const fechaLabel = this.fmtDate(data.fecha);
 
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, `Reporte Diario — ${fechaLabel}`);
