@@ -142,10 +142,15 @@ export class PdfService implements IReportePDF {
     return y + H;
   }
 
-  private maybePageBreak(doc: any, y: number, needed = 28): number {
+  private maybePageBreak(
+    doc: any,
+    y: number,
+    needed = 28,
+    headers?: { labels: string[]; widths: number[] },
+  ): number {
     if (y + needed > (doc.page.height as number) - 60) {
       doc.addPage();
-      return 50;
+      return headers ? this.buildTable(doc, 50, headers.labels, headers.widths) : 50;
     }
     return y;
   }
@@ -182,8 +187,9 @@ export class PdfService implements IReportePDF {
     const aligns: ('left' | 'right' | 'center')[] = ['left', 'right', 'right'];
     let y = this.buildTable(doc, doc.y, ['Mes', 'Ventas (Bs.)', '% del Total'], widths);
 
+    const ventasHeaders = { labels: ['Mes', 'Ventas (Bs.)', '% del Total'], widths };
     MESES.forEach((mes, i) => {
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, ventasHeaders);
       y = this.drawDataRow(doc, y, [
         mes,
         `Bs. ${totalesMes[i].toFixed(2)}`,
@@ -191,7 +197,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y);
+    y = this.maybePageBreak(doc, y, 28, ventasHeaders);
     this.buildFooter(doc, y, ['TOTAL', `Bs. ${grandTotal.toFixed(2)}`, '100 %'], widths);
 
     doc.end();
@@ -217,9 +223,10 @@ export class PdfService implements IReportePDF {
     const sWidths = [170, 163, 162];
     let y = this.buildTable(doc, doc.y, ['Estado', 'Cantidad', '% del Total'], sWidths);
 
+    const estadosHeaders = { labels: ['Estado', 'Cantidad', '% del Total'], widths: sWidths };
     ESTADOS_PEDIDO.forEach((estado, i) => {
       const cant = pedidos.filter(p => p.estado === estado).length;
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, estadosHeaders);
       y = this.drawDataRow(doc, y, [
         estado,
         String(cant),
@@ -241,10 +248,14 @@ export class PdfService implements IReportePDF {
       dWidths,
     );
 
+    const detalleHeaders = {
+      labels: ['#ID', 'Cliente', 'ID Cliente', 'Producto', 'Estado', 'Cant.', 'Unidad', 'Pares', 'Fecha Entrega', 'Total Bs.'],
+      widths: dWidths,
+    };
     let sumaPares = 0;
     let sumaTotal = 0;
     pedidos.forEach((p, i) => {
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, detalleHeaders);
       sumaPares += p.cantidad_pares ?? 0;
       sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
@@ -261,7 +272,7 @@ export class PdfService implements IReportePDF {
       ], dWidths, dAligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y);
+    y = this.maybePageBreak(doc, y, 28, detalleHeaders);
     this.buildFooter(doc, y, [
       '', 'TOTAL GENERAL', '', '', '', '', '',
       String(sumaPares),
@@ -305,8 +316,9 @@ export class PdfService implements IReportePDF {
       ['Total insumos críticos',                        String(insumoCriticos.length)],
       ['Inversión estimada (reposición de productos)',  `Bs. ${inversionEstimada.toFixed(2)}`],
     ];
+    const resumenHeaders = { labels: ['Resumen Ejecutivo', 'Valor'], widths: rWidths };
     resumenItems.forEach(([label, val], i) => {
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, resumenHeaders);
       y = this.drawDataRow(doc, y, [label, val], rWidths, ['left', 'right'], i % 2 === 1);
     });
     doc.moveDown(1.2);
@@ -331,8 +343,12 @@ export class PdfService implements IReportePDF {
         .text('Sin productos críticos.', { align: 'center' });
       y = doc.y;
     } else {
+      const productosHeaders = {
+        labels: ['Producto', 'Marca', 'Stock Actual', 'Nivel Mínimo', 'Diferencia', 'Precio Venta', 'Cant. Sugerida'],
+        widths: pWidths,
+      };
       criticos.forEach((p, i) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, productosHeaders);
         const cantSugerida = Math.max(0, p.nivel_minimo - p.stock);
         y = this.drawDataRow(doc, y, [
           p.nombre_modelo,
@@ -370,8 +386,12 @@ export class PdfService implements IReportePDF {
       doc.moveDown(0.5).fillColor('#007700').fontSize(10).font('Helvetica')
         .text('Sin insumos críticos.', { align: 'center' });
     } else {
+      const insumosHeaders = {
+        labels: ['Insumo', 'Categoría', 'Stock Actual', 'Nivel Mínimo', 'Diferencia', 'Precio Unitario', 'Cant. Sugerida'],
+        widths: iWidths,
+      };
       insumoCriticos.forEach((ins, i) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, insumosHeaders);
         const cantSugerida = Math.max(0, Number(ins.nivel_minimo) - Number(ins.stock));
         y = this.drawDataRow(doc, y, [
           ins.nombre,
@@ -412,10 +432,14 @@ export class PdfService implements IReportePDF {
       'Cantidad', 'Unidad', 'Pares', 'Total Bs.', 'F. Entrega',
     ], widths);
 
+    const entregadosHeaders = {
+      labels: ['ID', 'Cliente', 'ID Cliente', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Pares', 'Total Bs.', 'F. Entrega'],
+      widths,
+    };
     let sumaTotal = 0;
     const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
     pedidos.forEach((p, i) => {
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, entregadosHeaders);
       sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
         p.id_pedido,
@@ -431,7 +455,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y);
+    y = this.maybePageBreak(doc, y, 28, entregadosHeaders);
     const totalW = widths.reduce((a, b) => a + b, 0);
     this.buildFooter(doc, y, [
       'TOTAL', '', '', '', '', '', '', '', `Bs. ${sumaTotal.toFixed(2)}`, '',
@@ -477,10 +501,14 @@ export class PdfService implements IReportePDF {
       'N°', 'Cliente', 'ID Cli.', 'Producto', 'Cantidad', 'Total Bs.', 'F. Entrega',
     ], widths);
 
+    const gananciasHeaders = {
+      labels: ['N°', 'Cliente', 'ID Cli.', 'Producto', 'Cantidad', 'Total Bs.', 'F. Entrega'],
+      widths,
+    };
     let sumaTotal = 0;
     let sumaPares = 0;
     pedidos.forEach((p, i) => {
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, gananciasHeaders);
       sumaTotal += Number(p.total);
       sumaPares += p.cantidad_pares ?? 0;
       const fechaEntrega = p.fecha_entrega
@@ -497,7 +525,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y);
+    y = this.maybePageBreak(doc, y, 28, gananciasHeaders);
     y = this.buildFooter(doc, y, [
       'TOTAL', '', '', '',
       String(pedidos.reduce((a, p) => a + (p.cantidad ?? 1), 0)),
@@ -550,8 +578,9 @@ export class PdfService implements IReportePDF {
       ['Alertas críticas de stock',    String(data.resumen.totalAlertasCriticas)],
     ];
 
+    const metricasHeaders = { labels: ['Métrica', 'Valor'], widths: rWidths };
     metricas.forEach(([label, val], i) => {
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, metricasHeaders);
       y = this.drawDataRow(doc, y, [label, val], rWidths, ['left', 'right'], i % 2 === 1);
     });
 
@@ -576,8 +605,12 @@ export class PdfService implements IReportePDF {
       doc.moveDown(0.4);
       y = doc.y;
     } else {
+      const creadosHeaders = {
+        labels: ['#ID', 'Cliente', 'Producto', 'Estado', 'Total Bs.', 'F. Creación'],
+        widths: pWidths,
+      };
       data.pedidosCreados.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, creadosHeaders);
         y = this.drawDataRow(doc, y, [
           p.id_pedido,
           p.cliente?.nombre ?? '—',
@@ -599,8 +632,12 @@ export class PdfService implements IReportePDF {
       doc.moveDown(0.4);
       y = doc.y;
     } else {
+      const movidosHeaders = {
+        labels: ['#ID', 'Cliente', 'Producto', 'Estado', 'Total Bs.', 'F. Actualiz.'],
+        widths: pWidths,
+      };
       data.pedidosMovidos.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, movidosHeaders);
         y = this.drawDataRow(doc, y, [
           p.id_pedido,
           p.cliente?.nombre ?? '—',
@@ -630,8 +667,12 @@ export class PdfService implements IReportePDF {
       doc.moveDown(0.4);
       y = doc.y;
     } else {
+      const terminadosHeaders = {
+        labels: ['#', 'Cliente', 'Producto', 'Pares', 'Total Bs.', 'F. Entrega'],
+        widths: vWidths,
+      };
       data.pedidosTerminados.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, terminadosHeaders);
         y = this.drawDataRow(doc, y, [
           i + 1,
           p.cliente?.nombre ?? '—',
@@ -641,7 +682,7 @@ export class PdfService implements IReportePDF {
           this.fmtDate(p.fecha_entrega),
         ], vWidths, vAligns, i % 2 === 1);
       });
-      y = this.maybePageBreak(doc, y);
+      y = this.maybePageBreak(doc, y, 28, terminadosHeaders);
       this.buildFooter(doc, y, [
         `Total: ${data.pedidosTerminados.length} pedido(s)`,
         '', '', '',
@@ -678,7 +719,10 @@ export class PdfService implements IReportePDF {
         const hora = m.fecha instanceof Date
           ? m.fecha.toTimeString().slice(0, 5)
           : String(m.fecha).slice(11, 16);
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, {
+          labels: ['#', 'Producto / Insumo', 'Tipo', 'Cantidad', 'Stock Ant.', 'Stock Nvo.', 'Hora'],
+          widths: kWidths,
+        });
         y = this.drawDataRow(doc, y, [
           i + 1,
           nombre,
@@ -712,8 +756,12 @@ export class PdfService implements IReportePDF {
       doc.moveDown(0.4);
       y = doc.y;
     } else {
+      const alertasStockHeaders = {
+        labels: ['Modelo', 'Marca', 'Stock', 'Mínimo', 'Diferencia'],
+        widths: aWidths,
+      };
       data.alertasStock.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, alertasStockHeaders);
         y = this.drawDataRow(doc, y, [
           p.nombre_modelo,
           p.marca,
@@ -735,8 +783,12 @@ export class PdfService implements IReportePDF {
       doc.moveDown(0.4);
       y = doc.y;
     } else {
+      const alertasInsumosHeaders = {
+        labels: ['Insumo', 'Unidad', 'Stock', 'Mínimo', 'Diferencia'],
+        widths: iWidths,
+      };
       data.alertasInsumos.forEach((ins: any, i: number) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, alertasInsumosHeaders);
         y = this.drawDataRow(doc, y, [
           ins.nombre,
           ins.unidad_medida,
@@ -763,8 +815,12 @@ export class PdfService implements IReportePDF {
     if (data.accionesAuditoria.length === 0) {
       doc.moveDown(0.4).fillColor('#888888').fontSize(8.5).text('Sin actividad registrada hoy.', { indent: 8 });
     } else {
+      const auditoriaHeaders = {
+        labels: ['Usuario', 'Módulo', 'Acción', 'Descripción'],
+        widths: auWidths,
+      };
       data.accionesAuditoria.forEach((a: any, i: number) => {
-        y = this.maybePageBreak(doc, y);
+        y = this.maybePageBreak(doc, y, 28, auditoriaHeaders);
         y = this.drawDataRow(doc, y, [
           a.usuario?.email ?? '(sistema)',
           a.modulo,
