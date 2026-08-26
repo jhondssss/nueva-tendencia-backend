@@ -22,6 +22,7 @@ import { TallaModule } from './talla/talla.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { KeepAliveModule } from './keep-alive/keep-alive.module';
 import { SeedModule } from './seed/seed.module';
+import { SearchModule } from './search/search.module';
 
 const dbLogger = new Logger('TypeOrmConfig');
 
@@ -84,6 +85,7 @@ const dbLogger = new Logger('TypeOrmConfig');
     TelegramModule,
     KeepAliveModule,
     SeedModule,
+    SearchModule,
   ],
   providers: [
     // ── Rate limiting global ──
