@@ -3,6 +3,7 @@ import { PdfService } from './pdf.service';
 import { ExcelService } from './excel.service';
 import { DiarioService } from './diario.service';
 import { ResumenDiario } from './interfaces/reporte.interface';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 
 // Facade Pattern: delega a PdfService, ExcelService y DiarioService (SRP + OCP + DIP)
 @Injectable()
@@ -19,8 +20,8 @@ export class ReportesService {
     return this.pdfService.generarPDFVentas(year, usuario);
   }
 
-  generarPDFPedidos(usuario?: string): Promise<Buffer> {
-    return this.pdfService.generarPDFPedidos(usuario);
+  generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFPedidos(filtro, usuario);
   }
 
   generarPDFStock(usuario?: string): Promise<Buffer> {

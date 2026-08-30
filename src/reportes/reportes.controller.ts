@@ -2,6 +2,7 @@ import { Controller, Get, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 
 @Controller('reportes')
 export class ReportesController {
@@ -23,11 +24,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/pedidos */
+  /** GET /reportes/pdf/pedidos?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('pdf/pedidos')
-  async pdfPedidos(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFPedidos(req.user?.email);
+  async pdfPedidos(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFPedidos(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="pedidos.pdf"',

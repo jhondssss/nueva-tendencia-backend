@@ -1,8 +1,10 @@
 // ISP: interfaces específicas por tipo de reporte
 
+import { PedidoReporteFiltroDto } from '../dto/pedido-reporte-filtro.dto';
+
 export interface IReportePDF {
   generarPDFVentas(year: number, usuario?: string): Promise<Buffer>;
-  generarPDFPedidos(usuario?: string): Promise<Buffer>;
+  generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFStock(usuario?: string): Promise<Buffer>;
   generarPDFPedidosEntregados(usuario?: string): Promise<Buffer>;
   generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer>;

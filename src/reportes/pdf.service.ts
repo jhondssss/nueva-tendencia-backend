@@ -5,6 +5,8 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { buildWherePedidos } from './reportes-filtro.util';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit');
@@ -236,8 +238,9 @@ export class PdfService implements IReportePDF {
   // b) PDF — Pedidos
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFPedidos(usuario?: string): Promise<Buffer> {
+  async generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
+      where: buildWherePedidos(filtro),
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });
