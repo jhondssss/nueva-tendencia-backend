@@ -118,7 +118,7 @@ export class PedidoCrudService implements IPedidoCrudService {
         ...(productoNombre && { producto: { nombre_modelo: Like(`%${productoNombre}%`) } }),
       },
       relations: ['cliente', 'producto', 'talles'],
-      order: { fecha_creacion: 'DESC' },
+      order: { fecha_creacion: 'DESC', id_pedido: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -163,7 +163,7 @@ export class PedidoCrudService implements IPedidoCrudService {
         ...(estado && { estado: estado as Pedido['estado'] }),
       },
       relations: ['cliente', 'producto', 'talles'],
-      order: { fecha_creacion: 'DESC' },
+      order: { fecha_creacion: 'DESC', id_pedido: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
