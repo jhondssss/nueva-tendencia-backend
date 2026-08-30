@@ -6,6 +6,7 @@ import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
 import { buildWherePedidos } from './reportes-filtro.util';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -320,11 +321,14 @@ export class PdfService implements IReportePDF {
   // c) PDF — Stock Crítico
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFStock(usuario?: string): Promise<Buffer> {
-    const criticos = await this.productoRepo
+  async generarPDFStock(filtro?: StockReporteFiltroDto, usuario?: string): Promise<Buffer> {
+    const criticosQuery = this.productoRepo
       .createQueryBuilder('p')
-      .where(condicionStockCritico('p'))
-      .getMany();
+      .where(condicionStockCritico('p'));
+    if (filtro?.categoria) {
+      criticosQuery.andWhere('p.categoria = :categoria', { categoria: filtro.categoria });
+    }
+    const criticos = await criticosQuery.getMany();
 
     const insumoCriticos = await this.insumoRepo
       .createQueryBuilder('i')

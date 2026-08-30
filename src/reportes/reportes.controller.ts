@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
 
 @Controller('reportes')
 export class ReportesController {
@@ -37,11 +38,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/stock */
+  /** GET /reportes/pdf/stock?categoria= */
   @Roles('admin', 'operario')
   @Get('pdf/stock')
-  async pdfStock(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFStock(req.user?.email);
+  async pdfStock(@Query() filtro: StockReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFStock(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="stock-critico.pdf"',
@@ -50,11 +51,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/stock-critico */
+  /** GET /reportes/pdf/stock-critico?categoria= */
   @Roles('admin', 'operario')
   @Get('pdf/stock-critico')
-  async pdfStockCritico(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFStock(req.user?.email);
+  async pdfStockCritico(@Query() filtro: StockReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFStock(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="stock-critico.pdf"',
