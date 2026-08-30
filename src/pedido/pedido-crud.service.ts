@@ -125,11 +125,18 @@ export class PedidoCrudService implements IPedidoCrudService {
     return paginate(data, total, page, limit);
   }
 
-  findOne(id: number) {
-    return this.pedidoRepo.findOne({
+  async findOne(id: number) {
+    const pedido = await this.pedidoRepo.findOne({
       where: { id_pedido: id },
       relations: ['cliente', 'producto', 'calificacion'],
     });
+
+    if (pedido && !pedido.token_seguimiento) {
+      pedido.token_seguimiento = uuidv4();
+      await this.pedidoRepo.update(pedido.id_pedido, { token_seguimiento: pedido.token_seguimiento });
+    }
+
+    return pedido;
   }
 
   async findByClienteId(
