@@ -15,24 +15,24 @@ export class ReportesService {
 
   // ── PDF ──────────────────────────────────────────────────────────────────
 
-  generarPDFVentas(year: number): Promise<Buffer> {
-    return this.pdfService.generarPDFVentas(year);
+  generarPDFVentas(year: number, usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFVentas(year, usuario);
   }
 
-  generarPDFPedidos(): Promise<Buffer> {
-    return this.pdfService.generarPDFPedidos();
+  generarPDFPedidos(usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFPedidos(usuario);
   }
 
-  generarPDFStock(): Promise<Buffer> {
-    return this.pdfService.generarPDFStock();
+  generarPDFStock(usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFStock(usuario);
   }
 
-  generarPDFPedidosEntregados(): Promise<Buffer> {
-    return this.pdfService.generarPDFPedidosEntregados();
+  generarPDFPedidosEntregados(usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFPedidosEntregados(usuario);
   }
 
-  generarPDFGanancias(month: number, year: number): Promise<Buffer> {
-    return this.pdfService.generarPDFGanancias(month, year);
+  generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFGanancias(month, year, usuario);
   }
 
   // ── Excel ─────────────────────────────────────────────────────────────────
@@ -63,9 +63,9 @@ export class ReportesService {
     return this.diarioService.getResumenDiario();
   }
 
-  async generarPDFDiario(): Promise<Buffer> {
+  async generarPDFDiario(usuario?: string): Promise<Buffer> {
     const data = await this.diarioService.getResumenDiario();
-    return this.pdfService.generarPDFDiario(data);
+    return this.pdfService.generarPDFDiario(data, usuario);
   }
 
   async exportarExcelDiario(): Promise<Buffer> {

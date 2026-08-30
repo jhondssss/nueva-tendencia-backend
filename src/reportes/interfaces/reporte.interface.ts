@@ -1,12 +1,12 @@
 // ISP: interfaces específicas por tipo de reporte
 
 export interface IReportePDF {
-  generarPDFVentas(year: number): Promise<Buffer>;
-  generarPDFPedidos(): Promise<Buffer>;
-  generarPDFStock(): Promise<Buffer>;
-  generarPDFPedidosEntregados(): Promise<Buffer>;
-  generarPDFGanancias(month: number, year: number): Promise<Buffer>;
-  generarPDFDiario(data: ResumenDiario): Promise<Buffer>;
+  generarPDFVentas(year: number, usuario?: string): Promise<Buffer>;
+  generarPDFPedidos(usuario?: string): Promise<Buffer>;
+  generarPDFStock(usuario?: string): Promise<Buffer>;
+  generarPDFPedidosEntregados(usuario?: string): Promise<Buffer>;
+  generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer>;
+  generarPDFDiario(data: ResumenDiario, usuario?: string): Promise<Buffer>;
 }
 
 export interface IReporteExcel {

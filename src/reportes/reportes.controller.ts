@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Controller, Get, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,9 +12,9 @@ export class ReportesController {
   /** GET /reportes/pdf/ventas?year=2025 */
   @Roles('admin')
   @Get('pdf/ventas')
-  async pdfVentas(@Query('year') year: string, @Res() res: Response) {
+  async pdfVentas(@Query('year') year: string, @Res() res: Response, @Req() req: any) {
     const y = parseInt(year, 10) || new Date().getFullYear();
-    const buffer = await this.reportesService.generarPDFVentas(y);
+    const buffer = await this.reportesService.generarPDFVentas(y, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="ventas-${y}.pdf"`,
@@ -26,8 +26,8 @@ export class ReportesController {
   /** GET /reportes/pdf/pedidos */
   @Roles('admin', 'operario')
   @Get('pdf/pedidos')
-  async pdfPedidos(@Res() res: Response) {
-    const buffer = await this.reportesService.generarPDFPedidos();
+  async pdfPedidos(@Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFPedidos(req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="pedidos.pdf"',
@@ -39,8 +39,8 @@ export class ReportesController {
   /** GET /reportes/pdf/stock */
   @Roles('admin', 'operario')
   @Get('pdf/stock')
-  async pdfStock(@Res() res: Response) {
-    const buffer = await this.reportesService.generarPDFStock();
+  async pdfStock(@Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFStock(req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="stock-critico.pdf"',
@@ -52,8 +52,8 @@ export class ReportesController {
   /** GET /reportes/pdf/stock-critico */
   @Roles('admin', 'operario')
   @Get('pdf/stock-critico')
-  async pdfStockCritico(@Res() res: Response) {
-    const buffer = await this.reportesService.generarPDFStock();
+  async pdfStockCritico(@Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFStock(req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="stock-critico.pdf"',
@@ -65,8 +65,8 @@ export class ReportesController {
   /** GET /reportes/pdf/pedidos-entregados */
   @Roles('admin', 'operario')
   @Get('pdf/pedidos-entregados')
-  async pdfPedidosEntregados(@Res() res: Response) {
-    const buffer = await this.reportesService.generarPDFPedidosEntregados();
+  async pdfPedidosEntregados(@Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFPedidosEntregados(req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="pedidos-entregados.pdf"',
@@ -82,11 +82,12 @@ export class ReportesController {
     @Query('month') month: string,
     @Query('year') year: string,
     @Res() res: Response,
+    @Req() req: any,
   ) {
     const now = new Date();
     const m = parseInt(month, 10) || now.getMonth() + 1;
     const y = parseInt(year, 10)  || now.getFullYear();
-    const buffer = await this.reportesService.generarPDFGanancias(m, y);
+    const buffer = await this.reportesService.generarPDFGanancias(m, y, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="ganancias-${y}-${String(m).padStart(2, '0')}.pdf"`,
@@ -186,10 +187,10 @@ export class ReportesController {
   /** GET /reportes/pdf/diario */
   @Roles('admin')
   @Get('pdf/diario')
-  async pdfDiario(@Res() res: Response) {
+  async pdfDiario(@Res() res: Response, @Req() req: any) {
     const now    = new Date();
     const fecha  = now.toISOString().slice(0, 10).split('-').reverse().join('-'); // dd-mm-yyyy
-    const buffer = await this.reportesService.generarPDFDiario();
+    const buffer = await this.reportesService.generarPDFDiario(req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="reporte-diario-${fecha}.pdf"`,
