@@ -6,7 +6,7 @@ export interface IReportePDF {
   generarPDFVentas(year: number, usuario?: string): Promise<Buffer>;
   generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFStock(usuario?: string): Promise<Buffer>;
-  generarPDFPedidosEntregados(usuario?: string): Promise<Buffer>;
+  generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer>;
   generarPDFDiario(data: ResumenDiario, usuario?: string): Promise<Buffer>;
 }

@@ -63,11 +63,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/pedidos-entregados */
+  /** GET /reportes/pdf/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('pdf/pedidos-entregados')
-  async pdfPedidosEntregados(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFPedidosEntregados(req.user?.email);
+  async pdfPedidosEntregados(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFPedidosEntregados(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="pedidos-entregados.pdf"',

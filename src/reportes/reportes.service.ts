@@ -28,8 +28,8 @@ export class ReportesService {
     return this.pdfService.generarPDFStock(usuario);
   }
 
-  generarPDFPedidosEntregados(usuario?: string): Promise<Buffer> {
-    return this.pdfService.generarPDFPedidosEntregados(usuario);
+  generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer> {
+    return this.pdfService.generarPDFPedidosEntregados(filtro, usuario);
   }
 
   generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer> {
