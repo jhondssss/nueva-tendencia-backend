@@ -8,6 +8,7 @@ import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit');
+import { condicionStockCritico } from '../common/stock-critico';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -291,12 +292,12 @@ export class PdfService implements IReportePDF {
   async generarPDFStock(): Promise<Buffer> {
     const criticos = await this.productoRepo
       .createQueryBuilder('p')
-      .where('p.stock <= p.nivel_minimo')
+      .where(condicionStockCritico('p'))
       .getMany();
 
     const insumoCriticos = await this.insumoRepo
       .createQueryBuilder('i')
-      .where('i.stock <= i.nivel_minimo')
+      .where(condicionStockCritico('i'))
       .andWhere('i.activo = :activo', { activo: true })
       .getMany();
 

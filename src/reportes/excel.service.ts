@@ -6,6 +6,7 @@ import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { IReporteExcel, ResumenDiario } from './interfaces/reporte.interface';
 import * as ExcelJS from 'exceljs';
+import { esStockCritico } from '../common/stock-critico';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -271,7 +272,7 @@ export class ExcelService implements IReporteExcel {
         nivel:  p.nivel_minimo,
         unidad: p.unidad_medida,
         activo: p.activo ? 'Sí' : 'No',
-        alerta: p.stock <= p.nivel_minimo ? 'CRÍTICO' : 'Normal',
+        alerta: esStockCritico(p.stock, p.nivel_minimo) ? 'CRÍTICO' : 'Normal',
       }),
     );
 
@@ -280,7 +281,7 @@ export class ExcelService implements IReporteExcel {
 
     // 2.° override: fondo rojo para filas críticas
     productos.forEach((p, i) => {
-      if (p.stock <= p.nivel_minimo) {
+      if (esStockCritico(p.stock, p.nivel_minimo)) {
         this.highlightCriticalRow(ws, i + 2);
       }
     });

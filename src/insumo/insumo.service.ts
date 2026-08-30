@@ -7,6 +7,7 @@ import { UpdateInsumoDto } from './dto/update-insumo.dto';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TelegramService } from '../telegram/telegram.service';
+import { esStockCritico, condicionStockCritico } from '../common/stock-critico';
 
 @Injectable()
 export class InsumoService {
@@ -32,7 +33,7 @@ export class InsumoService {
   findAlertas(): Promise<Insumo[]> {
     return this.insumoRepo
       .createQueryBuilder('i')
-      .where('i.stock <= i.nivel_minimo')
+      .where(condicionStockCritico('i'))
       .orderBy('i.nombre', 'ASC')
       .getMany();
   }
@@ -72,7 +73,7 @@ export class InsumoService {
     });
 
     const result = await this.findOne(saved.id_insumo);
-    if (Number(result.stock) <= Number(result.nivel_minimo)) {
+    if (esStockCritico(result.stock, result.nivel_minimo)) {
       this.telegramService.sendMessage(
         `⚠️ Stock crítico\nInsumo: ${result.nombre}\nStock actual: ${result.stock}\nMínimo: ${result.nivel_minimo}`,
       ).catch(() => {});
@@ -111,7 +112,7 @@ export class InsumoService {
     });
 
     const result = await this.findOne(id);
-    if (Number(result.stock) <= Number(result.nivel_minimo)) {
+    if (esStockCritico(result.stock, result.nivel_minimo)) {
       this.telegramService.sendMessage(
         `⚠️ Stock crítico\nInsumo: ${result.nombre}\nStock actual: ${result.stock}\nMínimo: ${result.nivel_minimo}`,
       ).catch(() => {});
