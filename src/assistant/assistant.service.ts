@@ -9,6 +9,7 @@ import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { esStockCritico } from '../common/stock-critico';
+import { PrediccionService } from '../dashboard/prediccion.service';
 
 export interface ChatMessage {
   role: string;
@@ -59,6 +60,7 @@ export class AssistantService {
     @InjectRepository(Insumo)           private readonly insumoRepo:   Repository<Insumo>,
     @InjectRepository(KardexMovimiento) private readonly kardexRepo:   Repository<KardexMovimiento>,
     @InjectRepository(Auditoria)        private readonly auditoriaRepo: Repository<Auditoria>,
+    private readonly prediccionService: PrediccionService,
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
     this.logger.debug(`GEMINI_API_KEY presente: ${!!apiKey}`);
@@ -93,7 +95,7 @@ export class AssistantService {
     unMesAtras.setMonth(unMesAtras.getMonth() - 1);
     const unMesAtrasStr = unMesAtras.toISOString().slice(0, 10);
 
-    const [pedidos, clientes, productos, insumos, movimientosKardex, accionesAuditoria] = await Promise.all([
+    const [pedidos, clientes, productos, insumos, movimientosKardex, accionesAuditoria, ventasPorMesRows] = await Promise.all([
       this.pedidoRepo.find({
         relations: ['cliente', 'producto'],
         where: [
@@ -116,6 +118,8 @@ export class AssistantService {
         order: { fecha: 'DESC' },
         take: 10,
       }),
+      // Mismo cálculo que usa el dashboard (/dashboard/ventas-por-mes): solo pedidos Terminado
+      this.prediccionService.getVentasPorMes(),
     ]);
 
     // ── Pedidos por estado ─────────────────────────────────────────────────
@@ -160,13 +164,14 @@ export class AssistantService {
         ).join('\n')
       : '  Sin alertas';
 
-    // ── Ventas por mes del año actual ──────────────────────────────────────
-    const pedidosAnio = pedidos.filter(p => new Date(p.fecha_entrega).getFullYear() === anio);
+    // ── Ventas por mes del año actual (solo pedidos Terminado, igual que el dashboard) ──
     const ventasPorMes = Array(12).fill(0);
-    pedidosAnio.forEach(p => {
-      const m = new Date(p.fecha_entrega).getMonth();
-      ventasPorMes[m] += Number(p.total);
-    });
+    ventasPorMesRows
+      .filter(r => r.mes.startsWith(String(anio)))
+      .forEach(r => {
+        const m = Number(r.mes.slice(5, 7)) - 1; // 'YYYY-MM' → mes 0-indexed
+        ventasPorMes[m] = r.total;
+      });
     const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const ventasStr = ventasPorMes
       .map((v, i) => `  ${meses[i]}: Bs. ${v.toFixed(2)}`)
@@ -388,7 +393,7 @@ ${listaCatalogo}
     }
 
     if (/venta|ventas|total/.test(q)) {
-      const pedidos = await this.pedidoRepo.find();
+      const pedidos = await this.pedidoRepo.find({ where: { estado: 'Terminado' } });
       const total = pedidos.reduce((sum, p) => sum + Number(p.total), 0);
       return `💰 Total acumulado en ventas: Bs ${total.toFixed(2)} (${pedidos.length} pedidos)`;
     }
