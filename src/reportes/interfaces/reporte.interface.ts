@@ -15,7 +15,7 @@ export interface IReporteExcel {
   exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer>;
   exportarExcelClientes(): Promise<Buffer>;
   exportarExcelStock(): Promise<Buffer>;
-  exportarExcelPedidosEntregados(): Promise<Buffer>;
+  exportarExcelPedidosEntregados(filtro?: PedidoReporteFiltroDto): Promise<Buffer>;
   exportarExcelGanancias(month: number, year: number): Promise<Buffer>;
   exportarExcelDiario(data: ResumenDiario): Promise<Buffer>;
 }

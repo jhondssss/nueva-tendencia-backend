@@ -50,8 +50,8 @@ export class ReportesService {
     return this.excelService.exportarExcelStock();
   }
 
-  exportarExcelPedidosEntregados(): Promise<Buffer> {
-    return this.excelService.exportarExcelPedidosEntregados();
+  exportarExcelPedidosEntregados(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
+    return this.excelService.exportarExcelPedidosEntregados(filtro);
   }
 
   exportarExcelGanancias(month: number, year: number): Promise<Buffer> {

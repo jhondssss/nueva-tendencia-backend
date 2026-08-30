@@ -99,11 +99,11 @@ export class ReportesController {
 
   // ── Excel endpoints ────────────────────────────────────────────────────────
 
-  /** GET /reportes/excel/pedidos-entregados */
+  /** GET /reportes/excel/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('excel/pedidos-entregados')
-  async excelPedidosEntregados(@Res() res: Response) {
-    const buffer = await this.reportesService.exportarExcelPedidosEntregados();
+  async excelPedidosEntregados(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response) {
+    const buffer = await this.reportesService.exportarExcelPedidosEntregados(filtro);
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
