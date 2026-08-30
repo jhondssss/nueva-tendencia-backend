@@ -1,6 +1,6 @@
-import { Controller, Post, Body, UseGuards, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -11,6 +11,24 @@ import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
 
+const ACCESS_TOKEN_COOKIE = 'access_token';
+
+/**
+ * SameSite=None + Secure es obligatorio para que la cookie viaje cross-domain
+ * (Render ↔ Vercel) en producción; en desarrollo local (http) usamos Lax
+ * porque Secure bloquearía el envío de la cookie por HTTP.
+ */
+function authCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
+    maxAge: 60 * 60 * 1000, // 1h — igual al expiresIn del JWT
+    path: '/',
+  };
+}
+
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
@@ -18,9 +36,25 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @Post('login')
-  async login(@Body() loginDto: LoginDto, @Req() req: Request) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const user = await this.authService.validateUser(loginDto.email, loginDto.password);
-    return this.authService.login(user, req.ip);
+    const result = await this.authService.login(user, req.ip);
+    // Cookie HttpOnly de transición: el guard todavía no la usa para autenticar
+    // (sigue leyendo solo el header Authorization). El body sigue devolviendo
+    // access_token para no romper al frontend actual.
+    res.cookie(ACCESS_TOKEN_COOKIE, result.access_token, authCookieOptions());
+    return result;
+  }
+
+  @Public()
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) res: Response) {
+    res.clearCookie(ACCESS_TOKEN_COOKIE, authCookieOptions());
+    return { message: 'Sesión cerrada' };
   }
 
   @Public()
