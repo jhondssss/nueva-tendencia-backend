@@ -1,19 +1,22 @@
 // ISP: interfaces específicas por tipo de reporte
 
+import { PedidoReporteFiltroDto } from '../dto/pedido-reporte-filtro.dto';
+import { StockReporteFiltroDto } from '../dto/stock-reporte-filtro.dto';
+
 export interface IReportePDF {
   generarPDFVentas(year: number, usuario?: string): Promise<Buffer>;
-  generarPDFPedidos(usuario?: string): Promise<Buffer>;
-  generarPDFStock(usuario?: string): Promise<Buffer>;
-  generarPDFPedidosEntregados(usuario?: string): Promise<Buffer>;
+  generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
+  generarPDFStock(filtro?: StockReporteFiltroDto, usuario?: string): Promise<Buffer>;
+  generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer>;
   generarPDFDiario(data: ResumenDiario, usuario?: string): Promise<Buffer>;
 }
 
 export interface IReporteExcel {
-  exportarExcelPedidos(): Promise<Buffer>;
+  exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer>;
   exportarExcelClientes(): Promise<Buffer>;
-  exportarExcelStock(): Promise<Buffer>;
-  exportarExcelPedidosEntregados(): Promise<Buffer>;
+  exportarExcelStock(filtro?: StockReporteFiltroDto): Promise<Buffer>;
+  exportarExcelPedidosEntregados(filtro?: PedidoReporteFiltroDto): Promise<Buffer>;
   exportarExcelGanancias(month: number, year: number): Promise<Buffer>;
   exportarExcelDiario(data: ResumenDiario): Promise<Buffer>;
 }

@@ -5,6 +5,9 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
+import { buildWherePedidos } from './reportes-filtro.util';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit');
@@ -236,8 +239,9 @@ export class PdfService implements IReportePDF {
   // b) PDF — Pedidos
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFPedidos(usuario?: string): Promise<Buffer> {
+  async generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
+      where: buildWherePedidos(filtro),
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });
@@ -317,11 +321,14 @@ export class PdfService implements IReportePDF {
   // c) PDF — Stock Crítico
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFStock(usuario?: string): Promise<Buffer> {
-    const criticos = await this.productoRepo
+  async generarPDFStock(filtro?: StockReporteFiltroDto, usuario?: string): Promise<Buffer> {
+    const criticosQuery = this.productoRepo
       .createQueryBuilder('p')
-      .where(condicionStockCritico('p'))
-      .getMany();
+      .where(condicionStockCritico('p'));
+    if (filtro?.categoria) {
+      criticosQuery.andWhere('p.categoria = :categoria', { categoria: filtro.categoria });
+    }
+    const criticos = await criticosQuery.getMany();
 
     const insumoCriticos = await this.insumoRepo
       .createQueryBuilder('i')
@@ -443,9 +450,9 @@ export class PdfService implements IReportePDF {
   // d) PDF — Pedidos Entregados
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFPedidosEntregados(usuario?: string): Promise<Buffer> {
+  async generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
-      where: { estado: 'Terminado' },
+      where: { ...buildWherePedidos(filtro), estado: 'Terminado' },
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });

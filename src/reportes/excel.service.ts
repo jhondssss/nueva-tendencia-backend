@@ -7,6 +7,9 @@ import { Producto } from '../producto/entities/producto.entity';
 import { IReporteExcel, ResumenDiario } from './interfaces/reporte.interface';
 import * as ExcelJS from 'exceljs';
 import { esStockCritico } from '../common/stock-critico';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
+import { buildWherePedidos } from './reportes-filtro.util';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -137,8 +140,9 @@ export class ExcelService implements IReporteExcel {
   // a) Excel — Pedidos
   // ══════════════════════════════════════════════════════════════════════════
 
-  async exportarExcelPedidos(): Promise<Buffer> {
+  async exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
+      where: buildWherePedidos(filtro),
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });
@@ -237,8 +241,11 @@ export class ExcelService implements IReporteExcel {
   // c) Excel — Stock
   // ══════════════════════════════════════════════════════════════════════════
 
-  async exportarExcelStock(): Promise<Buffer> {
-    const productos = await this.productoRepo.find({ order: { id_producto: 'ASC' } });
+  async exportarExcelStock(filtro?: StockReporteFiltroDto): Promise<Buffer> {
+    const productos = await this.productoRepo.find({
+      where: filtro?.categoria ? { categoria: filtro.categoria } : {},
+      order: { id_producto: 'ASC' },
+    });
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Stock');
@@ -295,9 +302,9 @@ export class ExcelService implements IReporteExcel {
   // d) Excel — Pedidos Entregados
   // ══════════════════════════════════════════════════════════════════════════
 
-  async exportarExcelPedidosEntregados(): Promise<Buffer> {
+  async exportarExcelPedidosEntregados(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
-      where: { estado: 'Terminado' },
+      where: { ...buildWherePedidos(filtro), estado: 'Terminado' },
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });

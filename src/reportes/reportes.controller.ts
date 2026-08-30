@@ -2,6 +2,8 @@ import { Controller, Get, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
 
 @Controller('reportes')
 export class ReportesController {
@@ -23,11 +25,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/pedidos */
+  /** GET /reportes/pdf/pedidos?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('pdf/pedidos')
-  async pdfPedidos(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFPedidos(req.user?.email);
+  async pdfPedidos(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFPedidos(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="pedidos.pdf"',
@@ -36,11 +38,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/stock */
+  /** GET /reportes/pdf/stock?categoria= */
   @Roles('admin', 'operario')
   @Get('pdf/stock')
-  async pdfStock(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFStock(req.user?.email);
+  async pdfStock(@Query() filtro: StockReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFStock(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="stock-critico.pdf"',
@@ -49,11 +51,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/stock-critico */
+  /** GET /reportes/pdf/stock-critico?categoria= */
   @Roles('admin', 'operario')
   @Get('pdf/stock-critico')
-  async pdfStockCritico(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFStock(req.user?.email);
+  async pdfStockCritico(@Query() filtro: StockReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFStock(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="stock-critico.pdf"',
@@ -62,11 +64,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/pedidos-entregados */
+  /** GET /reportes/pdf/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('pdf/pedidos-entregados')
-  async pdfPedidosEntregados(@Res() res: Response, @Req() req: any) {
-    const buffer = await this.reportesService.generarPDFPedidosEntregados(req.user?.email);
+  async pdfPedidosEntregados(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFPedidosEntregados(filtro, req.user?.email);
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="pedidos-entregados.pdf"',
@@ -98,11 +100,11 @@ export class ReportesController {
 
   // ── Excel endpoints ────────────────────────────────────────────────────────
 
-  /** GET /reportes/excel/pedidos-entregados */
+  /** GET /reportes/excel/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('excel/pedidos-entregados')
-  async excelPedidosEntregados(@Res() res: Response) {
-    const buffer = await this.reportesService.exportarExcelPedidosEntregados();
+  async excelPedidosEntregados(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response) {
+    const buffer = await this.reportesService.exportarExcelPedidosEntregados(filtro);
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -133,11 +135,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/excel/pedidos */
+  /** GET /reportes/excel/pedidos?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
   @Get('excel/pedidos')
-  async excelPedidos(@Res() res: Response) {
-    const buffer = await this.reportesService.exportarExcelPedidos();
+  async excelPedidos(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response) {
+    const buffer = await this.reportesService.exportarExcelPedidos(filtro);
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -161,11 +163,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/excel/stock */
+  /** GET /reportes/excel/stock?categoria= */
   @Roles('admin', 'operario')
   @Get('excel/stock')
-  async excelStock(@Res() res: Response) {
-    const buffer = await this.reportesService.exportarExcelStock();
+  async excelStock(@Query() filtro: StockReporteFiltroDto, @Res() res: Response) {
+    const buffer = await this.reportesService.exportarExcelStock(filtro);
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
