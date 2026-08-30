@@ -5,6 +5,7 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo }   from '../insumo/entities/insumo.entity';
 import { IKpiService } from './interfaces/dashboard.interface';
+import { condicionStockCritico } from '../common/stock-critico';
 
 const ESTADOS = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'];
 
@@ -69,12 +70,12 @@ export class KpiService implements IKpiService {
       this.productoRepo.count({ where: { activo: true } }),
       this.productoRepo
         .createQueryBuilder('p')
-        .where('p.stock <= p.nivel_minimo')
+        .where(condicionStockCritico('p'))
         .getCount(),
       this.insumoRepo
         .createQueryBuilder('i')
         .where('i.activo = true')
-        .andWhere('i.stock <= i.nivel_minimo')
+        .andWhere(condicionStockCritico('i'))
         .getCount(),
     ]);
 

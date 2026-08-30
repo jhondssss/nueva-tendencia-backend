@@ -6,6 +6,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { join } from 'path';
 import * as fs from 'fs';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -14,6 +15,9 @@ async function bootstrap() {
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
+
+  // ── Cookies (para la cookie HttpOnly de sesión) ──
+  app.use(cookieParser());
 
   // ── Validación global ──
   app.useGlobalPipes(new ValidationPipe({
