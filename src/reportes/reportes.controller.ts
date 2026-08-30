@@ -163,11 +163,11 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/excel/stock */
+  /** GET /reportes/excel/stock?categoria= */
   @Roles('admin', 'operario')
   @Get('excel/stock')
-  async excelStock(@Res() res: Response) {
-    const buffer = await this.reportesService.exportarExcelStock();
+  async excelStock(@Query() filtro: StockReporteFiltroDto, @Res() res: Response) {
+    const buffer = await this.reportesService.exportarExcelStock(filtro);
     res.set({
       'Content-Type':
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
