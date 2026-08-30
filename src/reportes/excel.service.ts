@@ -7,6 +7,8 @@ import { Producto } from '../producto/entities/producto.entity';
 import { IReporteExcel, ResumenDiario } from './interfaces/reporte.interface';
 import * as ExcelJS from 'exceljs';
 import { esStockCritico } from '../common/stock-critico';
+import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
+import { buildWherePedidos } from './reportes-filtro.util';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -137,8 +139,9 @@ export class ExcelService implements IReporteExcel {
   // a) Excel — Pedidos
   // ══════════════════════════════════════════════════════════════════════════
 
-  async exportarExcelPedidos(): Promise<Buffer> {
+  async exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
+      where: buildWherePedidos(filtro),
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });

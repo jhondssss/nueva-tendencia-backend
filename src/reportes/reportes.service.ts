@@ -38,8 +38,8 @@ export class ReportesService {
 
   // ── Excel ─────────────────────────────────────────────────────────────────
 
-  exportarExcelPedidos(): Promise<Buffer> {
-    return this.excelService.exportarExcelPedidos();
+  exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
+    return this.excelService.exportarExcelPedidos(filtro);
   }
 
   exportarExcelClientes(): Promise<Buffer> {

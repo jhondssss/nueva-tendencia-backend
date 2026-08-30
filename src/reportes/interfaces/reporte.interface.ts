@@ -12,7 +12,7 @@ export interface IReportePDF {
 }
 
 export interface IReporteExcel {
-  exportarExcelPedidos(): Promise<Buffer>;
+  exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer>;
   exportarExcelClientes(): Promise<Buffer>;
   exportarExcelStock(): Promise<Buffer>;
   exportarExcelPedidosEntregados(): Promise<Buffer>;
