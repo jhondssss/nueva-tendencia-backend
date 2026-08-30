@@ -8,6 +8,7 @@ import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { esStockCritico } from '../common/stock-critico';
 
 export interface ChatMessage {
   role: string;
@@ -144,7 +145,7 @@ export class AssistantService {
     );
 
     // ── Stock crítico productos ────────────────────────────────────────────
-    const productosCriticos = productos.filter(p => p.stock <= p.nivel_minimo);
+    const productosCriticos = productos.filter(p => esStockCritico(p.stock, p.nivel_minimo));
     const listaProductosCriticos = productosCriticos.length > 0
       ? productosCriticos.map(p =>
           `  ${p.nombre_modelo} (${p.marca}): stock ${p.stock}, mínimo ${p.nivel_minimo}`
@@ -152,7 +153,7 @@ export class AssistantService {
       : '  Sin alertas';
 
     // ── Stock crítico insumos ──────────────────────────────────────────────
-    const insumosCriticos = insumos.filter(i => Number(i.stock) <= Number(i.nivel_minimo));
+    const insumosCriticos = insumos.filter(i => esStockCritico(i.stock, i.nivel_minimo));
     const listaInsumosCriticos = insumosCriticos.length > 0
       ? insumosCriticos.map(i =>
           `  ${i.nombre} (${i.categoria}): stock ${i.stock} ${i.unidad_medida}, mínimo ${i.nivel_minimo}`
@@ -359,7 +360,7 @@ ${listaCatalogo}
 
     if (/insumo|insumos/.test(q)) {
       const insumos = await this.insumoRepo.find();
-      const criticos = insumos.filter(i => Number(i.stock) <= Number(i.nivel_minimo));
+      const criticos = insumos.filter(i => esStockCritico(i.stock, i.nivel_minimo));
       if (criticos.length === 0) return '🧴 Sin alertas de insumos. Todos están sobre el nivel mínimo.';
       const lista = criticos
         .map(i => `  • ${i.nombre}: ${i.stock} ${i.unidad_medida} (mínimo ${i.nivel_minimo})`)
@@ -369,7 +370,7 @@ ${listaCatalogo}
 
     if (/stock|alerta|alertas/.test(q)) {
       const productos = await this.productoRepo.find();
-      const bajos = productos.filter(p => p.stock <= p.nivel_minimo);
+      const bajos = productos.filter(p => esStockCritico(p.stock, p.nivel_minimo));
       if (bajos.length === 0) return '📦 Sin alertas de stock. Todos los productos están sobre el nivel mínimo.';
       const lista = bajos
         .map(p => `  • ${p.nombre_modelo}: stock ${p.stock} (mínimo ${p.nivel_minimo})`)
@@ -379,7 +380,7 @@ ${listaCatalogo}
 
     if (/producto|productos|inventario/.test(q)) {
       const productos = await this.productoRepo.find();
-      const stockBajo = productos.filter(p => p.stock <= p.nivel_minimo).length;
+      const stockBajo = productos.filter(p => esStockCritico(p.stock, p.nivel_minimo)).length;
       return (
         `📦 Total de productos en catálogo: ${productos.length}\n` +
         `⚠️ Productos con stock bajo: ${stockBajo}`

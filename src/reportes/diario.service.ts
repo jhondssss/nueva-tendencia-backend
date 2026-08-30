@@ -7,6 +7,7 @@ import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { IReporteDiario, ResumenDiario } from './interfaces/reporte.interface';
+import { condicionStockCritico } from '../common/stock-critico';
 
 @Injectable()
 export class DiarioService implements IReporteDiario {
@@ -69,12 +70,12 @@ export class DiarioService implements IReporteDiario {
 
     const alertasStock = await this.productoRepo
       .createQueryBuilder('p')
-      .where('p.stock <= p.nivel_minimo')
+      .where(condicionStockCritico('p'))
       .getMany();
 
     const alertasInsumos = await this.insumoRepo
       .createQueryBuilder('i')
-      .where('i.stock <= i.nivel_minimo')
+      .where(condicionStockCritico('i'))
       .getMany();
 
     this.logger.debug(
