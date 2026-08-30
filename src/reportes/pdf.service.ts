@@ -8,6 +8,7 @@ import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit');
+import { condicionStockCritico } from '../common/stock-critico';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -32,7 +33,7 @@ export class PdfService implements IReportePDF {
   // ══════════════════════════════════════════════════════════════════════════
 
   private buildDoc(): { doc: any; finish: Promise<Buffer> } {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
     const chunks: Buffer[] = [];
     doc.on('data', (c: Buffer) => chunks.push(c));
     const finish = new Promise<Buffer>(resolve =>
@@ -41,7 +42,7 @@ export class PdfService implements IReportePDF {
     return { doc, finish };
   }
 
-  private buildHeader(doc: any, title: string): void {
+  private buildHeader(doc: any, title: string, generadoPor?: string): void {
     doc
       .fillColor(CAFE).fontSize(18).font('Helvetica-Bold')
       .text('Calzados Nueva Tendencia', { align: 'center' });
@@ -55,12 +56,38 @@ export class PdfService implements IReportePDF {
     doc
       .fillColor('#888888').fontSize(9).font('Helvetica')
       .text(`Generado el: ${fecha}`, { align: 'right' });
+    doc
+      .fillColor('#888888').fontSize(9).font('Helvetica')
+      .text(`Generado por: ${generadoPor ?? '—'}`, { align: 'right' });
 
     doc.moveDown(0.4);
     const lineY = doc.y;
     doc.moveTo(50, lineY).lineTo(545, lineY)
       .strokeColor(CAFE).lineWidth(2).stroke();
     doc.moveDown(1.2);
+  }
+
+  /** Escribe "Página X de Y" al pie de cada página ya generada.
+   * Requiere bufferPages:true en buildDoc para poder volver a páginas previas. */
+  private addPageNumbers(doc: any): void {
+    const range = doc.bufferedPageRange();
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      const { height, width } = doc.page;
+      const bottomMargin = doc.page.margins.bottom;
+      doc.page.margins.bottom = 0; // evita que pdfkit agregue una página en blanco
+      doc
+        .fillColor('#888888').fontSize(8).font('Helvetica')
+        .text(`Página ${i + 1} de ${range.count}`, 50, height - 35, {
+          width: width - 100,
+          align: 'center',
+        });
+      doc.page.margins.bottom = bottomMargin;
+    }
+  }
+
+  private fmtMonto(n: number): string {
+    return `Bs. ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   private buildTable(
@@ -167,7 +194,7 @@ export class PdfService implements IReportePDF {
   // a) PDF — Ventas por Mes
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFVentas(year: number): Promise<Buffer> {
+  async generarPDFVentas(year: number, usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
       where: { estado: 'Terminado', fecha_entrega: Between(`${year}-01-01`, `${year}-12-31`) as any },
     });
@@ -181,7 +208,7 @@ export class PdfService implements IReportePDF {
     const grandTotal = totalesMes.reduce((a, b) => a + b, 0);
 
     const { doc, finish } = this.buildDoc();
-    this.buildHeader(doc, `Reporte de Ventas por Mes — ${year}`);
+    this.buildHeader(doc, `Reporte de Ventas por Mes — ${year}`, usuario);
 
     const widths = [170, 163, 162];
     const aligns: ('left' | 'right' | 'center')[] = ['left', 'right', 'right'];
@@ -192,14 +219,15 @@ export class PdfService implements IReportePDF {
       y = this.maybePageBreak(doc, y, 28, ventasHeaders);
       y = this.drawDataRow(doc, y, [
         mes,
-        `Bs. ${totalesMes[i].toFixed(2)}`,
+        this.fmtMonto(totalesMes[i]),
         grandTotal > 0 ? `${((totalesMes[i] / grandTotal) * 100).toFixed(1)} %` : '—',
       ], widths, aligns, i % 2 === 1);
     });
 
     y = this.maybePageBreak(doc, y, 28, ventasHeaders);
-    this.buildFooter(doc, y, ['TOTAL', `Bs. ${grandTotal.toFixed(2)}`, '100 %'], widths);
+    this.buildFooter(doc, y, ['TOTAL', this.fmtMonto(grandTotal), '100 %'], widths);
 
+    this.addPageNumbers(doc);
     doc.end();
     return finish;
   }
@@ -208,14 +236,14 @@ export class PdfService implements IReportePDF {
   // b) PDF — Pedidos
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFPedidos(): Promise<Buffer> {
+  async generarPDFPedidos(usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });
 
     const { doc, finish } = this.buildDoc();
-    this.buildHeader(doc, 'Reporte de Pedidos');
+    this.buildHeader(doc, 'Reporte de Pedidos', usuario);
 
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Resumen por Estado');
     doc.moveDown(0.3);
@@ -268,7 +296,7 @@ export class PdfService implements IReportePDF {
         p.unidad ?? 'docena',
         p.cantidad_pares ?? 0,
         p.fecha_entrega ? this.fmtDate(p.fecha_entrega) : '—',
-        `Bs. ${Number(p.total).toFixed(2)}`,
+        this.fmtMonto(Number(p.total)),
       ], dWidths, dAligns, i % 2 === 1);
     });
 
@@ -277,9 +305,10 @@ export class PdfService implements IReportePDF {
       '', 'TOTAL GENERAL', '', '', '', '', '',
       String(sumaPares),
       '',
-      `Bs. ${sumaTotal.toFixed(2)}`,
+      this.fmtMonto(sumaTotal),
     ], dWidths);
 
+    this.addPageNumbers(doc);
     doc.end();
     return finish;
   }
@@ -288,15 +317,15 @@ export class PdfService implements IReportePDF {
   // c) PDF — Stock Crítico
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFStock(): Promise<Buffer> {
+  async generarPDFStock(usuario?: string): Promise<Buffer> {
     const criticos = await this.productoRepo
       .createQueryBuilder('p')
-      .where('p.stock <= p.nivel_minimo')
+      .where(condicionStockCritico('p'))
       .getMany();
 
     const insumoCriticos = await this.insumoRepo
       .createQueryBuilder('i')
-      .where('i.stock <= i.nivel_minimo')
+      .where(condicionStockCritico('i'))
       .andWhere('i.activo = :activo', { activo: true })
       .getMany();
 
@@ -306,7 +335,7 @@ export class PdfService implements IReportePDF {
     }, 0);
 
     const { doc, finish } = this.buildDoc();
-    this.buildHeader(doc, 'Reporte de Stock Crítico');
+    this.buildHeader(doc, 'Reporte de Stock Crítico', usuario);
 
     // ── Resumen ejecutivo ─────────────────────────────────────────────────
     const rWidths = [330, 165];
@@ -314,7 +343,7 @@ export class PdfService implements IReportePDF {
     const resumenItems: [string, string][] = [
       ['Total productos críticos',                      String(criticos.length)],
       ['Total insumos críticos',                        String(insumoCriticos.length)],
-      ['Inversión estimada (reposición de productos)',  `Bs. ${inversionEstimada.toFixed(2)}`],
+      ['Inversión estimada (reposición de productos)',  this.fmtMonto(inversionEstimada)],
     ];
     const resumenHeaders = { labels: ['Resumen Ejecutivo', 'Valor'], widths: rWidths };
     resumenItems.forEach(([label, val], i) => {
@@ -356,7 +385,7 @@ export class PdfService implements IReportePDF {
           String(p.stock),
           String(p.nivel_minimo),
           String(p.stock - p.nivel_minimo),
-          `Bs. ${Number(p.precio_venta).toFixed(2)}`,
+          this.fmtMonto(Number(p.precio_venta)),
           String(cantSugerida),
         ], pWidths, pAligns, i % 2 === 1, true);
       });
@@ -399,12 +428,13 @@ export class PdfService implements IReportePDF {
           Number(ins.stock).toFixed(2),
           Number(ins.nivel_minimo).toFixed(2),
           (Number(ins.stock) - Number(ins.nivel_minimo)).toFixed(2),
-          `Bs. ${Number(ins.precio_unitario).toFixed(2)}`,
+          this.fmtMonto(Number(ins.precio_unitario)),
           cantSugerida.toFixed(2),
         ], iWidths, iAligns, i % 2 === 1, true);
       });
     }
 
+    this.addPageNumbers(doc);
     doc.end();
     return finish;
   }
@@ -413,7 +443,7 @@ export class PdfService implements IReportePDF {
   // d) PDF — Pedidos Entregados
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFPedidosEntregados(): Promise<Buffer> {
+  async generarPDFPedidosEntregados(usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
       where: { estado: 'Terminado' },
       relations: ['cliente', 'producto'],
@@ -421,7 +451,7 @@ export class PdfService implements IReportePDF {
     });
 
     const { doc, finish } = this.buildDoc();
-    this.buildHeader(doc, 'Reporte de Pedidos Entregados');
+    this.buildHeader(doc, 'Reporte de Pedidos Entregados', usuario);
 
     const widths = [28, 72, 55, 75, 50, 38, 42, 35, 55, 45];
     const aligns: ('left' | 'right' | 'center')[] =
@@ -450,7 +480,7 @@ export class PdfService implements IReportePDF {
         p.cantidad ?? 1,
         p.unidad ?? 'docena',
         p.cantidad_pares ?? 0,
-        `Bs. ${Number(p.total).toFixed(2)}`,
+        this.fmtMonto(Number(p.total)),
         this.fmtDate(p.fecha_entrega),
       ], widths, aligns, i % 2 === 1);
     });
@@ -458,18 +488,19 @@ export class PdfService implements IReportePDF {
     y = this.maybePageBreak(doc, y, 28, entregadosHeaders);
     const totalW = widths.reduce((a, b) => a + b, 0);
     this.buildFooter(doc, y, [
-      'TOTAL', '', '', '', '', '', '', '', `Bs. ${sumaTotal.toFixed(2)}`, '',
+      'TOTAL', '', '', '', '', '', '', '', this.fmtMonto(sumaTotal), '',
     ], widths);
 
     doc.moveDown(1.5);
     doc
       .fillColor(CAFE).fontSize(9).font('Helvetica-Bold')
-      .text(`Total pedidos entregados: ${pedidos.length}   |   Total Bs.: ${sumaTotal.toFixed(2)}`, {
+      .text(`Total pedidos entregados: ${pedidos.length}   |   Total ${this.fmtMonto(sumaTotal)}`, {
         align: 'right',
         width: totalW,
         indent: 50,
       });
 
+    this.addPageNumbers(doc);
     doc.end();
     return finish;
   }
@@ -478,7 +509,7 @@ export class PdfService implements IReportePDF {
   // e) PDF — Ganancias Mensuales
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFGanancias(month: number, year: number): Promise<Buffer> {
+  async generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer> {
     const mm = String(month).padStart(2, '0');
     const lastDay = new Date(year, month, 0).getDate();
     const pedidos = await this.pedidoRepo.find({
@@ -492,7 +523,7 @@ export class PdfService implements IReportePDF {
 
     const mesNombre = MESES[month - 1] ?? String(month);
     const { doc, finish } = this.buildDoc();
-    this.buildHeader(doc, `Reporte de Ganancias — ${mesNombre} ${year}`);
+    this.buildHeader(doc, `Reporte de Ganancias — ${mesNombre} ${year}`, usuario);
 
     const widths = [45, 100, 50, 115, 50, 75, 60];
     const aligns: ('left' | 'right' | 'center')[] = ['center', 'left', 'center', 'left', 'right', 'right', 'center'];
@@ -520,7 +551,7 @@ export class PdfService implements IReportePDF {
         p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.cantidad ?? 1,
-        `Bs. ${Number(p.total).toFixed(2)}`,
+        this.fmtMonto(Number(p.total)),
         fechaEntrega,
       ], widths, aligns, i % 2 === 1);
     });
@@ -529,7 +560,7 @@ export class PdfService implements IReportePDF {
     y = this.buildFooter(doc, y, [
       'TOTAL', '', '', '',
       String(pedidos.reduce((a, p) => a + (p.cantidad ?? 1), 0)),
-      `Bs. ${sumaTotal.toFixed(2)}`,
+      this.fmtMonto(sumaTotal),
       '',
     ], widths);
 
@@ -538,8 +569,8 @@ export class PdfService implements IReportePDF {
     const summaryLines = [
       `Total pedidos entregados: ${pedidos.length}`,
       `Total pares producidos:   ${sumaPares}`,
-      `Total ganancias:          Bs. ${sumaTotal.toFixed(2)}`,
-      `Promedio por pedido:      Bs. ${promedio.toFixed(2)}`,
+      `Total ganancias:          ${this.fmtMonto(sumaTotal)}`,
+      `Promedio por pedido:      ${this.fmtMonto(promedio)}`,
     ];
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Resumen del mes');
     doc.moveDown(0.3);
@@ -548,6 +579,7 @@ export class PdfService implements IReportePDF {
          .text(line, 50, doc.y, { width: 495 });
     });
 
+    this.addPageNumbers(doc);
     doc.end();
     return finish;
   }
@@ -556,11 +588,11 @@ export class PdfService implements IReportePDF {
   // f) PDF — Reporte Diario
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFDiario(data: ResumenDiario): Promise<Buffer> {
+  async generarPDFDiario(data: ResumenDiario, usuario?: string): Promise<Buffer> {
     const fechaLabel = this.fmtDate(data.fecha);
 
     const { doc, finish } = this.buildDoc();
-    this.buildHeader(doc, `Reporte Diario — ${fechaLabel}`);
+    this.buildHeader(doc, `Reporte Diario — ${fechaLabel}`, usuario);
 
     // ── Sección 1: Resumen ejecutivo ──────────────────────────────────────
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('1. Resumen Ejecutivo');
@@ -572,7 +604,7 @@ export class PdfService implements IReportePDF {
     const metricas: [string, string][] = [
       ['Pedidos creados hoy',          String(data.resumen.totalPedidosCreados)],
       ['Pedidos con movimiento hoy',   String(data.resumen.totalPedidosMovidos)],
-      ['Ventas del día (Bs.)',         `Bs. ${data.resumen.totalVentasDia.toFixed(2)}`],
+      ['Ventas del día (Bs.)',         this.fmtMonto(data.resumen.totalVentasDia)],
       ['Movimientos de Kardex hoy',    String(data.resumen.totalMovimientosKardex)],
       ['Alertas críticas de stock',    String(data.resumen.totalAlertasCriticas)],
     ];
@@ -615,7 +647,7 @@ export class PdfService implements IReportePDF {
           p.cliente?.nombre ?? '—',
           p.producto?.nombre_modelo ?? '—',
           p.estado,
-          `Bs. ${Number(p.total).toFixed(2)}`,
+          this.fmtMonto(Number(p.total)),
           this.fmtDate(p.fecha_creacion),
         ], pWidths, pAligns, i % 2 === 1);
       });
@@ -642,7 +674,7 @@ export class PdfService implements IReportePDF {
           p.cliente?.nombre ?? '—',
           p.producto?.nombre_modelo ?? '—',
           p.estado,
-          `Bs. ${Number(p.total).toFixed(2)}`,
+          this.fmtMonto(Number(p.total)),
           this.fmtDate(p.fecha_actualizacion),
         ], pWidths, pAligns, i % 2 === 1);
       });
@@ -677,7 +709,7 @@ export class PdfService implements IReportePDF {
           p.cliente?.nombre ?? '—',
           p.producto?.nombre_modelo ?? '—',
           p.cantidad_pares ?? 0,
-          `Bs. ${Number(p.total).toFixed(2)}`,
+          this.fmtMonto(Number(p.total)),
           this.fmtDate(p.fecha_entrega),
         ], vWidths, vAligns, i % 2 === 1);
       });
@@ -685,7 +717,7 @@ export class PdfService implements IReportePDF {
       this.buildFooter(doc, y, [
         `Total: ${data.pedidosTerminados.length} pedido(s)`,
         '', '', '',
-        `Bs. ${data.ventasDia.toFixed(2)}`,
+        this.fmtMonto(data.ventasDia),
         '',
       ], vWidths);
     }
@@ -829,6 +861,7 @@ export class PdfService implements IReportePDF {
       });
     }
 
+    this.addPageNumbers(doc);
     doc.end();
     return finish;
   }

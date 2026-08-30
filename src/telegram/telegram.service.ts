@@ -5,6 +5,7 @@ import { Cron } from '@nestjs/schedule';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { AssistantService } from '../assistant/assistant.service';
+import { condicionStockCritico } from '../common/stock-critico';
 
 @Injectable()
 export class TelegramService {
@@ -284,7 +285,7 @@ export class TelegramService {
       // Insumos en stock crítico
       this.insumoRepo
         .createQueryBuilder('i')
-        .where('i.stock <= i.nivel_minimo')
+        .where(condicionStockCritico('i'))
         .getMany(),
     ]);
 
@@ -396,7 +397,7 @@ export class TelegramService {
       this.pedidoRepo.count({ where: { estado: Not('Terminado') } }),
       this.insumoRepo
         .createQueryBuilder('i')
-        .where('i.stock <= i.nivel_minimo')
+        .where(condicionStockCritico('i'))
         .getMany(),
       this.pedidoRepo
         .createQueryBuilder('p')

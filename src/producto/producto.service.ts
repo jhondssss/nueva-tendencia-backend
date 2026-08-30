@@ -8,6 +8,7 @@ import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { paginate } from '../common/pagination';
+import { condicionStockCritico } from '../common/stock-critico';
 
 @Injectable()
 export class ProductoService {
@@ -123,7 +124,7 @@ export class ProductoService {
   async productosConAlerta() {
     return this.repo
       .createQueryBuilder('producto')
-      .where('producto.stock <= producto.nivel_minimo')
+      .where(condicionStockCritico('producto'))
       .getMany();
   }
 
