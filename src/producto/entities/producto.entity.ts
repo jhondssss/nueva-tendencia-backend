@@ -58,4 +58,12 @@ export class Producto {
   })
   categoria: CategoriaCalzado | null;
 
+  // Fórmula de mezcla para el descuento automático de insumos en Solado.
+  // null en ambos = fórmula no configurada. Cuando están seteados, deben sumar 100.
+  @Column('decimal', { precision: 5, scale: 2, nullable: true })
+  porcentaje_clefa: number | null;
+
+  @Column('decimal', { precision: 5, scale: 2, nullable: true })
+  porcentaje_pasta: number | null;
+
 }

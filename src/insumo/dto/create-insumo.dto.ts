@@ -48,4 +48,8 @@ export class CreateInsumoDto {
   @IsOptional()
   @IsString()
   imagen_url?: string;
+
+  @IsOptional()
+  @IsEnum(['clefa', 'pasta'])
+  rol_formula?: 'clefa' | 'pasta';
 }

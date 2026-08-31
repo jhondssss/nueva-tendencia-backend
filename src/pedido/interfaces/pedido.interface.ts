@@ -26,6 +26,7 @@ export interface IPedidoEstadoService {
   moverEstado(
     id: number,
     nuevoEstado: 'Pendiente' | 'Aparado' | 'Solado' | 'Empaque' | 'Terminado',
+    userRole?: string,
   ): Promise<any>;
   getKanban(): Promise<any>;
 }

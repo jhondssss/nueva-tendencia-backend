@@ -42,8 +42,9 @@ export class PedidoController {
   moverPedido(
     @Param('id') id: number,
     @Body('nuevoEstado') nuevoEstado: 'Pendiente' | 'Aparado' | 'Solado' | 'Empaque' | 'Terminado',
+    @Req() req: any,
   ) {
-    return this.pedidoService.moverPedido(id, nuevoEstado);
+    return this.pedidoService.moverPedido(id, nuevoEstado, req.user?.role);
   }
 
   @Roles('cliente')
@@ -97,8 +98,8 @@ export class PedidoController {
 
   @Roles('admin', 'operario')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updatePedidoDto: UpdatePedidoDto) {
-    return this.pedidoService.update(+id, updatePedidoDto);
+  update(@Param('id') id: string, @Body() updatePedidoDto: UpdatePedidoDto, @Req() req: any) {
+    return this.pedidoService.update(+id, updatePedidoDto, req.user?.role);
   }
 
   @Roles('admin')

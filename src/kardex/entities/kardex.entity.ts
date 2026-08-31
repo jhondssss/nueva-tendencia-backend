@@ -9,9 +9,11 @@ import {
 import { Producto } from '../../producto/entities/producto.entity';
 import { Insumo } from '../../insumo/entities/insumo.entity';
 import { User } from '../../user/entities/user.entity';
+import { Pedido } from '../../pedido/entities/pedido.entity';
 
 export type TipoMovimiento  = 'entrada' | 'salida' | 'ajuste';
 export type TipoRegistro    = 'producto' | 'insumo';
+export type OrigenMovimiento = 'manual' | 'automatico';
 
 @Entity('kardex_movimientos')
 export class KardexMovimiento {
@@ -37,6 +39,14 @@ export class KardexMovimiento {
   @Column({ type: 'varchar', length: 255, nullable: true })
   motivo: string | null;
 
+  @Column({ type: 'enum', enum: ['manual', 'automatico'], default: 'manual' })
+  origen: OrigenMovimiento;
+
+  // Solo relevante para movimientos automáticos de insumo (fórmula de mezcla):
+  // marca si ya fue devuelto al stock por un retroceso de pedido.
+  @Column({ default: false })
+  revertido: boolean;
+
   @CreateDateColumn()
   fecha: Date;
 
@@ -51,4 +61,9 @@ export class KardexMovimiento {
   @ManyToOne(() => User, { nullable: true, eager: false, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'usuario_id' })
   usuario: User | null;
+
+  // Referencia al pedido de origen para movimientos automáticos (fórmula de mezcla).
+  @ManyToOne(() => Pedido, { nullable: true, eager: false, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'pedido_id' })
+  pedido: Pedido | null;
 }

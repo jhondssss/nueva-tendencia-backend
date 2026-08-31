@@ -46,7 +46,7 @@ export class PedidoService {
     return this.crudService.calificarPedido(pedidoId, clienteId, dto);
   }
 
-  async update(id: number, dto: UpdatePedidoDto) {
+  async update(id: number, dto: UpdatePedidoDto, userRole?: string) {
     const { estado, ...resto } = dto;
     const tieneOtrosCambios = Object.keys(resto).length > 0;
 
@@ -55,7 +55,7 @@ export class PedidoService {
       : undefined;
 
     if (estado) {
-      return this.estadoService.moverEstado(id, estado);
+      return this.estadoService.moverEstado(id, estado, userRole);
     }
 
     return actualizado ?? this.crudService.findOne(id);
@@ -70,8 +70,9 @@ export class PedidoService {
   moverPedido(
     id: number,
     nuevoEstado: 'Pendiente' | 'Aparado' | 'Solado' | 'Empaque' | 'Terminado',
+    userRole?: string,
   ) {
-    return this.estadoService.moverEstado(id, nuevoEstado);
+    return this.estadoService.moverEstado(id, nuevoEstado, userRole);
   }
 
   getPedidosKanban() {

@@ -1,9 +1,10 @@
 import {
   IsString, IsNumber, IsOptional, IsBoolean,
-  IsNotEmpty, Min, IsEnum,
+  IsNotEmpty, Min, Max, IsEnum,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import type { CategoriaCalzado } from '../entities/producto.entity';
+import { PorcentajesMezclaValidos } from '../validators/porcentajes-mezcla.validator';
 
 export class CreateProductoDto {
   @IsString()
@@ -74,4 +75,19 @@ export class CreateProductoDto {
   @IsOptional()
   @IsEnum(['nino', 'juvenil', 'adulto'])
   categoria?: CategoriaCalzado;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'El porcentaje de Clefa debe ser un número' })
+  @Min(0, { message: 'El porcentaje de Clefa no puede ser negativo' })
+  @Max(100, { message: 'El porcentaje de Clefa no puede superar 100' })
+  @PorcentajesMezclaValidos({ message: 'porcentaje_clefa y porcentaje_pasta deben venir ambos y sumar exactamente 100' })
+  porcentaje_clefa?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'El porcentaje de Pasta debe ser un número' })
+  @Min(0, { message: 'El porcentaje de Pasta no puede ser negativo' })
+  @Max(100, { message: 'El porcentaje de Pasta no puede superar 100' })
+  porcentaje_pasta?: number;
 }

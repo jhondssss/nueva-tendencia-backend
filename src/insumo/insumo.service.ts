@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Insumo } from './entities/insumo.entity';
@@ -38,8 +38,21 @@ export class InsumoService {
       .getMany();
   }
 
+  private async validarRolFormulaDisponible(rol: 'clefa' | 'pasta', excluirId?: number): Promise<void> {
+    const existente = await this.insumoRepo.findOne({ where: { rol_formula: rol } });
+    if (existente && existente.id_insumo !== excluirId) {
+      throw new ConflictException(
+        `Ya existe un insumo con rol '${rol}': "${existente.nombre}" (#${existente.id_insumo})`,
+      );
+    }
+  }
+
   async create(dto: CreateInsumoDto, usuarioId?: number): Promise<Insumo> {
     const stockInicial = dto.stock ?? 0;
+
+    if (dto.rol_formula) {
+      await this.validarRolFormulaDisponible(dto.rol_formula);
+    }
 
     // Guardamos con stock = 0 para que registrarMovimientoInsumo haga el
     // tracking correcto desde 0 → stockInicial
@@ -84,6 +97,10 @@ export class InsumoService {
   async update(id: number, dto: UpdateInsumoDto, usuarioId?: number): Promise<Insumo> {
     const insumo = await this.findOne(id);
     const stockAnterior = Number(insumo.stock);
+
+    if (dto.rol_formula) {
+      await this.validarRolFormulaDisponible(dto.rol_formula, id);
+    }
 
     // Separar el stock del resto de campos para manejarlo vía kardex
     const { stock: nuevoStock, ...camposResto } = dto;
