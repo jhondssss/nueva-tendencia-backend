@@ -223,7 +223,7 @@ export class KardexService {
       where: id_producto
         ? { producto: { id_producto } }
         : {},
-      relations: { producto: true, insumo: true, usuario: true },
+      relations: { producto: true, insumo: true, usuario: true, pedido: true },
       order: { fecha: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
