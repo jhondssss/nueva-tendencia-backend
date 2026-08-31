@@ -234,7 +234,7 @@ export class KardexService {
   getMovimientosByProducto(id_producto: number): Promise<KardexMovimiento[]> {
     return this.kardexRepo.find({
       where: { producto: { id_producto } },
-      relations: { producto: true, insumo: true, usuario: true },
+      relations: { producto: true, insumo: true, usuario: true, pedido: true },
       order: { fecha: 'DESC' },
     });
   }
