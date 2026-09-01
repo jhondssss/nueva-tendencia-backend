@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Cliente } from './entities/cliente.entity';
 import { DireccionCliente } from './entities/direccion-cliente.entity';
+import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { ClienteService } from './cliente.service';
 import { ClienteController } from './cliente.controller';
 import { AuditoriaModule } from '../auditoria/auditoria.module';
@@ -10,7 +11,7 @@ import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Cliente, DireccionCliente]),
+    TypeOrmModule.forFeature([Cliente, DireccionCliente, SolicitudPedido]),
     AuditoriaModule,
     UserModule,
     MailModule,

@@ -2,6 +2,7 @@ import { Injectable, ConflictException, BadRequestException, NotFoundException, 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, IsNull, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
+import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
@@ -18,6 +19,9 @@ export class ProductoService {
   constructor(
     @InjectRepository(Producto)
     private repo: Repository<Producto>,
+
+    @InjectRepository(SolicitudPedido)
+    private readonly solicitudRepo: Repository<SolicitudPedido>,
 
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
@@ -143,6 +147,15 @@ export class ProductoService {
       throw new NotFoundException(`Producto #${id} no encontrado`);
     }
     const nombre = producto.nombre_modelo;
+
+    const solicitudPendiente = await this.solicitudRepo.findOne({
+      where: { producto: { id_producto: id }, estado: 'Pendiente' },
+    });
+    if (solicitudPendiente) {
+      throw new ConflictException(
+        'Este producto tiene solicitudes de pedido pendientes, resolvelas antes de eliminarlo',
+      );
+    }
 
     let result;
     try {

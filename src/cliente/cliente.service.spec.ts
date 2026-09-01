@@ -4,6 +4,7 @@ import { ConflictException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { ClienteService } from './cliente.service';
 import { Cliente } from './entities/cliente.entity';
+import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { UserService } from '../user/user.service';
 import { MailService } from '../mail/mail.service';
@@ -22,6 +23,10 @@ describe('ClienteService', () => {
     delete: jest.fn(),
   };
 
+  const mockSolicitudRepo = {
+    findOne: jest.fn().mockResolvedValue(null),
+  };
+
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
   const mockUserService = { findByClienteId: jest.fn().mockResolvedValue(null) };
   const mockMailService = {};
@@ -31,6 +36,7 @@ describe('ClienteService', () => {
       providers: [
         ClienteService,
         { provide: getRepositoryToken(Cliente), useValue: mockClienteRepo },
+        { provide: getRepositoryToken(SolicitudPedido), useValue: mockSolicitudRepo },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
         { provide: UserService, useValue: mockUserService },
         { provide: MailService, useValue: mockMailService },
@@ -47,6 +53,20 @@ describe('ClienteService', () => {
 
     beforeEach(() => {
       mockClienteRepo.findOne.mockResolvedValue(cliente);
+      mockSolicitudRepo.findOne.mockResolvedValue(null);
+    });
+
+    it('bloquea el borrado si el cliente tiene una solicitud de pedido Pendiente', async () => {
+      mockSolicitudRepo.findOne.mockResolvedValue({ id_solicitud: 5, estado: 'Pendiente' });
+
+      await expect(service.remove(1)).rejects.toThrow(ConflictException);
+      await expect(service.remove(1)).rejects.toThrow(
+        'Este cliente tiene solicitudes de pedido pendientes, resolvelas antes de eliminarlo',
+      );
+      expect(mockClienteRepo.delete).not.toHaveBeenCalled();
+      expect(mockSolicitudRepo.findOne).toHaveBeenCalledWith({
+        where: { cliente: { id_cliente: 1 }, estado: 'Pendiente' },
+      });
     });
 
     it('convierte una violación de FK contra pedidos en un mensaje de negocio claro', async () => {

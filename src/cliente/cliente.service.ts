@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Cliente } from './entities/cliente.entity';
+import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { DarAccesoDto } from './dto/dar-acceso.dto';
@@ -22,6 +23,9 @@ export class ClienteService {
   constructor(
     @InjectRepository(Cliente)
     private readonly clienteRepository: Repository<Cliente>,
+
+    @InjectRepository(SolicitudPedido)
+    private readonly solicitudRepository: Repository<SolicitudPedido>,
 
     private readonly auditoriaService: AuditoriaService,
     private readonly userService: UserService,
@@ -117,6 +121,15 @@ export class ClienteService {
 
   async remove(id: number) {
     const cliente = await this.findOne(id);
+
+    const solicitudPendiente = await this.solicitudRepository.findOne({
+      where: { cliente: { id_cliente: id }, estado: 'Pendiente' },
+    });
+    if (solicitudPendiente) {
+      throw new ConflictException(
+        'Este cliente tiene solicitudes de pedido pendientes, resolvelas antes de eliminarlo',
+      );
+    }
 
     let result;
     try {

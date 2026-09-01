@@ -4,6 +4,7 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { ProductoService } from './producto.service';
 import { Producto } from './entities/producto.entity';
+import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 
@@ -20,6 +21,10 @@ describe('ProductoService', () => {
     delete: jest.fn(),
   };
 
+  const mockSolicitudRepo = {
+    findOne: jest.fn().mockResolvedValue(null),
+  };
+
   const mockKardexService = {};
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
 
@@ -28,6 +33,7 @@ describe('ProductoService', () => {
       providers: [
         ProductoService,
         { provide: getRepositoryToken(Producto), useValue: mockProductoRepo },
+        { provide: getRepositoryToken(SolicitudPedido), useValue: mockSolicitudRepo },
         { provide: KardexService, useValue: mockKardexService },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
       ],
@@ -78,6 +84,21 @@ describe('ProductoService', () => {
       mockProductoRepo.delete.mockRejectedValue(otroError);
 
       await expect(service.remove(1)).rejects.toThrow(otroError);
+    });
+
+    it('bloquea el borrado si el producto tiene una solicitud de pedido Pendiente', async () => {
+      const producto = { id_producto: 1, nombre_modelo: 'Bota Test' };
+      mockProductoRepo.findOne.mockResolvedValue(producto);
+      mockSolicitudRepo.findOne.mockResolvedValue({ id_solicitud: 5, estado: 'Pendiente' });
+
+      await expect(service.remove(1)).rejects.toThrow(ConflictException);
+      await expect(service.remove(1)).rejects.toThrow(
+        'Este producto tiene solicitudes de pedido pendientes, resolvelas antes de eliminarlo',
+      );
+      expect(mockProductoRepo.delete).not.toHaveBeenCalled();
+      expect(mockSolicitudRepo.findOne).toHaveBeenCalledWith({
+        where: { producto: { id_producto: 1 }, estado: 'Pendiente' },
+      });
     });
   });
 });
