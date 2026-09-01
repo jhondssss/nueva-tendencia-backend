@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Req, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PedidoService } from './pedido.service';
 import { CreatePedidoDto } from './dto/create-pedido.dto';
 import { UpdatePedidoDto } from './dto/update-pedido.dto';
@@ -89,11 +89,13 @@ export class PedidoController {
   }
 
   @Patch(':id/tallas')
-  actualizarTallas(
+  async actualizarTallas(
     @Param('id') id: string,
     @Body() body: { categoria: CategoriaCalzado; tallas: { talla: number; cantidad_pares: number }[] },
   ) {
-    return this.tallaService.actualizarTallasPersonalizadas(+id, body.categoria, body.tallas);
+    const pedido = await this.pedidoService.findOne(+id);
+    if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
+    return this.tallaService.actualizarTallasPersonalizadas(+id, body.categoria, body.tallas, pedido.cantidad);
   }
 
   @Roles('admin', 'operario')

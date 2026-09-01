@@ -40,6 +40,7 @@ export class TallaService {
     pedidoId: number,
     categoria: CategoriaCalzado,
     tallas: { talla: number; cantidad_pares: number }[],
+    cantidadDocenas: number,
   ): Promise<TallaDetalle[]> {
     const rango = RANGOS_CATEGORIA[categoria];
 
@@ -53,10 +54,12 @@ export class TallaService {
 
     await this.tallaRepository.delete({ pedido: { id_pedido: pedidoId } });
 
+    // tallas trae la distribución POR DOCENA (mismo contrato que generarTallasParaPedido);
+    // se escala acá por la cantidad de docenas del pedido antes de persistir.
     const nuevas = tallas.map(t =>
       this.tallaRepository.create({
         talla: t.talla,
-        cantidad_pares: t.cantidad_pares,
+        cantidad_pares: t.cantidad_pares * cantidadDocenas,
         pedido: { id_pedido: pedidoId } as any,
       }),
     );

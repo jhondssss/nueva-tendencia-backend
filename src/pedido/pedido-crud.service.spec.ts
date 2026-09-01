@@ -18,13 +18,18 @@ describe('PedidoCrudService', () => {
     findOne: jest.fn(),
     findOneBy: jest.fn(),
     findAndCount: jest.fn(),
+    create: jest.fn((data) => data),
+    save: jest.fn((data) => Promise.resolve({ id_pedido: 1, ...data })),
     delete: jest.fn(),
   };
   const mockClienteRepo = { findOneBy: jest.fn() };
   const mockProductoRepo = { findOneBy: jest.fn() };
   const mockCalificacionRepo = { create: jest.fn(), save: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
-  const mockTallaService = {};
+  const mockTallaService = {
+    actualizarTallasPersonalizadas: jest.fn().mockResolvedValue([]),
+    generarTallasParaPedido: jest.fn().mockResolvedValue([]),
+  };
   const mockTelegramService = {
     sendMessage: jest.fn().mockResolvedValue(undefined),
     sendPhoto: jest.fn().mockResolvedValue(undefined),
@@ -141,6 +146,36 @@ describe('PedidoCrudService', () => {
         expect.objectContaining({ accion: 'DELETE', modulo: 'pedidos' }),
       );
       expect(result).toEqual({ raw: [], affected: 1 });
+    });
+  });
+
+  describe('create — tallas personalizadas', () => {
+    beforeEach(() => {
+      mockClienteRepo.findOneBy.mockResolvedValue({ id_cliente: 1, nombre: 'Ana' });
+      mockProductoRepo.findOneBy.mockResolvedValue({ id_producto: 1, nombre_modelo: 'Bota' });
+      mockPedidoRepo.findOne.mockResolvedValue({ id_pedido: 1, talles: [] });
+    });
+
+    // Regresión del bug de escalado: antes del fix, create() no pasaba `cantidad`
+    // a actualizarTallasPersonalizadas y la distribución personalizada se guardaba
+    // sin multiplicar por la cantidad de docenas del pedido.
+    it('pasa la cantidad de docenas del pedido a actualizarTallasPersonalizadas', async () => {
+      const tallas = [{ talla: 37, cantidad_pares: 2 }];
+
+      await service.create({
+        cliente_id: 1,
+        producto_id: 1,
+        total: 100,
+        fecha_entrega: '2026-12-01',
+        cantidad: 3,
+        unidad: 'docena',
+        categoria: 'adulto',
+        tallas_personalizadas: tallas,
+      } as any);
+
+      expect(mockTallaService.actualizarTallasPersonalizadas).toHaveBeenCalledWith(
+        1, 'adulto', tallas, 3,
+      );
     });
   });
 

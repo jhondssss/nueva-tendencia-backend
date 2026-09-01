@@ -70,6 +70,7 @@ export class PedidoCrudService implements IPedidoCrudService {
         savedPedido.id_pedido,
         createPedidoDto.categoria,
         createPedidoDto.tallas_personalizadas,
+        cantidad,
       );
     } else if (createPedidoDto.categoria) {
       await this.tallaService.generarTallasParaPedido(
@@ -242,6 +243,7 @@ export class PedidoCrudService implements IPedidoCrudService {
         id,
         categoriaFinal,
         updatePedidoDto.tallas_personalizadas,
+        pedido.cantidad,
       );
     } else if (updatePedidoDto.categoria) {
       await this.tallaService.generarTallasParaPedido(
