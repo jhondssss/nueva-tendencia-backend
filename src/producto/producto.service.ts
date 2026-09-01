@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, IsNull, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
@@ -138,7 +138,10 @@ export class ProductoService {
 
   async remove(id: number) {
     const producto = await this.findOne(id);
-    const nombre = producto?.nombre_modelo ?? `ID ${id}`;
+    if (!producto) {
+      throw new NotFoundException(`Producto #${id} no encontrado`);
+    }
+    const nombre = producto.nombre_modelo;
     const result = await this.repo.delete({ id_producto: id });
     void this.auditoriaService.registrar({
       accion: 'DELETE',
