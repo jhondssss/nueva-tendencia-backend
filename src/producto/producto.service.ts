@@ -9,6 +9,7 @@ import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { paginate } from '../common/pagination';
 import { condicionStockCritico } from '../common/stock-critico';
+import { fkViolationTable } from '../common/db-errors';
 
 @Injectable()
 export class ProductoService {
@@ -142,7 +143,20 @@ export class ProductoService {
       throw new NotFoundException(`Producto #${id} no encontrado`);
     }
     const nombre = producto.nombre_modelo;
-    const result = await this.repo.delete({ id_producto: id });
+
+    let result;
+    try {
+      result = await this.repo.delete({ id_producto: id });
+    } catch (err) {
+      const tabla = fkViolationTable(err);
+      if (tabla === 'pedidos') {
+        throw new ConflictException('No se puede eliminar el producto porque tiene pedidos asociados');
+      }
+      if (tabla) {
+        throw new ConflictException('No se puede eliminar el producto porque tiene datos asociados');
+      }
+      throw err;
+    }
     void this.auditoriaService.registrar({
       accion: 'DELETE',
       modulo: 'productos',

@@ -1,10 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ConflictException } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
 import { ProductoService } from './producto.service';
 import { Producto } from './entities/producto.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+
+function fkError(table: string): QueryFailedError {
+  const driverError = { code: '23503', table, message: 'fk violation' };
+  return new QueryFailedError('DELETE ...', undefined, driverError as unknown as Error);
+}
 
 describe('ProductoService', () => {
   let service: ProductoService;
@@ -53,6 +59,25 @@ describe('ProductoService', () => {
         expect.objectContaining({ accion: 'DELETE', modulo: 'productos' }),
       );
       expect(result).toEqual({ raw: [], affected: 1 });
+    });
+
+    it('convierte una violación de FK contra pedidos en un mensaje de negocio claro', async () => {
+      const producto = { id_producto: 1, nombre_modelo: 'Bota Test' };
+      mockProductoRepo.findOne.mockResolvedValue(producto);
+      mockProductoRepo.delete.mockRejectedValue(fkError('pedidos'));
+
+      await expect(service.remove(1)).rejects.toThrow(ConflictException);
+      await expect(service.remove(1)).rejects.toThrow('tiene pedidos asociados');
+      expect(mockAuditoriaService.registrar).not.toHaveBeenCalled();
+    });
+
+    it('re-lanza un error que no es de FK sin envolverlo', async () => {
+      const producto = { id_producto: 1, nombre_modelo: 'Bota Test' };
+      mockProductoRepo.findOne.mockResolvedValue(producto);
+      const otroError = new Error('conexión perdida');
+      mockProductoRepo.delete.mockRejectedValue(otroError);
+
+      await expect(service.remove(1)).rejects.toThrow(otroError);
     });
   });
 });

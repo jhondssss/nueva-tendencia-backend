@@ -15,6 +15,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { UserService } from '../user/user.service';
 import { MailService } from '../mail/mail.service';
 import { paginate } from '../common/pagination';
+import { fkViolationTable } from '../common/db-errors';
 
 @Injectable()
 export class ClienteService {
@@ -116,7 +117,24 @@ export class ClienteService {
 
   async remove(id: number) {
     const cliente = await this.findOne(id);
-    const result = await this.clienteRepository.delete(id);
+
+    let result;
+    try {
+      result = await this.clienteRepository.delete(id);
+    } catch (err) {
+      const tabla = fkViolationTable(err);
+      if (tabla === 'pedidos') {
+        throw new ConflictException('No se puede eliminar el cliente porque tiene pedidos asociados');
+      }
+      if (tabla === 'direccion_cliente') {
+        throw new ConflictException('No se puede eliminar el cliente porque tiene una dirección registrada asociada');
+      }
+      if (tabla) {
+        throw new ConflictException('No se puede eliminar el cliente porque tiene datos asociados');
+      }
+      throw err;
+    }
+
     void this.auditoriaService.registrar({
       accion: 'DELETE',
       modulo: 'clientes',
