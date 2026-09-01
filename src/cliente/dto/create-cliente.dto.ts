@@ -26,9 +26,9 @@ export class CreateClienteDto {
   @IsString()
   apellido?: string;
 
-  @IsNotEmpty({ message: 'El CI o RUC es obligatorio' })
+  @IsOptional()
   @IsString()
-  documento_identidad: string;
+  documento_identidad?: string;
 
   @IsNotEmpty({ message: 'El email es obligatorio' })
   @IsEmail({}, { message: 'El email no es válido' })

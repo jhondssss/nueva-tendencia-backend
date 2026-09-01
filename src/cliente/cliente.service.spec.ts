@@ -21,6 +21,8 @@ describe('ClienteService', () => {
     findOne: jest.fn(),
     findOneBy: jest.fn(),
     delete: jest.fn(),
+    create: jest.fn(),
+    save: jest.fn(),
   };
 
   const mockSolicitudRepo = {
@@ -47,6 +49,40 @@ describe('ClienteService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  describe('create', () => {
+    const dtoBase = {
+      tipo_cliente: 'persona_natural',
+      nombre: 'Cliente Test',
+      correo_electronico: 'cliente@test.com',
+      telefono_principal: '77712345',
+    };
+
+    it('crea el cliente cuando documento_identidad viene undefined, sin disparar un conflicto falso', async () => {
+      mockClienteRepo.findOneBy.mockResolvedValue(null);
+      mockClienteRepo.create.mockReturnValue({ ...dtoBase });
+      mockClienteRepo.save.mockResolvedValue({ id_cliente: 1, ...dtoBase });
+
+      const result = await service.create(dtoBase as any);
+
+      // Solo debe consultarse por email; nunca por documento_identidad si no vino
+      expect(mockClienteRepo.findOneBy).toHaveBeenCalledTimes(1);
+      expect(mockClienteRepo.findOneBy).toHaveBeenCalledWith({
+        correo_electronico: dtoBase.correo_electronico,
+      });
+      expect(result).toEqual({ id_cliente: 1, ...dtoBase });
+    });
+
+    it('bloquea la creación si ya existe un cliente con el mismo CI/RUC', async () => {
+      const dto = { ...dtoBase, documento_identidad: '12345678' };
+      mockClienteRepo.findOneBy
+        .mockResolvedValueOnce(null) // chequeo de email
+        .mockResolvedValueOnce({ id_cliente: 9, documento_identidad: '12345678' }); // chequeo de CI/RUC
+
+      await expect(service.create(dto as any)).rejects.toThrow(ConflictException);
+      expect(mockClienteRepo.save).not.toHaveBeenCalled();
+    });
+  });
 
   describe('remove', () => {
     const cliente = { id_cliente: 1, nombre: 'Cliente Test' };

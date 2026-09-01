@@ -40,11 +40,13 @@ export class ClienteService {
       throw new ConflictException('Ya existe un cliente con ese email');
     }
 
-    const docExistente = await this.clienteRepository.findOneBy({
-      documento_identidad: createClienteDto.documento_identidad,
-    });
-    if (docExistente) {
-      throw new ConflictException('Ya existe un cliente con ese CI/RUC');
+    if (createClienteDto.documento_identidad) {
+      const docExistente = await this.clienteRepository.findOneBy({
+        documento_identidad: createClienteDto.documento_identidad,
+      });
+      if (docExistente) {
+        throw new ConflictException('Ya existe un cliente con ese CI/RUC');
+      }
     }
 
     const cliente = this.clienteRepository.create(createClienteDto);
