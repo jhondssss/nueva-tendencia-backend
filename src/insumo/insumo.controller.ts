@@ -23,6 +23,18 @@ import { UpdateInsumoDto } from './dto/update-insumo.dto';
 
 const ALLOWED_MIMETYPES = /^image\/(jpeg|png|webp)$/;
 
+const imageInterceptor = FileInterceptor('imagen', {
+  storage: memoryStorage(),
+  fileFilter: (req, file, callback) => {
+    if (!ALLOWED_MIMETYPES.test(file.mimetype)) {
+      (req as any).fileValidationError = 'Solo se permiten imágenes JPG, PNG o WEBP';
+      return callback(null, false);
+    }
+    callback(null, true);
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
 @Controller('insumos')
 export class InsumoController {
   constructor(
@@ -47,7 +59,20 @@ export class InsumoController {
 
   @Roles('admin')
   @Post()
-  create(@Body() dto: CreateInsumoDto, @Req() req: any) {
+  @UseInterceptors(imageInterceptor)
+  async create(
+    @Body() dto: CreateInsumoDto,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: any,
+  ) {
+    if (req.fileValidationError) throw new BadRequestException(req.fileValidationError);
+    if (file) {
+      try {
+        dto.imagen_url = await this.cloudinaryService.uploadImage(file, 'insumos');
+      } catch {
+        throw new InternalServerErrorException('Error al subir la imagen, intenta de nuevo');
+      }
+    }
     return this.insumoService.create(dto, req.user?.sub as number);
   }
 
@@ -63,19 +88,7 @@ export class InsumoController {
 
   @Roles('admin')
   @Post(':id/imagen')
-  @UseInterceptors(
-    FileInterceptor('imagen', {
-      storage: memoryStorage(),
-      fileFilter: (req, file, callback) => {
-        if (!ALLOWED_MIMETYPES.test(file.mimetype)) {
-          (req as any).fileValidationError = 'Solo se permiten imágenes JPG, PNG o WEBP';
-          return callback(null, false);
-        }
-        callback(null, true);
-      },
-      limits: { fileSize: 5 * 1024 * 1024 },
-    }),
-  )
+  @UseInterceptors(imageInterceptor)
   async uploadImagen(
     @Param('id', ParseIntPipe) id: number,
     @UploadedFile() file: Express.Multer.File,

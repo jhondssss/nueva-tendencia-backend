@@ -47,8 +47,25 @@ export class InsumoService {
     }
   }
 
+  private async validarNombreUnico(nombre: string, excluirId?: number): Promise<void> {
+    const qb = this.insumoRepo
+      .createQueryBuilder('i')
+      .where('LOWER(TRIM(i.nombre)) = LOWER(TRIM(:nombre))', { nombre });
+    if (excluirId !== undefined) {
+      qb.andWhere('i.id_insumo != :excluirId', { excluirId });
+    }
+    const existente = await qb.getOne();
+    if (existente) {
+      throw new ConflictException(
+        `Ya existe un insumo con el nombre "${existente.nombre}" (#${existente.id_insumo})`,
+      );
+    }
+  }
+
   async create(dto: CreateInsumoDto, usuarioId?: number): Promise<Insumo> {
     const stockInicial = dto.stock ?? 0;
+
+    await this.validarNombreUnico(dto.nombre);
 
     if (dto.rol_formula) {
       await this.validarRolFormulaDisponible(dto.rol_formula);
@@ -97,6 +114,10 @@ export class InsumoService {
   async update(id: number, dto: UpdateInsumoDto, usuarioId?: number): Promise<Insumo> {
     const insumo = await this.findOne(id);
     const stockAnterior = Number(insumo.stock);
+
+    if (dto.nombre) {
+      await this.validarNombreUnico(dto.nombre, id);
+    }
 
     if (dto.rol_formula) {
       await this.validarRolFormulaDisponible(dto.rol_formula, id);

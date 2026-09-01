@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ConflictException } from '@nestjs/common';
 import { InsumoService } from './insumo.service';
 import { Insumo } from './entities/insumo.entity';
 import { KardexService } from '../kardex/kardex.service';
@@ -9,13 +10,21 @@ import { TelegramService } from '../telegram/telegram.service';
 describe('InsumoService', () => {
   let service: InsumoService;
 
+  const mockQueryBuilder = {
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
+    getOne: jest.fn(),
+    getMany: jest.fn(),
+  };
+
   const mockInsumoRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
     delete: jest.fn(),
-    createQueryBuilder: jest.fn(),
+    createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
 
   const mockKardexService = { registrarMovimientoInsumo: jest.fn() };
@@ -34,6 +43,9 @@ describe('InsumoService', () => {
     }).compile();
 
     service = module.get<InsumoService>(InsumoService);
+
+    // Por defecto, sin duplicado de nombre (la mayoría de los tests no lo ejercitan)
+    mockQueryBuilder.getOne.mockResolvedValue(null);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -103,6 +115,70 @@ describe('InsumoService', () => {
         undefined,
       );
       expect(result.stock).toBe(10);
+    });
+  });
+
+  describe('validación de nombre único', () => {
+    it('rechaza crear un insumo con un nombre ya existente', async () => {
+      const dto = {
+        nombre: 'Pegamento industrial',
+        categoria: 'adhesivo' as const,
+        unidad_medida: 'litro' as const,
+      };
+
+      mockQueryBuilder.getOne.mockResolvedValue({
+        id_insumo: 7,
+        nombre: 'Pegamento industrial',
+      });
+
+      await expect(service.create(dto)).rejects.toThrow(ConflictException);
+      expect(mockInsumoRepo.create).not.toHaveBeenCalled();
+    });
+
+    it('rechaza renombrar un insumo a un nombre ya usado por otro', async () => {
+      const insumoActual = {
+        id_insumo: 5,
+        nombre: 'Cuero natural',
+        stock: 20,
+        nivel_minimo: 5,
+        activo: true,
+        precio_unitario: 15,
+      };
+      mockInsumoRepo.findOne.mockResolvedValueOnce(insumoActual);
+      mockQueryBuilder.getOne.mockResolvedValue({
+        id_insumo: 9,
+        nombre: 'Cuero sintético',
+      });
+
+      await expect(
+        service.update(5, { nombre: 'Cuero sintético' }),
+      ).rejects.toThrow(ConflictException);
+      expect(mockInsumoRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('permite actualizar un insumo manteniendo su propio nombre', async () => {
+      const insumoActual = {
+        id_insumo: 5,
+        nombre: 'Cuero natural',
+        stock: 20,
+        nivel_minimo: 5,
+        activo: true,
+        precio_unitario: 15,
+      };
+      mockInsumoRepo.findOne
+        .mockResolvedValueOnce(insumoActual)
+        .mockResolvedValueOnce(insumoActual);
+      mockInsumoRepo.save.mockResolvedValue(insumoActual);
+      // El propio insumo aparece en el query, pero se excluye por id
+      mockQueryBuilder.getOne.mockResolvedValue(null);
+
+      await service.update(5, { nombre: 'Cuero natural' });
+
+      expect(mockQueryBuilder.andWhere).toHaveBeenCalledWith(
+        'i.id_insumo != :excluirId',
+        { excluirId: 5 },
+      );
+      expect(mockInsumoRepo.save).toHaveBeenCalled();
     });
   });
 });
