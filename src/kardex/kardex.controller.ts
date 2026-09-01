@@ -41,4 +41,14 @@ export class KardexController {
   findByProducto(@Param('id') id: string) {
     return this.kardexService.getMovimientosByProducto(+id);
   }
+
+  /** GET /kardex/pedido/:id/existe
+   *  Indica si el pedido tiene movimientos de kardex asociados (consumo
+   *  automático de insumos). Útil para advertir antes de eliminarlo, ya
+   *  que la FK es ON DELETE SET NULL y no bloquea el borrado. */
+  @Get('pedido/:id/existe')
+  async existenMovimientosPorPedido(@Param('id') id: string) {
+    const tieneMovimientos = await this.kardexService.existenMovimientosPorPedido(+id);
+    return { tieneMovimientos };
+  }
 }

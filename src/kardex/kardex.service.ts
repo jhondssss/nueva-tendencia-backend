@@ -246,4 +246,12 @@ export class KardexService {
       order: { fecha: 'DESC' },
     });
   }
+
+  // Usado por el frontend para advertir antes de eliminar un pedido: la FK
+  // kardex_movimientos.pedido_id es ON DELETE SET NULL, así que borrar el
+  // pedido no falla, pero desvincula en silencio sus movimientos automáticos.
+  async existenMovimientosPorPedido(id_pedido: number): Promise<boolean> {
+    const count = await this.kardexRepo.count({ where: { pedido: { id_pedido } } });
+    return count > 0;
+  }
 }
