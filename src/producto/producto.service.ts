@@ -1,7 +1,8 @@
-import { Injectable, ConflictException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, IsNull, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
+import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { ProductoCatalogoDto } from './dto/producto-catalogo.dto';
@@ -9,6 +10,7 @@ import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { paginate } from '../common/pagination';
 import { condicionStockCritico } from '../common/stock-critico';
+import { fkViolationTable } from '../common/db-errors';
 
 @Injectable()
 export class ProductoService {
@@ -17,6 +19,9 @@ export class ProductoService {
   constructor(
     @InjectRepository(Producto)
     private repo: Repository<Producto>,
+
+    @InjectRepository(SolicitudPedido)
+    private readonly solicitudRepo: Repository<SolicitudPedido>,
 
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
@@ -138,8 +143,33 @@ export class ProductoService {
 
   async remove(id: number) {
     const producto = await this.findOne(id);
-    const nombre = producto?.nombre_modelo ?? `ID ${id}`;
-    const result = await this.repo.delete({ id_producto: id });
+    if (!producto) {
+      throw new NotFoundException(`Producto #${id} no encontrado`);
+    }
+    const nombre = producto.nombre_modelo;
+
+    const solicitudPendiente = await this.solicitudRepo.findOne({
+      where: { producto: { id_producto: id }, estado: 'Pendiente' },
+    });
+    if (solicitudPendiente) {
+      throw new ConflictException(
+        'Este producto tiene solicitudes de pedido pendientes, resolvelas antes de eliminarlo',
+      );
+    }
+
+    let result;
+    try {
+      result = await this.repo.delete({ id_producto: id });
+    } catch (err) {
+      const tabla = fkViolationTable(err);
+      if (tabla === 'pedidos') {
+        throw new ConflictException('No se puede eliminar el producto porque tiene pedidos asociados');
+      }
+      if (tabla) {
+        throw new ConflictException('No se puede eliminar el producto porque tiene datos asociados');
+      }
+      throw err;
+    }
     void this.auditoriaService.registrar({
       accion: 'DELETE',
       modulo: 'productos',

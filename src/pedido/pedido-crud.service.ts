@@ -261,6 +261,10 @@ export class PedidoCrudService implements IPedidoCrudService {
   }
 
   async remove(id: number) {
+    const pedido = await this.pedidoRepo.findOneBy({ id_pedido: id });
+    if (!pedido) {
+      throw new NotFoundException(`Pedido #${id} no encontrado`);
+    }
     const result = await this.pedidoRepo.delete(id);
     void this.auditoriaService.registrar({
       accion: 'DELETE',

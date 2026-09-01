@@ -16,7 +16,9 @@ describe('PedidoCrudService', () => {
   const mockPedidoRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
+    findOneBy: jest.fn(),
     findAndCount: jest.fn(),
+    delete: jest.fn(),
   };
   const mockClienteRepo = { findOneBy: jest.fn() };
   const mockProductoRepo = { findOneBy: jest.fn() };
@@ -116,6 +118,29 @@ describe('PedidoCrudService', () => {
         relations: ['cliente', 'producto', 'talles', 'calificacion'],
       });
       expect(mockCalificacionRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('lanza NotFoundException si el pedido no existe y no intenta borrar', async () => {
+      mockPedidoRepo.findOneBy.mockResolvedValue(null);
+
+      await expect(service.remove(999)).rejects.toThrow(NotFoundException);
+      expect(mockPedidoRepo.delete).not.toHaveBeenCalled();
+      expect(mockAuditoriaService.registrar).not.toHaveBeenCalled();
+    });
+
+    it('borra el pedido existente y registra auditoría', async () => {
+      mockPedidoRepo.findOneBy.mockResolvedValue({ id_pedido: 1 });
+      mockPedidoRepo.delete.mockResolvedValue({ raw: [], affected: 1 });
+
+      const result = await service.remove(1);
+
+      expect(mockPedidoRepo.delete).toHaveBeenCalledWith(1);
+      expect(mockAuditoriaService.registrar).toHaveBeenCalledWith(
+        expect.objectContaining({ accion: 'DELETE', modulo: 'pedidos' }),
+      );
+      expect(result).toEqual({ raw: [], affected: 1 });
     });
   });
 
