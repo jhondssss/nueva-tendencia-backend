@@ -46,14 +46,14 @@ export class ProductoService {
       throw new ConflictException('Ya existe un producto con ese nombre y marca');
     }
 
-    if (dto.categoria_id !== undefined) {
+    if (dto.categoria_id !== undefined && dto.categoria_id !== null) {
       await this.validarCategoriaExiste(dto.categoria_id);
     }
 
     const { categoria_id, ...resto } = dto;
     const producto = this.repo.create({
       ...resto,
-      categoria: categoria_id !== undefined ? ({ id_categoria_producto: categoria_id } as CategoriaProducto) : null,
+      categoria: categoria_id ? ({ id_categoria_producto: categoria_id } as CategoriaProducto) : null,
     } as any);
     const saved = await this.repo.save(producto) as unknown as Producto;
 
@@ -92,12 +92,13 @@ export class ProductoService {
     this.logger.debug(`activo tras transform: ${dto.activo} (${typeof dto.activo})`);
     const actual = await this.findOne(id);
 
-    if (dto.categoria_id !== undefined) {
+    if (dto.categoria_id !== undefined && dto.categoria_id !== null) {
       await this.validarCategoriaExiste(dto.categoria_id);
     }
 
     // Separar stock y categoria_id del resto de campos: el stock se maneja
-    // aparte vía kardex, categoria_id se mapea a la relación `categoria`
+    // aparte vía kardex, categoria_id se mapea a la relación `categoria`.
+    // undefined = key ausente, no tocar la categoría. null = limpiarla ("sin categoría").
     const { stock: newStock, categoria_id, ...camposResto } = dto as any;
 
     // Actualizar campos que no son stock directamente
@@ -106,7 +107,10 @@ export class ProductoService {
     }
 
     if (categoria_id !== undefined) {
-      await this.repo.update({ id_producto: id }, { categoria: { id_categoria_producto: categoria_id } as CategoriaProducto });
+      await this.repo.update(
+        { id_producto: id },
+        { categoria: categoria_id === null ? null : ({ id_categoria_producto: categoria_id } as CategoriaProducto) },
+      );
     }
 
     // Si el stock cambió, actualizar y registrar en kardex
