@@ -202,12 +202,14 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | GET | `/reportes/pdf/pedidos-entregados` | Admin, operario | PDF de pedidos entregados |
 | GET | `/reportes/pdf/ganancias?month=&year=` | Admin | PDF de ganancias |
 | GET | `/reportes/pdf/diario` | Admin | PDF del reporte diario |
+| GET | `/reportes/pdf/kardex?desde=&hasta=&insumo_id=&tipo=&origen=&categoria_insumo_id=` | Admin, operario | PDF de Kardex de insumos (todos los filtros opcionales) |
 | GET | `/reportes/excel/pedidos-entregados` | Admin, operario | Excel pedidos entregados |
 | GET | `/reportes/excel/ganancias?month=&year=` | Admin | Excel ganancias |
 | GET | `/reportes/excel/pedidos` | Admin, operario | Excel todos los pedidos |
 | GET | `/reportes/excel/clientes` | Admin | Excel clientes |
 | GET | `/reportes/excel/stock` | Admin, operario | Excel stock |
 | GET | `/reportes/excel/diario` | Admin | Excel reporte diario |
+| GET | `/reportes/excel/kardex?desde=&hasta=&insumo_id=&tipo=&origen=&categoria_insumo_id=` | Admin, operario | Excel de Kardex de insumos (todos los filtros opcionales) |
 | GET | `/reportes/diario` | Admin | JSON resumen diario |
 
 ### Auditoría — `/auditoria` (solo admin)
