@@ -57,6 +57,7 @@ export class PedidoCrudService implements IPedidoCrudService {
       unidad,
       cantidad_pares,
       categoria:          createPedidoDto.categoria ?? null,
+      cuero_insumo_id:    createPedidoDto.cuero_insumo_id ?? null,
       token_seguimiento:  uuidv4(),
       cliente,
       producto,
@@ -229,6 +230,7 @@ export class PedidoCrudService implements IPedidoCrudService {
     if (updatePedidoDto.cantidad !== undefined)  pedido.cantidad      = updatePedidoDto.cantidad;
     if (updatePedidoDto.unidad)                  pedido.unidad        = updatePedidoDto.unidad;
     if (updatePedidoDto.categoria !== undefined) pedido.categoria     = updatePedidoDto.categoria;
+    if (updatePedidoDto.cuero_insumo_id !== undefined) pedido.cuero_insumo_id = updatePedidoDto.cuero_insumo_id;
 
     if (updatePedidoDto.cantidad !== undefined || updatePedidoDto.unidad) {
       pedido.cantidad_pares = pedido.cantidad * PARES_POR_UNIDAD[pedido.unidad];

@@ -50,6 +50,12 @@ export class Pedido {
   })
   categoria: CategoriaCalzado | null;
 
+  // Insumo específico (Cuero Liso / Cuero Nubuck / otro) que este pedido
+  // consume en Cortado, elegido por el cliente al crear/editar el pedido —
+  // no se resuelve por convención (rol_formula). FK a insumos.id_insumo.
+  @Column({ type: 'int', nullable: true })
+  cuero_insumo_id: number | null;
+
   @Index()
   @Column({ unique: true, nullable: true })
   token_seguimiento: string;

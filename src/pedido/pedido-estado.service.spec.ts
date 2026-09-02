@@ -137,11 +137,11 @@ describe('PedidoEstadoService', () => {
         estado,
         cantidad_pares: extra.cantidad_pares ?? 24, // 2 docenas
         cliente: { nombre: 'Cliente A' },
+        cuero_insumo_id: 'cuero_insumo_id' in extra ? extra.cuero_insumo_id : insumoCuero.id_insumo,
         producto: {
           nombre_modelo: 'Modelo X',
           imagen_url: undefined,
           cuero_pies: 'cuero_pies' in extra ? extra.cuero_pies : 3,
-          cuero_insumo_id: 'cuero_insumo_id' in extra ? extra.cuero_insumo_id : insumoCuero.id_insumo,
           pasta_solado_litros: 'pasta_solado_litros' in extra ? extra.pasta_solado_litros : 0.5,
           clefa_solado_litros: 'clefa_solado_litros' in extra ? extra.clefa_solado_litros : 0.3,
           pvc_solado_litros: 'pvc_solado_litros' in extra ? extra.pvc_solado_litros : 0.4,
@@ -152,7 +152,7 @@ describe('PedidoEstadoService', () => {
     }
 
     // Clefa/Pasta/PVC/Esponja se buscan por rol_formula vía findOneBy. Cuero
-    // es distinto: se busca por id_insumo directo (producto.cuero_insumo_id).
+    // es distinto: se busca por id_insumo directo (pedido.cuero_insumo_id).
     // Este helper arma el mock para ambas formas de consulta a la vez.
     function mockInsumosPorRol(overrides: Partial<Record<'cuero' | 'clefa' | 'pasta' | 'pvc' | 'esponja', Insumo | null>> = {}) {
       const cuero = overrides.cuero !== undefined ? overrides.cuero : insumoCuero;
@@ -220,12 +220,12 @@ describe('PedidoEstadoService', () => {
       expect(mockInsumoRepo.findOneBy).not.toHaveBeenCalled();
     });
 
-    it('bloquea el avance a Cortado si el producto no tiene cuero_insumo_id configurado', async () => {
+    it('bloquea el avance a Cortado si el pedido no tiene cuero_insumo_id configurado', async () => {
       const pedido = pedidoEnEstado('Pendiente', { cuero_insumo_id: null });
       mockPedidoRepo.findOne.mockResolvedValue(pedido);
 
       await expect(service.moverEstado(5, 'Cortado')).rejects.toThrow(
-        /no tiene configurada la cantidad de Cuero para Cortado/,
+        /Este pedido no tiene elegido el tipo de cuero/,
       );
       expect(mockDataSource.transaction).not.toHaveBeenCalled();
       expect(mockInsumoRepo.findOneBy).not.toHaveBeenCalled();

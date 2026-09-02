@@ -27,18 +27,21 @@ type CampoReceta =
 interface RecetaItem {
   nombreInsumo: string;
   campoProducto: CampoReceta;
-  buscarInsumo: (repo: Repository<Insumo>, producto?: Producto) => Promise<Insumo | null>;
+  buscarInsumo: (repo: Repository<Insumo>, pedido: Pedido) => Promise<Insumo | null>;
   // Validación de configuración adicional más allá del campo numérico
-  // (campoProducto); si falta, se reporta con el mismo mensaje de "falta
-  // configuración" que el resto. Por defecto se considera OK.
-  configOk?: (producto?: Producto) => boolean;
+  // (campoProducto); si falta, se reporta con configOkMensaje en vez del
+  // mensaje genérico de "falta configuración" del producto. Por defecto se
+  // considera OK.
+  configOk?: (pedido: Pedido) => boolean;
+  configOkMensaje?: string;
 }
 
 // Receta de consumo automático por docena, una por etapa del Kanban (Fase 2/3).
 // Clefa/Pasta/Esponja/PVC se identifican por rol_formula (a lo sumo un insumo
-// por rol, índice único en BD). Cuero es distinto: cada producto referencia
-// directo al insumo de cuero que usa (cuero_insumo_id, elegido en el
-// frontend) — no hay un único "insumo de cuero" para toda la fábrica.
+// por rol, índice único en BD). Cuero es distinto: cada pedido referencia
+// directo al insumo de cuero que el cliente eligió (cuero_insumo_id, elegido
+// al crear/editar el pedido) — no hay un único "insumo de cuero" para toda
+// la fábrica, ni es una característica fija del producto.
 // PVC se consume en Solado de forma independiente de Pasta/Clefa (Fase 3): no hay
 // relación de porcentaje entre los tres, cada uno se valida y descuenta por separado.
 const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
@@ -46,9 +49,10 @@ const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
     {
       nombreInsumo: 'Cuero',
       campoProducto: 'cuero_pies',
-      configOk: (p) => !!p?.cuero_insumo_id,
-      buscarInsumo: (repo, p) =>
-        p?.cuero_insumo_id ? repo.findOneBy({ id_insumo: p.cuero_insumo_id }) : Promise.resolve(null),
+      configOk: (pedido) => !!pedido.cuero_insumo_id,
+      configOkMensaje: 'Este pedido no tiene elegido el tipo de cuero para Cortado — seleccionalo antes de continuar.',
+      buscarInsumo: (repo, pedido) =>
+        pedido.cuero_insumo_id ? repo.findOneBy({ id_insumo: pedido.cuero_insumo_id }) : Promise.resolve(null),
     },
   ],
   Aparado: [
@@ -163,31 +167,40 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     const producto = pedido.producto as Producto | undefined;
     const docenas = pedido.cantidad_pares / 12;
 
-    const faltanConfig: string[] = [];
+    const faltanCantidad: string[] = [];
+    const faltanConfigItem: string[] = [];
     const cantidades = new Map<RecetaItem, number>();
 
     for (const item of receta) {
       const valor = producto?.[item.campoProducto];
-      const configOk = item.configOk ? item.configOk(producto) : true;
-      if (valor === null || valor === undefined || !configOk) {
-        faltanConfig.push(item.nombreInsumo);
-      } else {
-        cantidades.set(item, this.round2(docenas * Number(valor)));
+      if (valor === null || valor === undefined) {
+        faltanCantidad.push(item.nombreInsumo);
+        continue;
       }
+      const configOk = item.configOk ? item.configOk(pedido) : true;
+      if (!configOk) {
+        faltanConfigItem.push(item.configOkMensaje ?? `Falta configurar ${item.nombreInsumo} para ${etapa}.`);
+        continue;
+      }
+      cantidades.set(item, this.round2(docenas * Number(valor)));
     }
 
-    if (faltanConfig.length > 0) {
+    if (faltanCantidad.length > 0) {
       throw new BadRequestException(
-        `Este producto no tiene configurada la cantidad de ${faltanConfig.join(', ')} para ${etapa} ` +
+        `Este producto no tiene configurada la cantidad de ${faltanCantidad.join(', ')} para ${etapa} ` +
         `— configurala en la ficha del producto antes de continuar.`,
       );
+    }
+
+    if (faltanConfigItem.length > 0) {
+      throw new BadRequestException(faltanConfigItem.join(' '));
     }
 
     const insumosPorItem = new Map<RecetaItem, Insumo>();
     const faltanInsumo: string[] = [];
     await Promise.all(
       receta.map(async (item) => {
-        const insumo = await item.buscarInsumo(this.insumoRepo, producto);
+        const insumo = await item.buscarInsumo(this.insumoRepo, pedido);
         if (!insumo) {
           faltanInsumo.push(item.nombreInsumo);
         } else {
@@ -252,14 +265,13 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     estadoDestino: EstadoPedido,
     receta: RecetaItem[],
   ): Promise<void> {
-    const producto = pedido.producto as Producto | undefined;
     const revertidos: string[] = [];
 
     await this.dataSource.transaction(async (manager) => {
       await manager.update(Pedido, pedido.id_pedido, { estado: estadoDestino, fecha_actualizacion: new Date() });
 
       for (const item of receta) {
-        const insumo = await item.buscarInsumo(this.insumoRepo, producto);
+        const insumo = await item.buscarInsumo(this.insumoRepo, pedido);
         if (!insumo) continue;
 
         const consumo = await this.kardexService.buscarUltimoConsumoAutomaticoNoRevertido(

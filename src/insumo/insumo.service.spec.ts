@@ -191,10 +191,10 @@ describe('InsumoService', () => {
       return err;
     }
 
-    it('rechaza eliminar un insumo asignado como cuero de un producto', async () => {
+    it('rechaza eliminar un insumo asignado como cuero de un pedido', async () => {
       const insumo = { id_insumo: 20, nombre: 'Cuero Liso' };
       mockInsumoRepo.findOne.mockResolvedValue(insumo);
-      mockInsumoRepo.delete.mockRejectedValue(fkViolation('productos'));
+      mockInsumoRepo.delete.mockRejectedValue(fkViolation('pedidos'));
 
       await expect(service.remove(20)).rejects.toThrow(ConflictException);
       await expect(service.remove(20)).rejects.toThrow(/asignado como cuero/);

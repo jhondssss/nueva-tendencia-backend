@@ -1,6 +1,6 @@
 import {
   IsString, IsNumber, IsOptional, IsBoolean,
-  IsNotEmpty, Min, IsEnum, IsInt,
+  IsNotEmpty, Min, IsEnum,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import type { CategoriaCalzado } from '../entities/producto.entity';
@@ -117,12 +117,4 @@ export class CreateProductoDto {
   @IsNumber({}, { message: 'esponja_empaque_hojas debe ser un número' })
   @Min(0, { message: 'esponja_empaque_hojas no puede ser negativo' })
   esponja_empaque_hojas?: number;
-
-  // Insumo específico (Cuero Liso / Cuero Nubuck / otro) que este producto
-  // consume en Cortado.
-  @IsOptional()
-  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
-  @IsInt({ message: 'cuero_insumo_id debe ser un ID válido' })
-  @Min(1, { message: 'cuero_insumo_id debe ser un ID válido' })
-  cuero_insumo_id?: number;
 }

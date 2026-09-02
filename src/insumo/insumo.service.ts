@@ -169,9 +169,9 @@ export class InsumoService {
       await this.insumoRepo.delete(id);
     } catch (err) {
       const tabla = fkViolationTable(err);
-      if (tabla === 'productos') {
+      if (tabla === 'pedidos') {
         throw new ConflictException(
-          'No se puede eliminar este insumo porque está asignado como cuero a uno o más productos; quitá la asignación antes de eliminarlo',
+          'No se puede eliminar este insumo porque está asignado como cuero a uno o más pedidos; quitá la asignación antes de eliminarlo',
         );
       }
       if (tabla) {

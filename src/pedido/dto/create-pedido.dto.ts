@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsEnum, IsDateString, Min, ValidateNested, IsArray } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsEnum, IsDateString, Min, IsInt, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TallaPersonalizadaDto {
@@ -45,4 +45,11 @@ export class CreatePedidoDto {
   @ValidateNested({ each: true })
   @Type(() => TallaPersonalizadaDto)
   tallas_personalizadas?: TallaPersonalizadaDto[];
+
+  // Insumo específico (Cuero Liso / Cuero Nubuck / otro) que este pedido
+  // consume en Cortado, elegido por el cliente al crear/editar el pedido.
+  @IsOptional()
+  @IsInt({ message: 'cuero_insumo_id debe ser un ID válido' })
+  @Min(1, { message: 'cuero_insumo_id debe ser un ID válido' })
+  cuero_insumo_id?: number;
 }
