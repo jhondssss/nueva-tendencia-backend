@@ -42,6 +42,8 @@ export class InsumoService {
   findAlertas(): Promise<Insumo[]> {
     return this.insumoRepo
       .createQueryBuilder('i')
+      .leftJoinAndSelect('i.categoria', 'categoria')
+      .leftJoinAndSelect('i.unidad_medida', 'unidad_medida')
       .where(condicionStockCritico('i'))
       .orderBy('i.nombre', 'ASC')
       .getMany();
