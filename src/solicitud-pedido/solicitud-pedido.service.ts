@@ -101,6 +101,7 @@ export class SolicitudPedidoService {
       unidad: dto.unidad ?? 'par',
       categoria: solicitud.categoria,
       tallas_personalizadas: solicitud.tallas,
+      cuero_insumo_id: dto.cuero_insumo_id,
     });
     if (!pedido) throw new InternalServerErrorException('No se pudo crear el pedido a partir de la solicitud');
 
