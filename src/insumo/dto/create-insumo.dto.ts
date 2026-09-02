@@ -59,6 +59,6 @@ export class CreateInsumoDto {
   imagen_url?: string;
 
   @IsOptional()
-  @IsEnum(['clefa', 'pasta'])
-  rol_formula?: 'clefa' | 'pasta';
+  @IsEnum(['clefa', 'pasta', 'cuero', 'esponja', 'pvc'])
+  rol_formula?: 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc';
 }

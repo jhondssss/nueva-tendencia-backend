@@ -17,16 +17,8 @@ describe('PedidoEstadoService', () => {
     update: jest.fn(),
   };
 
-  // createQueryBuilder mock para buscarPorNombre (Cuero/Esponja) — cada test
-  // setea qb.getOne a lo que necesite vía mockInsumoQueryBuilderResult.
-  let queryBuilderResult: Insumo | null = null;
-  const mockQueryBuilder = {
-    where: jest.fn().mockReturnThis(),
-    getOne: jest.fn(() => Promise.resolve(queryBuilderResult)),
-  };
   const mockInsumoRepo = {
     findOneBy: jest.fn(),
-    createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
 
   const mockManager = { update: jest.fn().mockResolvedValue(undefined) };
@@ -63,7 +55,6 @@ describe('PedidoEstadoService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
-    queryBuilderResult = null;
   });
 
   describe('moverEstado — máquina de estados', () => {
@@ -133,13 +124,14 @@ describe('PedidoEstadoService', () => {
     });
   });
 
-  describe('moverEstado — consumo automático de insumos por etapa (Fase 2)', () => {
-    const insumoCuero = { id_insumo: 10, nombre: 'Cuero', stock: 200 } as Insumo;
+  describe('moverEstado — consumo automático de insumos por etapa (Fase 2/3)', () => {
+    const insumoCuero = { id_insumo: 10, nombre: 'Cuero', rol_formula: 'cuero', stock: 200 } as Insumo;
     const insumoClefa = { id_insumo: 11, nombre: 'Clefa', rol_formula: 'clefa', stock: 50 } as Insumo;
     const insumoPasta = { id_insumo: 12, nombre: 'Pasta', rol_formula: 'pasta', stock: 50 } as Insumo;
-    const insumoPvc = { id_insumo: 13, nombre: 'PVC', stock: 50 } as Insumo;
+    const insumoPvc = { id_insumo: 13, nombre: 'PVC', rol_formula: 'pvc', stock: 50 } as Insumo;
+    const insumoEsponja = { id_insumo: 14, nombre: 'Esponja', rol_formula: 'esponja', stock: 20 } as Insumo;
 
-    function pedidoEnEstado(estado: string, extra: Partial<{ cantidad_pares: number; cuero_pies: number | null; pasta_solado_litros: number | null; clefa_solado_litros: number | null; pvc_solado_litros: number | null }> = {}) {
+    function pedidoEnEstado(estado: string, extra: Partial<{ cantidad_pares: number; cuero_pies: number | null; pasta_solado_litros: number | null; clefa_solado_litros: number | null; pvc_solado_litros: number | null; clefa_empaque_litros: number | null; esponja_empaque_hojas: number | null }> = {}) {
       return {
         id_pedido: 5,
         estado,
@@ -152,21 +144,26 @@ describe('PedidoEstadoService', () => {
           pasta_solado_litros: 'pasta_solado_litros' in extra ? extra.pasta_solado_litros : 0.5,
           clefa_solado_litros: 'clefa_solado_litros' in extra ? extra.clefa_solado_litros : 0.3,
           pvc_solado_litros: 'pvc_solado_litros' in extra ? extra.pvc_solado_litros : 0.4,
+          clefa_empaque_litros: 'clefa_empaque_litros' in extra ? extra.clefa_empaque_litros : 0.1,
+          esponja_empaque_hojas: 'esponja_empaque_hojas' in extra ? extra.esponja_empaque_hojas : 0.25,
         },
       };
     }
 
-    // Solado combina 2 insumos por rol_formula (Pasta/Clefa vía findOneBy) y 1 por
-    // nombre (PVC vía createQueryBuilder, igual que Cuero/Esponja). Este helper
-    // arma ambos mocks a la vez para los tests de Solado.
-    function mockInsumosSolado(overrides: Partial<{ pasta: Insumo; clefa: Insumo; pvc: Insumo }> = {}) {
-      const pasta = overrides.pasta ?? insumoPasta;
-      const clefa = overrides.clefa ?? insumoClefa;
-      const pvc = overrides.pvc ?? insumoPvc;
+    // Todos los insumos de receta (Cuero, Clefa, Pasta, PVC, Esponja) se buscan
+    // por rol_formula vía findOneBy. Este helper arma el mock para uno o varios
+    // roles a la vez.
+    function mockInsumosPorRol(overrides: Partial<Record<'cuero' | 'clefa' | 'pasta' | 'pvc' | 'esponja', Insumo | null>> = {}) {
+      const porRol: Record<string, Insumo | null> = {
+        cuero: overrides.cuero !== undefined ? overrides.cuero : insumoCuero,
+        clefa: overrides.clefa !== undefined ? overrides.clefa : insumoClefa,
+        pasta: overrides.pasta !== undefined ? overrides.pasta : insumoPasta,
+        pvc: overrides.pvc !== undefined ? overrides.pvc : insumoPvc,
+        esponja: overrides.esponja !== undefined ? overrides.esponja : insumoEsponja,
+      };
       mockInsumoRepo.findOneBy.mockImplementation(({ rol_formula }: { rol_formula: string }) =>
-        Promise.resolve(rol_formula === 'clefa' ? clefa : pasta),
+        Promise.resolve(porRol[rol_formula] ?? null),
       );
-      queryBuilderResult = pvc; // buscarPorNombre('PVC')
     }
 
     it('avanza a Cortado (1 insumo) y descuenta Cuero vía kardex automático', async () => {
@@ -174,7 +171,7 @@ describe('PedidoEstadoService', () => {
       mockPedidoRepo.findOne
         .mockResolvedValueOnce(pedido)
         .mockResolvedValueOnce({ ...pedido, estado: 'Cortado' });
-      queryBuilderResult = insumoCuero; // buscarPorNombre('Cuero')
+      mockInsumosPorRol();
       mockKardexService.registrarMovimientoInsumoTx.mockResolvedValue({ id_movimiento: 100 });
 
       const result = await service.moverEstado(5, 'Cortado');
@@ -201,7 +198,7 @@ describe('PedidoEstadoService', () => {
     it('bloquea el avance a Cortado si no alcanza el stock de Cuero', async () => {
       const pedido = pedidoEnEstado('Pendiente');
       mockPedidoRepo.findOne.mockResolvedValue(pedido);
-      queryBuilderResult = { ...insumoCuero, stock: 2 } as Insumo; // necesita 6, hay 2
+      mockInsumosPorRol({ cuero: { ...insumoCuero, stock: 2 } as Insumo }); // necesita 6, hay 2
 
       await expect(service.moverEstado(5, 'Cortado')).rejects.toThrow(BadRequestException);
       await expect(service.moverEstado(5, 'Cortado')).rejects.toThrow(/Falta 4 de Cuero/);
@@ -216,7 +213,7 @@ describe('PedidoEstadoService', () => {
         /no tiene configurada la cantidad de Cuero para Cortado/,
       );
       expect(mockDataSource.transaction).not.toHaveBeenCalled();
-      expect(mockInsumoRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(mockInsumoRepo.findOneBy).not.toHaveBeenCalled();
     });
 
     it('avanza a Solado (3 insumos) y descuenta Pasta, Clefa y PVC de forma independiente', async () => {
@@ -224,7 +221,7 @@ describe('PedidoEstadoService', () => {
       mockPedidoRepo.findOne
         .mockResolvedValueOnce(pedido)
         .mockResolvedValueOnce({ ...pedido, estado: 'Solado' });
-      mockInsumosSolado();
+      mockInsumosPorRol();
       mockKardexService.registrarMovimientoInsumoTx.mockResolvedValue({ id_movimiento: 101 });
 
       await service.moverEstado(5, 'Solado');
@@ -247,7 +244,7 @@ describe('PedidoEstadoService', () => {
     it('bloquea el avance a Solado si falta stock de uno de los tres insumos', async () => {
       const pedido = pedidoEnEstado('Aparado');
       mockPedidoRepo.findOne.mockResolvedValue(pedido);
-      mockInsumosSolado({ pasta: { ...insumoPasta, stock: 0.2 } });
+      mockInsumosPorRol({ pasta: { ...insumoPasta, stock: 0.2 } as Insumo });
 
       await expect(service.moverEstado(5, 'Solado')).rejects.toThrow(/Falta 0.8 de Pasta/);
     });
@@ -255,7 +252,7 @@ describe('PedidoEstadoService', () => {
     it('bloquea el avance a Solado si falta stock de PVC', async () => {
       const pedido = pedidoEnEstado('Aparado');
       mockPedidoRepo.findOne.mockResolvedValue(pedido);
-      mockInsumosSolado({ pvc: { ...insumoPvc, stock: 0.1 } });
+      mockInsumosPorRol({ pvc: { ...insumoPvc, stock: 0.1 } as Insumo });
 
       await expect(service.moverEstado(5, 'Solado')).rejects.toThrow(/Falta 0.7 de PVC/);
     });
@@ -275,7 +272,7 @@ describe('PedidoEstadoService', () => {
       mockPedidoRepo.findOne
         .mockResolvedValueOnce(pedido)
         .mockResolvedValueOnce({ ...pedido, estado: 'Pendiente' });
-      queryBuilderResult = insumoCuero;
+      mockInsumosPorRol();
       mockKardexService.buscarUltimoConsumoAutomaticoNoRevertido.mockResolvedValue({
         id_movimiento: 100,
         cantidad: 6,
@@ -300,7 +297,7 @@ describe('PedidoEstadoService', () => {
       mockPedidoRepo.findOne
         .mockResolvedValueOnce(pedido)
         .mockResolvedValueOnce({ ...pedido, estado: 'Aparado' });
-      mockInsumosSolado();
+      mockInsumosPorRol();
       const idPorInsumo: Record<number, { id_movimiento: number; cantidad: number }> = {
         [insumoPasta.id_insumo]: { id_movimiento: 300, cantidad: 1 },
         [insumoClefa.id_insumo]: { id_movimiento: 301, cantidad: 0.6 },
@@ -317,6 +314,67 @@ describe('PedidoEstadoService', () => {
       expect(mockKardexService.marcarRevertidoTx).toHaveBeenCalledWith(mockManager, 300);
       expect(mockKardexService.marcarRevertidoTx).toHaveBeenCalledWith(mockManager, 301);
       expect(mockKardexService.marcarRevertidoTx).toHaveBeenCalledWith(mockManager, 302);
+    });
+
+    it('avanza a Empaque (2 insumos) y descuenta Clefa y Esponja de forma independiente', async () => {
+      const pedido = pedidoEnEstado('Solado');
+      mockPedidoRepo.findOne
+        .mockResolvedValueOnce(pedido)
+        .mockResolvedValueOnce({ ...pedido, estado: 'Empaque' });
+      mockInsumosPorRol();
+      mockKardexService.registrarMovimientoInsumoTx.mockResolvedValue({ id_movimiento: 102 });
+
+      await service.moverEstado(5, 'Empaque');
+
+      expect(mockKardexService.registrarMovimientoInsumoTx).toHaveBeenCalledTimes(2);
+      expect(mockKardexService.registrarMovimientoInsumoTx).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({ insumo_id: insumoClefa.id_insumo, cantidad: 0.2 }), // 2 docenas * 0.1
+      );
+      expect(mockKardexService.registrarMovimientoInsumoTx).toHaveBeenCalledWith(
+        mockManager,
+        expect.objectContaining({ insumo_id: insumoEsponja.id_insumo, cantidad: 0.5 }), // 2 docenas * 0.25
+      );
+    });
+
+    it('bloquea el avance a Empaque si falta stock de Esponja', async () => {
+      const pedido = pedidoEnEstado('Solado');
+      mockPedidoRepo.findOne.mockResolvedValue(pedido);
+      mockInsumosPorRol({ esponja: { ...insumoEsponja, stock: 0.1 } as Insumo });
+
+      await expect(service.moverEstado(5, 'Empaque')).rejects.toThrow(/Falta 0.4 de Esponja/);
+    });
+
+    it('bloquea el avance a Empaque si el producto no tiene esponja_empaque_hojas configurado', async () => {
+      const pedido = pedidoEnEstado('Solado', { esponja_empaque_hojas: null });
+      mockPedidoRepo.findOne.mockResolvedValue(pedido);
+
+      await expect(service.moverEstado(5, 'Empaque')).rejects.toThrow(
+        /no tiene configurada la cantidad de Esponja para Empaque/,
+      );
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('retrocede desde Empaque y revierte los dos consumos (Clefa y Esponja)', async () => {
+      const pedido = pedidoEnEstado('Empaque');
+      mockPedidoRepo.findOne
+        .mockResolvedValueOnce(pedido)
+        .mockResolvedValueOnce({ ...pedido, estado: 'Solado' });
+      mockInsumosPorRol();
+      const idPorInsumo: Record<number, { id_movimiento: number; cantidad: number }> = {
+        [insumoClefa.id_insumo]: { id_movimiento: 500, cantidad: 0.2 },
+        [insumoEsponja.id_insumo]: { id_movimiento: 501, cantidad: 0.5 },
+      };
+      mockKardexService.buscarUltimoConsumoAutomaticoNoRevertido.mockImplementation(
+        (_manager: any, _pedidoId: number, insumoId: number) => Promise.resolve(idPorInsumo[insumoId]),
+      );
+      mockKardexService.registrarMovimientoInsumoTx.mockResolvedValue({ id_movimiento: 600 });
+
+      await service.moverEstado(5, 'Solado', 'admin');
+
+      expect(mockKardexService.registrarMovimientoInsumoTx).toHaveBeenCalledTimes(2);
+      expect(mockKardexService.marcarRevertidoTx).toHaveBeenCalledWith(mockManager, 500);
+      expect(mockKardexService.marcarRevertidoTx).toHaveBeenCalledWith(mockManager, 501);
     });
 
     it('retroceso sin rol admin sigue prohibido aunque la etapa tenga receta', async () => {

@@ -8,7 +8,7 @@ import {
 
 export type CategoriaInsumo = 'adhesivo' | 'material' | 'herramienta' | 'quimico' | 'otro';
 export type UnidadInsumo   = 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
-export type RolFormula     = 'clefa' | 'pasta';
+export type RolFormula     = 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc';
 
 @Entity('insumos')
 export class Insumo {
@@ -49,8 +49,9 @@ export class Insumo {
   imagen_url: string | null;
 
   // Identifica de forma robusta (no por nombre) qué insumo cumple cada rol
-  // en la fórmula de mezcla Clefa/Pasta. A lo sumo un insumo por rol.
-  @Column({ type: 'enum', enum: ['clefa', 'pasta'], nullable: true })
+  // en las recetas de producción (Cortado/Aparado/Solado/Empaque). A lo sumo
+  // un insumo por rol.
+  @Column({ type: 'enum', enum: ['clefa', 'pasta', 'cuero', 'esponja', 'pvc'], nullable: true })
   rol_formula: RolFormula | null;
 
   @CreateDateColumn()

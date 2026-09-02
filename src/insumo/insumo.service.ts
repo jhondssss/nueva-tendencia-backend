@@ -38,7 +38,10 @@ export class InsumoService {
       .getMany();
   }
 
-  private async validarRolFormulaDisponible(rol: 'clefa' | 'pasta', excluirId?: number): Promise<void> {
+  private async validarRolFormulaDisponible(
+    rol: 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc',
+    excluirId?: number,
+  ): Promise<void> {
     const existente = await this.insumoRepo.findOne({ where: { rol_formula: rol } });
     if (existente && existente.id_insumo !== excluirId) {
       throw new ConflictException(

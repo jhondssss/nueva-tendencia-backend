@@ -30,21 +30,14 @@ interface RecetaItem {
   buscarInsumo: (repo: Repository<Insumo>) => Promise<Insumo | null>;
 }
 
-function buscarPorNombre(repo: Repository<Insumo>, nombre: string): Promise<Insumo | null> {
-  return repo
-    .createQueryBuilder('i')
-    .where('LOWER(TRIM(i.nombre)) = LOWER(:nombre)', { nombre })
-    .getOne();
-}
-
 // Receta de consumo automático por docena, una por etapa del Kanban (Fase 2/3).
-// Cuero/Esponja/PVC se identifican por nombre único (no tienen rol_formula: ese enum
-// sigue limitado a 'clefa' | 'pasta'); Clefa/Pasta se identifican por rol_formula.
+// Los 5 insumos (Clefa, Pasta, Cuero, Esponja, PVC) se identifican por rol_formula,
+// no por nombre — a lo sumo un insumo por rol (índice único en BD).
 // PVC se consume en Solado de forma independiente de Pasta/Clefa (Fase 3): no hay
 // relación de porcentaje entre los tres, cada uno se valida y descuenta por separado.
 const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
   Cortado: [
-    { nombreInsumo: 'Cuero', campoProducto: 'cuero_pies', buscarInsumo: (r) => buscarPorNombre(r, 'Cuero') },
+    { nombreInsumo: 'Cuero', campoProducto: 'cuero_pies', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'cuero' }) },
   ],
   Aparado: [
     { nombreInsumo: 'Clefa', campoProducto: 'clefa_aparado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'clefa' }) },
@@ -52,11 +45,11 @@ const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
   Solado: [
     { nombreInsumo: 'Pasta', campoProducto: 'pasta_solado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'pasta' }) },
     { nombreInsumo: 'Clefa', campoProducto: 'clefa_solado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'clefa' }) },
-    { nombreInsumo: 'PVC', campoProducto: 'pvc_solado_litros', buscarInsumo: (r) => buscarPorNombre(r, 'PVC') },
+    { nombreInsumo: 'PVC', campoProducto: 'pvc_solado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'pvc' }) },
   ],
   Empaque: [
     { nombreInsumo: 'Clefa', campoProducto: 'clefa_empaque_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'clefa' }) },
-    { nombreInsumo: 'Esponja', campoProducto: 'esponja_empaque_hojas', buscarInsumo: (r) => buscarPorNombre(r, 'Esponja') },
+    { nombreInsumo: 'Esponja', campoProducto: 'esponja_empaque_hojas', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'esponja' }) },
   ],
 };
 
