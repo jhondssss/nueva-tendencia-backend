@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Insumo } from './entities/insumo.entity';
+import { CategoriaInsumo } from '../categoria-insumo/entities/categoria-insumo.entity';
 import { CreateInsumoDto } from './dto/create-insumo.dto';
 import { UpdateInsumoDto } from './dto/update-insumo.dto';
 import { KardexService } from '../kardex/kardex.service';
@@ -15,6 +16,9 @@ export class InsumoService {
   constructor(
     @InjectRepository(Insumo)
     private readonly insumoRepo: Repository<Insumo>,
+
+    @InjectRepository(CategoriaInsumo)
+    private readonly categoriaInsumoRepo: Repository<CategoriaInsumo>,
 
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
@@ -51,6 +55,13 @@ export class InsumoService {
     }
   }
 
+  private async validarCategoriaExiste(categoriaId: number): Promise<void> {
+    const existe = await this.categoriaInsumoRepo.findOne({ where: { id_categoria_insumo: categoriaId } });
+    if (!existe) {
+      throw new NotFoundException(`Categoría de insumo #${categoriaId} no encontrada`);
+    }
+  }
+
   private async validarNombreUnico(nombre: string, excluirId?: number): Promise<void> {
     const qb = this.insumoRepo
       .createQueryBuilder('i')
@@ -70,6 +81,7 @@ export class InsumoService {
     const stockInicial = dto.stock ?? 0;
 
     await this.validarNombreUnico(dto.nombre);
+    await this.validarCategoriaExiste(dto.categoria_id);
 
     if (dto.rol_formula) {
       await this.validarRolFormulaDisponible(dto.rol_formula);
@@ -77,8 +89,10 @@ export class InsumoService {
 
     // Guardamos con stock = 0 para que registrarMovimientoInsumo haga el
     // tracking correcto desde 0 → stockInicial
+    const { categoria_id, ...resto } = dto;
     const insumo = this.insumoRepo.create({
-      ...dto,
+      ...resto,
+      categoria: { id_categoria_insumo: categoria_id } as CategoriaInsumo,
       stock: 0,
       nivel_minimo: dto.nivel_minimo ?? 0,
       precio_unitario: dto.precio_unitario ?? 0,
@@ -123,14 +137,22 @@ export class InsumoService {
       await this.validarNombreUnico(dto.nombre, id);
     }
 
+    if (dto.categoria_id !== undefined) {
+      await this.validarCategoriaExiste(dto.categoria_id);
+    }
+
     if (dto.rol_formula) {
       await this.validarRolFormulaDisponible(dto.rol_formula, id);
     }
 
-    // Separar el stock del resto de campos para manejarlo vía kardex
-    const { stock: nuevoStock, ...camposResto } = dto;
+    // Separar el stock y categoria_id del resto de campos: el stock se
+    // maneja vía kardex, categoria_id se mapea a la relación `categoria`
+    const { stock: nuevoStock, categoria_id, ...camposResto } = dto;
 
     Object.assign(insumo, camposResto);
+    if (categoria_id !== undefined) {
+      insumo.categoria = { id_categoria_insumo: categoria_id } as CategoriaInsumo;
+    }
     await this.insumoRepo.save(insumo);
 
     // Si cambió el stock, delegar actualización al kardex (que actualiza el stock)

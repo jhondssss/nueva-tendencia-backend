@@ -18,6 +18,7 @@ import { ReportesModule } from './reportes/reportes.module';
 import { KardexModule } from './kardex/kardex.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { InsumoModule } from './insumo/insumo.module';
+import { CategoriaInsumoModule } from './categoria-insumo/categoria-insumo.module';
 import { TallaModule } from './talla/talla.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { KeepAliveModule } from './keep-alive/keep-alive.module';
@@ -81,6 +82,7 @@ const dbLogger = new Logger('TypeOrmConfig');
     KardexModule,
     AuditoriaModule,
     InsumoModule,
+    CategoriaInsumoModule,
     TallaModule,
     TelegramModule,
     KeepAliveModule,

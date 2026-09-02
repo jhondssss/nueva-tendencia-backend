@@ -4,6 +4,7 @@ import { ConflictException } from '@nestjs/common';
 import { QueryFailedError } from 'typeorm';
 import { InsumoService } from './insumo.service';
 import { Insumo } from './entities/insumo.entity';
+import { CategoriaInsumo } from '../categoria-insumo/entities/categoria-insumo.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -28,6 +29,10 @@ describe('InsumoService', () => {
     createQueryBuilder: jest.fn(() => mockQueryBuilder),
   };
 
+  const mockCategoriaInsumoRepo = {
+    findOne: jest.fn(),
+  };
+
   const mockKardexService = { registrarMovimientoInsumo: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
   const mockTelegramService = { sendMessage: jest.fn().mockResolvedValue(undefined) };
@@ -37,6 +42,7 @@ describe('InsumoService', () => {
       providers: [
         InsumoService,
         { provide: getRepositoryToken(Insumo), useValue: mockInsumoRepo },
+        { provide: getRepositoryToken(CategoriaInsumo), useValue: mockCategoriaInsumoRepo },
         { provide: KardexService, useValue: mockKardexService },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
         { provide: TelegramService, useValue: mockTelegramService },
@@ -47,6 +53,8 @@ describe('InsumoService', () => {
 
     // Por defecto, sin duplicado de nombre (la mayoría de los tests no lo ejercitan)
     mockQueryBuilder.getOne.mockResolvedValue(null);
+    // Por defecto, la categoria_id enviada existe
+    mockCategoriaInsumoRepo.findOne.mockResolvedValue({ id_categoria_insumo: 2, nombre: 'adhesivo', activo: true });
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -55,7 +63,7 @@ describe('InsumoService', () => {
     it('guarda correctamente un nuevo insumo con stock inicial', async () => {
       const dto = {
         nombre: 'Pegamento industrial',
-        categoria: 'adhesivo' as const,
+        categoria_id: 2,
         unidad_medida: 'litro' as const,
         stock: 10,
         nivel_minimo: 2,
@@ -123,7 +131,7 @@ describe('InsumoService', () => {
     it('rechaza crear un insumo con un nombre ya existente', async () => {
       const dto = {
         nombre: 'Pegamento industrial',
-        categoria: 'adhesivo' as const,
+        categoria_id: 2,
         unidad_medida: 'litro' as const,
       };
 

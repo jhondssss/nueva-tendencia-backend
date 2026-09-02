@@ -30,6 +30,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `TallaDetalle` | `talla_detalle` | Distribución de tallas por pedido |
 | `Kardex` | `kardex` | Historial de movimientos de stock |
 | `Insumo` | `insumos` | Materiales de producción (pegamento, cuero, etc.) |
+| `CategoriaInsumo` | `categorias_insumo` | Categorías gestionables de Insumo (material, adhesivo, cuero, etc.) |
 | `Auditoria` | `auditoria` | Log de acciones del sistema |
 
 ---
@@ -64,6 +65,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `TallaModule` | — (servicio interno) | Distribución de tallas por pedido y categoría |
 | `KardexModule` | `/kardex` | Movimientos de stock (entrada/salida) |
 | `InsumoModule` | `/insumos` | CRUD de insumos + alertas de stock bajo |
+| `CategoriaInsumoModule` | `/categorias-insumo` | CRUD de categorías de insumo (usado por el selector de tipo en Insumos) |
 | `DashboardModule` | `/dashboard` | KPIs, gráficas, predicción de stock |
 | `ReportesModule` | `/reportes` | Exportación PDF y Excel (ventas, pedidos, stock, ganancias) |
 | `AuditoriaModule` | `/auditoria` | Log de acciones; solo admin puede consultarlo |
@@ -136,6 +138,15 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | PATCH | `/insumos/:id` | Admin | Actualizar |
 | POST | `/insumos/:id/imagen` | Admin | Subir imagen (disk storage local) |
 | DELETE | `/insumos/:id` | Admin | Eliminar |
+
+### Categorías de insumo — `/categorias-insumo`
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/categorias-insumo` | Autenticado | Lista todas (para poblar selectores) |
+| GET | `/categorias-insumo/:id` | Autenticado | Detalle |
+| POST | `/categorias-insumo` | Admin | Crear |
+| PATCH | `/categorias-insumo/:id` | Admin | Actualizar |
+| DELETE | `/categorias-insumo/:id` | Admin | Eliminar (bloqueado si hay insumos usándola) |
 
 ### Dashboard — `/dashboard`
 | Método | Ruta | Auth | Descripción |

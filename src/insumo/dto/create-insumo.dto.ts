@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsEnum,
+  IsInt,
   IsNumber,
   Min,
   IsBoolean,
@@ -21,8 +22,9 @@ export class CreateInsumoDto {
   @MaxLength(255)
   descripcion?: string;
 
-  @IsEnum(['adhesivo', 'material', 'herramienta', 'quimico', 'otro'])
-  categoria: 'adhesivo' | 'material' | 'herramienta' | 'quimico' | 'otro';
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsInt()
+  categoria_id: number;
 
   @IsEnum(['litro', 'kilo', 'metro', 'unidad', 'galon', 'pie', 'hoja'])
   unidad_medida: 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';

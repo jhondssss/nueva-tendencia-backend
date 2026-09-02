@@ -431,7 +431,7 @@ export class PdfService implements IReportePDF {
         const cantSugerida = Math.max(0, Number(ins.nivel_minimo) - Number(ins.stock));
         y = this.drawDataRow(doc, y, [
           ins.nombre,
-          ins.categoria,
+          ins.categoria.nombre,
           Number(ins.stock).toFixed(2),
           Number(ins.nivel_minimo).toFixed(2),
           (Number(ins.stock) - Number(ins.nivel_minimo)).toFixed(2),

@@ -160,7 +160,7 @@ export class AssistantService {
     const insumosCriticos = insumos.filter(i => esStockCritico(i.stock, i.nivel_minimo));
     const listaInsumosCriticos = insumosCriticos.length > 0
       ? insumosCriticos.map(i =>
-          `  ${i.nombre} (${i.categoria}): stock ${i.stock} ${i.unidad_medida}, mínimo ${i.nivel_minimo}`
+          `  ${i.nombre} (${i.categoria.nombre}): stock ${i.stock} ${i.unidad_medida}, mínimo ${i.nivel_minimo}`
         ).join('\n')
       : '  Sin alertas';
 

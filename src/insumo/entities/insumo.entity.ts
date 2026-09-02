@@ -2,13 +2,15 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   Column,
+  ManyToOne,
+  JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { CategoriaInsumo } from '../../categoria-insumo/entities/categoria-insumo.entity';
 
-export type CategoriaInsumo = 'adhesivo' | 'material' | 'herramienta' | 'quimico' | 'otro';
-export type UnidadInsumo   = 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
-export type RolFormula     = 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc';
+export type UnidadInsumo = 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
+export type RolFormula   = 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc';
 
 @Entity('insumos')
 export class Insumo {
@@ -21,10 +23,8 @@ export class Insumo {
   @Column({ type: 'varchar', length: 255, nullable: true })
   descripcion: string | null;
 
-  @Column({
-    type: 'enum',
-    enum: ['adhesivo', 'material', 'herramienta', 'quimico', 'otro'],
-  })
+  @ManyToOne(() => CategoriaInsumo, { eager: true })
+  @JoinColumn({ name: 'categoria_id' })
   categoria: CategoriaInsumo;
 
   @Column({
