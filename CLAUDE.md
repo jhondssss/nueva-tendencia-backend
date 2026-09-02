@@ -26,6 +26,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `User` | `user` | Usuarios del sistema (admin/operario) |
 | `Producto` | `productos` | Catálogo de calzados con stock, precio, imagen |
 | `Cliente` | `cliente` | Clientes individuales/empresas |
+| `TipoCliente` | `tipos_cliente` | Tipos gestionables de Cliente (persona_natural, empresa) |
 | `Pedido` | `pedidos` | Órdenes de producción con flujo Kanban |
 | `TallaDetalle` | `talla_detalle` | Distribución de tallas por pedido |
 | `Kardex` | `kardex` | Historial de movimientos de stock |
@@ -64,6 +65,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `ProductoModule` | `/productos` | CRUD de calzados + subida de imagen a Cloudinary |
 | `CategoriaProductoModule` | `/categorias-producto` | CRUD de categorías de producto (usado por el selector de tipo en Productos) |
 | `ClienteModule` | `/clientes` | CRUD de clientes |
+| `TipoClienteModule` | `/tipos-cliente` | CRUD de tipos de cliente (usado por el selector de tipo en Clientes) |
 | `PedidoModule` | `/pedidos` + `/publico/pedido` | Pedidos, Kanban, seguimiento público por token |
 | `TallaModule` | — (servicio interno) | Distribución de tallas por pedido y categoría |
 | `KardexModule` | `/kardex` | Movimientos de stock (entrada/salida) |
@@ -115,6 +117,15 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | POST | `/clientes` | Admin | Crear |
 | PATCH | `/clientes/:id` | Admin | Actualizar |
 | DELETE | `/clientes/:id` | Admin | Eliminar |
+
+### Tipos de cliente — `/tipos-cliente`
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/tipos-cliente` | Autenticado | Lista todas (para poblar selectores) |
+| GET | `/tipos-cliente/:id` | Autenticado | Detalle |
+| POST | `/tipos-cliente` | Admin | Crear |
+| PATCH | `/tipos-cliente/:id` | Admin | Actualizar |
+| DELETE | `/tipos-cliente/:id` | Admin | Eliminar (bloqueado si hay clientes usándolo) |
 
 ### Pedidos — `/pedidos`
 | Método | Ruta | Auth | Descripción |
