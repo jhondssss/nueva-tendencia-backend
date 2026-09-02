@@ -14,4 +14,8 @@ export const AppDataSource = new DataSource({
   ssl: { rejectUnauthorized: false },
   entities:   ['src/**/*.entity.ts'],
   migrations: ['src/migrations/*.ts'],
+  // 'each': cada migración corre en su propia transacción. Necesario porque
+  // ALTER TYPE ... ADD VALUE (enums nativos de Postgres) no puede usarse en
+  // la misma transacción en la que fue agregado.
+  migrationsTransactionMode: 'each',
 });

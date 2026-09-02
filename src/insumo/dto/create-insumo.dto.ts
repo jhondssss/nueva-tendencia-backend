@@ -24,8 +24,8 @@ export class CreateInsumoDto {
   @IsEnum(['adhesivo', 'material', 'herramienta', 'quimico', 'otro'])
   categoria: 'adhesivo' | 'material' | 'herramienta' | 'quimico' | 'otro';
 
-  @IsEnum(['litro', 'kilo', 'metro', 'unidad', 'galon'])
-  unidad_medida: 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon';
+  @IsEnum(['litro', 'kilo', 'metro', 'unidad', 'galon', 'pie', 'hoja'])
+  unidad_medida: 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
 
   @IsOptional()
   @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))

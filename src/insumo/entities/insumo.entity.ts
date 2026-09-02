@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 
 export type CategoriaInsumo = 'adhesivo' | 'material' | 'herramienta' | 'quimico' | 'otro';
-export type UnidadInsumo   = 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon';
+export type UnidadInsumo   = 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
 export type RolFormula     = 'clefa' | 'pasta';
 
 @Entity('insumos')
@@ -29,7 +29,7 @@ export class Insumo {
 
   @Column({
     type: 'enum',
-    enum: ['litro', 'kilo', 'metro', 'unidad', 'galon'],
+    enum: ['litro', 'kilo', 'metro', 'unidad', 'galon', 'pie', 'hoja'],
   })
   unidad_medida: UnidadInsumo;
 

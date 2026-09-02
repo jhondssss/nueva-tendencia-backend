@@ -1,10 +1,9 @@
 import {
   IsString, IsNumber, IsOptional, IsBoolean,
-  IsNotEmpty, Min, Max, IsEnum,
+  IsNotEmpty, Min, IsEnum,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import type { CategoriaCalzado } from '../entities/producto.entity';
-import { PorcentajesMezclaValidos } from '../validators/porcentajes-mezcla.validator';
 
 export class CreateProductoDto {
   @IsString()
@@ -76,18 +75,40 @@ export class CreateProductoDto {
   @IsEnum(['nino', 'juvenil', 'adulto'])
   categoria?: CategoriaCalzado;
 
+  // Cantidad fija por docena de pares, consumida en cada etapa del Kanban (Fase 2).
   @IsOptional()
   @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
-  @IsNumber({}, { message: 'El porcentaje de Clefa debe ser un número' })
-  @Min(0, { message: 'El porcentaje de Clefa no puede ser negativo' })
-  @Max(100, { message: 'El porcentaje de Clefa no puede superar 100' })
-  @PorcentajesMezclaValidos({ message: 'porcentaje_clefa y porcentaje_pasta deben venir ambos y sumar exactamente 100' })
-  porcentaje_clefa?: number;
+  @IsNumber({}, { message: 'cuero_pies debe ser un número' })
+  @Min(0, { message: 'cuero_pies no puede ser negativo' })
+  cuero_pies?: number;
 
   @IsOptional()
   @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
-  @IsNumber({}, { message: 'El porcentaje de Pasta debe ser un número' })
-  @Min(0, { message: 'El porcentaje de Pasta no puede ser negativo' })
-  @Max(100, { message: 'El porcentaje de Pasta no puede superar 100' })
-  porcentaje_pasta?: number;
+  @IsNumber({}, { message: 'clefa_aparado_litros debe ser un número' })
+  @Min(0, { message: 'clefa_aparado_litros no puede ser negativo' })
+  clefa_aparado_litros?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'pasta_solado_litros debe ser un número' })
+  @Min(0, { message: 'pasta_solado_litros no puede ser negativo' })
+  pasta_solado_litros?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'clefa_solado_litros debe ser un número' })
+  @Min(0, { message: 'clefa_solado_litros no puede ser negativo' })
+  clefa_solado_litros?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'clefa_empaque_litros debe ser un número' })
+  @Min(0, { message: 'clefa_empaque_litros no puede ser negativo' })
+  clefa_empaque_litros?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'esponja_empaque_hojas debe ser un número' })
+  @Min(0, { message: 'esponja_empaque_hojas no puede ser negativo' })
+  esponja_empaque_hojas?: number;
 }

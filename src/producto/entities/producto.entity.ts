@@ -58,12 +58,23 @@ export class Producto {
   })
   categoria: CategoriaCalzado | null;
 
-  // Fórmula de mezcla para el descuento automático de insumos en Solado.
-  // null en ambos = fórmula no configurada. Cuando están seteados, deben sumar 100.
-  @Column('decimal', { precision: 5, scale: 2, nullable: true })
-  porcentaje_clefa: number | null;
+  // Cantidad fija por docena de pares, consumida automáticamente en cada
+  // etapa del Kanban (Fase 2). null = etapa no configurada para este producto.
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  cuero_pies: number | null;
 
-  @Column('decimal', { precision: 5, scale: 2, nullable: true })
-  porcentaje_pasta: number | null;
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  clefa_aparado_litros: number | null;
 
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  pasta_solado_litros: number | null;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  clefa_solado_litros: number | null;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  clefa_empaque_litros: number | null;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  esponja_empaque_hojas: number | null;
 }

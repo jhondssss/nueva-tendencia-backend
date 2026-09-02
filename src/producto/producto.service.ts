@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, IsNull, Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
@@ -34,8 +34,6 @@ export class ProductoService {
     if (existente) {
       throw new ConflictException('Ya existe un producto con ese nombre y marca');
     }
-
-    this.validarFormulaMezcla(dto.porcentaje_clefa ?? null, dto.porcentaje_pasta ?? null);
 
     const producto = this.repo.create(dto as any);
     const saved = await this.repo.save(producto) as unknown as Producto;
@@ -74,12 +72,6 @@ export class ProductoService {
   async update(id: number, dto: UpdateProductoDto, usuarioId?: number) {
     this.logger.debug(`activo tras transform: ${dto.activo} (${typeof dto.activo})`);
     const actual = await this.findOne(id);
-
-    if (dto.porcentaje_clefa !== undefined || dto.porcentaje_pasta !== undefined) {
-      const clefaFinal = dto.porcentaje_clefa !== undefined ? dto.porcentaje_clefa : actual?.porcentaje_clefa ?? null;
-      const pastaFinal = dto.porcentaje_pasta !== undefined ? dto.porcentaje_pasta : actual?.porcentaje_pasta ?? null;
-      this.validarFormulaMezcla(clefaFinal, pastaFinal);
-    }
 
     // Separar stock del resto de campos para control independiente
     const { stock: newStock, ...camposResto } = dto as any;
@@ -120,25 +112,6 @@ export class ProductoService {
     });
 
     return this.findOne(id);
-  }
-
-  // Estado final válido: ambos null (fórmula no configurada) o ambos presentes sumando 100.
-  private validarFormulaMezcla(clefa: number | null, pasta: number | null): void {
-    const clefaProvisto = clefa !== null && clefa !== undefined;
-    const pastaProvisto = pasta !== null && pasta !== undefined;
-
-    if (!clefaProvisto && !pastaProvisto) return;
-    if (clefaProvisto !== pastaProvisto) {
-      throw new BadRequestException(
-        'porcentaje_clefa y porcentaje_pasta deben configurarse juntos (ambos o ninguno)',
-      );
-    }
-    const suma = Math.round((Number(clefa) + Number(pasta)) * 100) / 100;
-    if (suma !== 100) {
-      throw new BadRequestException(
-        `porcentaje_clefa (${clefa}) + porcentaje_pasta (${pasta}) deben sumar 100, suman ${suma}`,
-      );
-    }
   }
 
   async remove(id: number) {
