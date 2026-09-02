@@ -8,6 +8,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { ProductoModule } from './producto/producto.module';
 import { CategoriaProductoModule } from './categoria-producto/categoria-producto.module';
 import { ClienteModule } from './cliente/cliente.module';
+import { TipoClienteModule } from './tipo-cliente/tipo-cliente.module';
 import { PedidoModule } from './pedido/pedido.module';
 import { SolicitudPedidoModule } from './solicitud-pedido/solicitud-pedido.module';
 import { CalificacionModule } from './calificacion/calificacion.module';
@@ -74,6 +75,7 @@ const dbLogger = new Logger('TypeOrmConfig');
     ProductoModule,
     CategoriaProductoModule,
     ClienteModule,
+    TipoClienteModule,
     PedidoModule,
     SolicitudPedidoModule,
     CalificacionModule,

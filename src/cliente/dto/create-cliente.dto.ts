@@ -6,17 +6,16 @@ import {
   IsNotEmpty,
   Matches,
   MinLength,
-  IsIn,
+  IsInt,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { CreateDireccionClienteDto } from './create-direccion-cliente.dto';
 
 export class CreateClienteDto {
-  @IsIn(['persona_natural', 'empresa'], {
-    message: 'El tipo debe ser persona_natural o empresa',
-  })
-  tipo_cliente: string;
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsInt()
+  tipo_cliente_id: number;
 
   @IsNotEmpty({ message: 'El nombre es obligatorio' })
   @IsString()

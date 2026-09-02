@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Cliente } from './entities/cliente.entity';
+import { TipoCliente } from '../tipo-cliente/entities/tipo-cliente.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
@@ -27,10 +28,20 @@ export class ClienteService {
     @InjectRepository(SolicitudPedido)
     private readonly solicitudRepository: Repository<SolicitudPedido>,
 
+    @InjectRepository(TipoCliente)
+    private readonly tipoClienteRepository: Repository<TipoCliente>,
+
     private readonly auditoriaService: AuditoriaService,
     private readonly userService: UserService,
     private readonly mailService: MailService,
   ) {}
+
+  private async validarTipoClienteExiste(tipoClienteId: number): Promise<void> {
+    const existe = await this.tipoClienteRepository.findOne({ where: { id_tipo_cliente: tipoClienteId } });
+    if (!existe) {
+      throw new NotFoundException(`Tipo de cliente #${tipoClienteId} no encontrado`);
+    }
+  }
 
   async create(createClienteDto: CreateClienteDto) {
     const emailExistente = await this.clienteRepository.findOneBy({
@@ -49,7 +60,13 @@ export class ClienteService {
       }
     }
 
-    const cliente = this.clienteRepository.create(createClienteDto);
+    await this.validarTipoClienteExiste(createClienteDto.tipo_cliente_id);
+
+    const { tipo_cliente_id, ...resto } = createClienteDto;
+    const cliente = this.clienteRepository.create({
+      ...resto,
+      tipo_cliente: { id_tipo_cliente: tipo_cliente_id } as TipoCliente,
+    });
     const saved = await this.clienteRepository.save(cliente);
     void this.auditoriaService.registrar({
       accion: 'CREATE',
@@ -111,7 +128,15 @@ export class ClienteService {
       }
     }
 
-    Object.assign(cliente, updateClienteDto);
+    if (updateClienteDto.tipo_cliente_id !== undefined) {
+      await this.validarTipoClienteExiste(updateClienteDto.tipo_cliente_id);
+    }
+
+    const { tipo_cliente_id, ...camposResto } = updateClienteDto;
+    Object.assign(cliente, camposResto);
+    if (tipo_cliente_id !== undefined) {
+      cliente.tipo_cliente = { id_tipo_cliente: tipo_cliente_id } as TipoCliente;
+    }
     const saved = await this.clienteRepository.save(cliente);
     void this.auditoriaService.registrar({
       accion: 'UPDATE',

@@ -5,6 +5,7 @@ import { QueryFailedError } from 'typeorm';
 import { ClienteService } from './cliente.service';
 import { Cliente } from './entities/cliente.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
+import { TipoCliente } from '../tipo-cliente/entities/tipo-cliente.entity';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { UserService } from '../user/user.service';
 import { MailService } from '../mail/mail.service';
@@ -29,6 +30,10 @@ describe('ClienteService', () => {
     findOne: jest.fn().mockResolvedValue(null),
   };
 
+  const mockTipoClienteRepo = {
+    findOne: jest.fn().mockResolvedValue({ id_tipo_cliente: 1, nombre: 'persona_natural' }),
+  };
+
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
   const mockUserService = { findByClienteId: jest.fn().mockResolvedValue(null) };
   const mockMailService = {};
@@ -39,6 +44,7 @@ describe('ClienteService', () => {
         ClienteService,
         { provide: getRepositoryToken(Cliente), useValue: mockClienteRepo },
         { provide: getRepositoryToken(SolicitudPedido), useValue: mockSolicitudRepo },
+        { provide: getRepositoryToken(TipoCliente), useValue: mockTipoClienteRepo },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
         { provide: UserService, useValue: mockUserService },
         { provide: MailService, useValue: mockMailService },
@@ -52,7 +58,7 @@ describe('ClienteService', () => {
 
   describe('create', () => {
     const dtoBase = {
-      tipo_cliente: 'persona_natural',
+      tipo_cliente_id: 1,
       nombre: 'Cliente Test',
       correo_electronico: 'cliente@test.com',
       telefono_principal: '77712345',

@@ -216,7 +216,7 @@ export class ExcelService implements IReporteExcel {
     clientes.forEach(c =>
       ws.addRow({
         id:       c.id_cliente,
-        tipo:     c.tipo_cliente,
+        tipo:     c.tipo_cliente.nombre,
         nombre:   c.nombre,
         apellido: c.apellido ?? '',
         doc:      c.documento_identidad ?? '',

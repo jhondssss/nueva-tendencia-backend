@@ -1,14 +1,16 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, OneToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, OneToMany, OneToOne } from 'typeorm';
 import { Pedido } from '../../pedido/entities/pedido.entity';
 import { DireccionCliente } from './direccion-cliente.entity';
+import { TipoCliente } from '../../tipo-cliente/entities/tipo-cliente.entity';
 
 @Entity()
 export class Cliente {
   @PrimaryGeneratedColumn()
   id_cliente: number;
 
-  @Column()
-  tipo_cliente: string;
+  @ManyToOne(() => TipoCliente, { eager: true })
+  @JoinColumn({ name: 'tipo_cliente_id' })
+  tipo_cliente: TipoCliente;
 
   @Column()
   nombre: string;
