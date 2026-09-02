@@ -20,6 +20,7 @@ type CampoReceta =
   | 'clefa_aparado_litros'
   | 'pasta_solado_litros'
   | 'clefa_solado_litros'
+  | 'pvc_solado_litros'
   | 'clefa_empaque_litros'
   | 'esponja_empaque_hojas';
 
@@ -36,9 +37,11 @@ function buscarPorNombre(repo: Repository<Insumo>, nombre: string): Promise<Insu
     .getOne();
 }
 
-// Receta de consumo automático por docena, una por etapa del Kanban (Fase 2).
-// Cuero/Esponja se identifican por nombre único (no tienen rol_formula: ese enum
+// Receta de consumo automático por docena, una por etapa del Kanban (Fase 2/3).
+// Cuero/Esponja/PVC se identifican por nombre único (no tienen rol_formula: ese enum
 // sigue limitado a 'clefa' | 'pasta'); Clefa/Pasta se identifican por rol_formula.
+// PVC se consume en Solado de forma independiente de Pasta/Clefa (Fase 3): no hay
+// relación de porcentaje entre los tres, cada uno se valida y descuenta por separado.
 const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
   Cortado: [
     { nombreInsumo: 'Cuero', campoProducto: 'cuero_pies', buscarInsumo: (r) => buscarPorNombre(r, 'Cuero') },
@@ -49,6 +52,7 @@ const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
   Solado: [
     { nombreInsumo: 'Pasta', campoProducto: 'pasta_solado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'pasta' }) },
     { nombreInsumo: 'Clefa', campoProducto: 'clefa_solado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'clefa' }) },
+    { nombreInsumo: 'PVC', campoProducto: 'pvc_solado_litros', buscarInsumo: (r) => buscarPorNombre(r, 'PVC') },
   ],
   Empaque: [
     { nombreInsumo: 'Clefa', campoProducto: 'clefa_empaque_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'clefa' }) },

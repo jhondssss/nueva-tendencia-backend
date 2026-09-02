@@ -102,6 +102,12 @@ export class CreateProductoDto {
 
   @IsOptional()
   @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsNumber({}, { message: 'pvc_solado_litros debe ser un número' })
+  @Min(0, { message: 'pvc_solado_litros no puede ser negativo' })
+  pvc_solado_litros?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
   @IsNumber({}, { message: 'clefa_empaque_litros debe ser un número' })
   @Min(0, { message: 'clefa_empaque_litros no puede ser negativo' })
   clefa_empaque_litros?: number;

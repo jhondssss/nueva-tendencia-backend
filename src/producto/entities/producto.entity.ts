@@ -73,6 +73,9 @@ export class Producto {
   clefa_solado_litros: number | null;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  pvc_solado_litros: number | null;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
   clefa_empaque_litros: number | null;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
