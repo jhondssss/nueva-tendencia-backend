@@ -31,6 +31,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `Kardex` | `kardex` | Historial de movimientos de stock |
 | `Insumo` | `insumos` | Materiales de producción (pegamento, cuero, etc.) |
 | `CategoriaInsumo` | `categorias_insumo` | Categorías gestionables de Insumo (material, adhesivo, cuero, etc.) |
+| `UnidadMedida` | `unidades_medida` | Unidades de medida gestionables de Insumo (litro, kilo, metro, etc.) |
 | `Auditoria` | `auditoria` | Log de acciones del sistema |
 
 ---
@@ -66,6 +67,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `KardexModule` | `/kardex` | Movimientos de stock (entrada/salida) |
 | `InsumoModule` | `/insumos` | CRUD de insumos + alertas de stock bajo |
 | `CategoriaInsumoModule` | `/categorias-insumo` | CRUD de categorías de insumo (usado por el selector de tipo en Insumos) |
+| `UnidadMedidaModule` | `/unidades-medida` | CRUD de unidades de medida de insumo (usado por el selector de unidad en Insumos) |
 | `DashboardModule` | `/dashboard` | KPIs, gráficas, predicción de stock |
 | `ReportesModule` | `/reportes` | Exportación PDF y Excel (ventas, pedidos, stock, ganancias) |
 | `AuditoriaModule` | `/auditoria` | Log de acciones; solo admin puede consultarlo |
@@ -147,6 +149,15 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | POST | `/categorias-insumo` | Admin | Crear |
 | PATCH | `/categorias-insumo/:id` | Admin | Actualizar |
 | DELETE | `/categorias-insumo/:id` | Admin | Eliminar (bloqueado si hay insumos usándola) |
+
+### Unidades de medida — `/unidades-medida`
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/unidades-medida` | Autenticado | Lista todas (para poblar selectores) |
+| GET | `/unidades-medida/:id` | Autenticado | Detalle |
+| POST | `/unidades-medida` | Admin | Crear |
+| PATCH | `/unidades-medida/:id` | Admin | Actualizar |
+| DELETE | `/unidades-medida/:id` | Admin | Eliminar (bloqueado si hay insumos usándola) |
 
 ### Dashboard — `/dashboard`
 | Método | Ruta | Auth | Descripción |

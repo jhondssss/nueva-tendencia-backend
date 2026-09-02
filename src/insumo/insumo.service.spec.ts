@@ -5,6 +5,7 @@ import { QueryFailedError } from 'typeorm';
 import { InsumoService } from './insumo.service';
 import { Insumo } from './entities/insumo.entity';
 import { CategoriaInsumo } from '../categoria-insumo/entities/categoria-insumo.entity';
+import { UnidadMedida } from '../unidad-medida/entities/unidad-medida.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TelegramService } from '../telegram/telegram.service';
@@ -33,6 +34,10 @@ describe('InsumoService', () => {
     findOne: jest.fn(),
   };
 
+  const mockUnidadMedidaRepo = {
+    findOne: jest.fn(),
+  };
+
   const mockKardexService = { registrarMovimientoInsumo: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
   const mockTelegramService = { sendMessage: jest.fn().mockResolvedValue(undefined) };
@@ -43,6 +48,7 @@ describe('InsumoService', () => {
         InsumoService,
         { provide: getRepositoryToken(Insumo), useValue: mockInsumoRepo },
         { provide: getRepositoryToken(CategoriaInsumo), useValue: mockCategoriaInsumoRepo },
+        { provide: getRepositoryToken(UnidadMedida), useValue: mockUnidadMedidaRepo },
         { provide: KardexService, useValue: mockKardexService },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
         { provide: TelegramService, useValue: mockTelegramService },
@@ -55,6 +61,8 @@ describe('InsumoService', () => {
     mockQueryBuilder.getOne.mockResolvedValue(null);
     // Por defecto, la categoria_id enviada existe
     mockCategoriaInsumoRepo.findOne.mockResolvedValue({ id_categoria_insumo: 2, nombre: 'adhesivo', activo: true });
+    // Por defecto, la unidad_medida_id enviada existe
+    mockUnidadMedidaRepo.findOne.mockResolvedValue({ id_unidad_medida: 1, nombre: 'litro', activo: true });
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -64,7 +72,7 @@ describe('InsumoService', () => {
       const dto = {
         nombre: 'Pegamento industrial',
         categoria_id: 2,
-        unidad_medida: 'litro' as const,
+        unidad_medida_id: 1,
         stock: 10,
         nivel_minimo: 2,
       };
@@ -132,7 +140,7 @@ describe('InsumoService', () => {
       const dto = {
         nombre: 'Pegamento industrial',
         categoria_id: 2,
-        unidad_medida: 'litro' as const,
+        unidad_medida_id: 1,
       };
 
       mockQueryBuilder.getOne.mockResolvedValue({

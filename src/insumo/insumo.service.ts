@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Insumo } from './entities/insumo.entity';
 import { CategoriaInsumo } from '../categoria-insumo/entities/categoria-insumo.entity';
+import { UnidadMedida } from '../unidad-medida/entities/unidad-medida.entity';
 import { CreateInsumoDto } from './dto/create-insumo.dto';
 import { UpdateInsumoDto } from './dto/update-insumo.dto';
 import { KardexService } from '../kardex/kardex.service';
@@ -19,6 +20,9 @@ export class InsumoService {
 
     @InjectRepository(CategoriaInsumo)
     private readonly categoriaInsumoRepo: Repository<CategoriaInsumo>,
+
+    @InjectRepository(UnidadMedida)
+    private readonly unidadMedidaRepo: Repository<UnidadMedida>,
 
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
@@ -62,6 +66,13 @@ export class InsumoService {
     }
   }
 
+  private async validarUnidadMedidaExiste(unidadMedidaId: number): Promise<void> {
+    const existe = await this.unidadMedidaRepo.findOne({ where: { id_unidad_medida: unidadMedidaId } });
+    if (!existe) {
+      throw new NotFoundException(`Unidad de medida #${unidadMedidaId} no encontrada`);
+    }
+  }
+
   private async validarNombreUnico(nombre: string, excluirId?: number): Promise<void> {
     const qb = this.insumoRepo
       .createQueryBuilder('i')
@@ -82,6 +93,7 @@ export class InsumoService {
 
     await this.validarNombreUnico(dto.nombre);
     await this.validarCategoriaExiste(dto.categoria_id);
+    await this.validarUnidadMedidaExiste(dto.unidad_medida_id);
 
     if (dto.rol_formula) {
       await this.validarRolFormulaDisponible(dto.rol_formula);
@@ -89,10 +101,11 @@ export class InsumoService {
 
     // Guardamos con stock = 0 para que registrarMovimientoInsumo haga el
     // tracking correcto desde 0 → stockInicial
-    const { categoria_id, ...resto } = dto;
+    const { categoria_id, unidad_medida_id, ...resto } = dto;
     const insumo = this.insumoRepo.create({
       ...resto,
       categoria: { id_categoria_insumo: categoria_id } as CategoriaInsumo,
+      unidad_medida: { id_unidad_medida: unidad_medida_id } as UnidadMedida,
       stock: 0,
       nivel_minimo: dto.nivel_minimo ?? 0,
       precio_unitario: dto.precio_unitario ?? 0,
@@ -141,17 +154,25 @@ export class InsumoService {
       await this.validarCategoriaExiste(dto.categoria_id);
     }
 
+    if (dto.unidad_medida_id !== undefined) {
+      await this.validarUnidadMedidaExiste(dto.unidad_medida_id);
+    }
+
     if (dto.rol_formula) {
       await this.validarRolFormulaDisponible(dto.rol_formula, id);
     }
 
-    // Separar el stock y categoria_id del resto de campos: el stock se
-    // maneja vía kardex, categoria_id se mapea a la relación `categoria`
-    const { stock: nuevoStock, categoria_id, ...camposResto } = dto;
+    // Separar el stock, categoria_id y unidad_medida_id del resto de campos:
+    // el stock se maneja vía kardex, categoria_id/unidad_medida_id se mapean
+    // a las relaciones `categoria`/`unidad_medida`
+    const { stock: nuevoStock, categoria_id, unidad_medida_id, ...camposResto } = dto;
 
     Object.assign(insumo, camposResto);
     if (categoria_id !== undefined) {
       insumo.categoria = { id_categoria_insumo: categoria_id } as CategoriaInsumo;
+    }
+    if (unidad_medida_id !== undefined) {
+      insumo.unidad_medida = { id_unidad_medida: unidad_medida_id } as UnidadMedida;
     }
     await this.insumoRepo.save(insumo);
 

@@ -26,8 +26,9 @@ export class CreateInsumoDto {
   @IsInt()
   categoria_id: number;
 
-  @IsEnum(['litro', 'kilo', 'metro', 'unidad', 'galon', 'pie', 'hoja'])
-  unidad_medida: 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsInt()
+  unidad_medida_id: number;
 
   @IsOptional()
   @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))

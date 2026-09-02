@@ -829,7 +829,7 @@ export class PdfService implements IReportePDF {
         y = this.maybePageBreak(doc, y, 28, alertasInsumosHeaders);
         y = this.drawDataRow(doc, y, [
           ins.nombre,
-          ins.unidad_medida,
+          ins.unidad_medida.nombre,
           Number(ins.stock).toFixed(2),
           Number(ins.nivel_minimo).toFixed(2),
           (Number(ins.stock) - Number(ins.nivel_minimo)).toFixed(2),

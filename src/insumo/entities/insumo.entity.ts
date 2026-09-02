@@ -8,9 +8,9 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { CategoriaInsumo } from '../../categoria-insumo/entities/categoria-insumo.entity';
+import { UnidadMedida } from '../../unidad-medida/entities/unidad-medida.entity';
 
-export type UnidadInsumo = 'litro' | 'kilo' | 'metro' | 'unidad' | 'galon' | 'pie' | 'hoja';
-export type RolFormula   = 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc';
+export type RolFormula = 'clefa' | 'pasta' | 'cuero' | 'esponja' | 'pvc';
 
 @Entity('insumos')
 export class Insumo {
@@ -27,11 +27,9 @@ export class Insumo {
   @JoinColumn({ name: 'categoria_id' })
   categoria: CategoriaInsumo;
 
-  @Column({
-    type: 'enum',
-    enum: ['litro', 'kilo', 'metro', 'unidad', 'galon', 'pie', 'hoja'],
-  })
-  unidad_medida: UnidadInsumo;
+  @ManyToOne(() => UnidadMedida, { eager: true })
+  @JoinColumn({ name: 'unidad_medida_id' })
+  unidad_medida: UnidadMedida;
 
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   stock: number;

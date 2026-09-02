@@ -368,7 +368,7 @@ ${listaCatalogo}
       const criticos = insumos.filter(i => esStockCritico(i.stock, i.nivel_minimo));
       if (criticos.length === 0) return '🧴 Sin alertas de insumos. Todos están sobre el nivel mínimo.';
       const lista = criticos
-        .map(i => `  • ${i.nombre}: ${i.stock} ${i.unidad_medida} (mínimo ${i.nivel_minimo})`)
+        .map(i => `  • ${i.nombre}: ${i.stock} ${i.unidad_medida.nombre} (mínimo ${i.nivel_minimo})`)
         .join('\n');
       return `🧴 ${criticos.length} insumo(s) con stock bajo:\n${lista}`;
     }
