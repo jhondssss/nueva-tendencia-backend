@@ -8,6 +8,8 @@ import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.e
 import { CategoriaProducto } from '../categoria-producto/entities/categoria-producto.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { CreateProductoDto } from './dto/create-producto.dto';
+import { UpdateProductoDto } from './dto/update-producto.dto';
 
 function fkError(table: string): QueryFailedError {
   const driverError = { code: '23503', table, message: 'fk violation' };
@@ -20,6 +22,9 @@ describe('ProductoService', () => {
   const mockProductoRepo = {
     findOne: jest.fn(),
     delete: jest.fn(),
+    create: jest.fn((v: unknown) => v),
+    save: jest.fn(),
+    update: jest.fn(),
   };
 
   const mockSolicitudRepo = {
@@ -105,6 +110,83 @@ describe('ProductoService', () => {
       expect(mockSolicitudRepo.findOne).toHaveBeenCalledWith({
         where: { producto: { id_producto: 1 }, estado: 'Pendiente' },
       });
+    });
+  });
+
+  describe('create — categoria_id', () => {
+    beforeEach(() => {
+      mockProductoRepo.findOne.mockResolvedValue(null); // sin duplicado por nombre+marca
+      mockProductoRepo.save.mockImplementation((v: any) => Promise.resolve({ ...v, id_producto: 1, stock: v.stock ?? 0 }));
+    });
+
+    const baseDto = { nombre_modelo: 'Bota', marca: 'NT' } as unknown as CreateProductoDto;
+
+    it('sin categoria_id (ausente) crea el producto con categoria null, sin validar', async () => {
+      const saved = await service.create(baseDto);
+
+      expect(mockCategoriaProductoRepo.findOne).not.toHaveBeenCalled();
+      expect(saved.categoria).toBeNull();
+    });
+
+    it('con categoria_id numérico válido, valida y asigna la relación', async () => {
+      mockCategoriaProductoRepo.findOne.mockResolvedValue({ id_categoria_producto: 3 });
+
+      const saved = await service.create({ ...baseDto, categoria_id: 3 });
+
+      expect(mockCategoriaProductoRepo.findOne).toHaveBeenCalledWith({ where: { id_categoria_producto: 3 } });
+      expect(saved.categoria).toEqual({ id_categoria_producto: 3 });
+    });
+
+    it('con categoria_id null explícito, crea con categoria null sin validar', async () => {
+      const saved = await service.create({ ...baseDto, categoria_id: null });
+
+      expect(mockCategoriaProductoRepo.findOne).not.toHaveBeenCalled();
+      expect(saved.categoria).toBeNull();
+    });
+  });
+
+  describe('update — categoria_id', () => {
+    beforeEach(() => {
+      mockProductoRepo.findOne.mockResolvedValue({ id_producto: 1, nombre_modelo: 'Bota', stock: 5 });
+      mockProductoRepo.update.mockResolvedValue({ affected: 1 });
+    });
+
+    it('sin categoria_id (ausente) no toca la relación categoria', async () => {
+      await service.update(1, { nombre_modelo: 'Bota v2' } as unknown as UpdateProductoDto);
+
+      expect(mockCategoriaProductoRepo.findOne).not.toHaveBeenCalled();
+      const llamadaCategoria = mockProductoRepo.update.mock.calls.find(([, campos]) => 'categoria' in (campos ?? {}));
+      expect(llamadaCategoria).toBeUndefined();
+    });
+
+    it('con categoria_id numérico válido, valida y actualiza la relación', async () => {
+      mockCategoriaProductoRepo.findOne.mockResolvedValue({ id_categoria_producto: 2 });
+
+      await service.update(1, { categoria_id: 2 } as unknown as UpdateProductoDto);
+
+      expect(mockCategoriaProductoRepo.findOne).toHaveBeenCalledWith({ where: { id_categoria_producto: 2 } });
+      expect(mockProductoRepo.update).toHaveBeenCalledWith(
+        { id_producto: 1 },
+        { categoria: { id_categoria_producto: 2 } },
+      );
+    });
+
+    it('con categoria_id null explícito, limpia la relación sin validar', async () => {
+      await service.update(1, { categoria_id: null } as unknown as UpdateProductoDto);
+
+      expect(mockCategoriaProductoRepo.findOne).not.toHaveBeenCalled();
+      expect(mockProductoRepo.update).toHaveBeenCalledWith(
+        { id_producto: 1 },
+        { categoria: null },
+      );
+    });
+
+    it('con categoria_id inexistente, lanza NotFoundException y no actualiza', async () => {
+      mockCategoriaProductoRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.update(1, { categoria_id: 999 } as unknown as UpdateProductoDto))
+        .rejects.toThrow(NotFoundException);
+      expect(mockProductoRepo.update).not.toHaveBeenCalled();
     });
   });
 });

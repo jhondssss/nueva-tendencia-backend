@@ -70,10 +70,17 @@ export class CreateProductoDto {
 
   imagen_url?: string;
 
+  // '' llega desde multipart/form-data (no puede llevar null real) y significa
+  // "sin categoría" explícito — se distingue de key ausente (undefined = no tocar
+  // la categoría en un update). Ver ProductoService.update.
   @IsOptional()
-  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @Transform(({ value }) => {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    return Number(value);
+  })
   @IsInt()
-  categoria_id?: number;
+  categoria_id?: number | null;
 
   // Cantidad fija por docena de pares, consumida en cada etapa del Kanban (Fase 2).
   @IsOptional()
