@@ -8,6 +8,7 @@ import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { esStockCritico, condicionStockCritico } from '../common/stock-critico';
+import { fkViolationTable } from '../common/db-errors';
 
 @Injectable()
 export class InsumoService {
@@ -163,7 +164,21 @@ export class InsumoService {
 
   async remove(id: number, usuarioId?: number): Promise<void> {
     const insumo = await this.findOne(id);
-    await this.insumoRepo.delete(id);
+
+    try {
+      await this.insumoRepo.delete(id);
+    } catch (err) {
+      const tabla = fkViolationTable(err);
+      if (tabla === 'productos') {
+        throw new ConflictException(
+          'No se puede eliminar este insumo porque está asignado como cuero a uno o más productos; quitá la asignación antes de eliminarlo',
+        );
+      }
+      if (tabla) {
+        throw new ConflictException('No se puede eliminar el insumo porque tiene datos asociados');
+      }
+      throw err;
+    }
 
     void this.auditoriaService.registrar({
       accion: 'DELETE',

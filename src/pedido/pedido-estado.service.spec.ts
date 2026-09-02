@@ -131,7 +131,7 @@ describe('PedidoEstadoService', () => {
     const insumoPvc = { id_insumo: 13, nombre: 'PVC', rol_formula: 'pvc', stock: 50 } as Insumo;
     const insumoEsponja = { id_insumo: 14, nombre: 'Esponja', rol_formula: 'esponja', stock: 20 } as Insumo;
 
-    function pedidoEnEstado(estado: string, extra: Partial<{ cantidad_pares: number; cuero_pies: number | null; pasta_solado_litros: number | null; clefa_solado_litros: number | null; pvc_solado_litros: number | null; clefa_empaque_litros: number | null; esponja_empaque_hojas: number | null }> = {}) {
+    function pedidoEnEstado(estado: string, extra: Partial<{ cantidad_pares: number; cuero_pies: number | null; cuero_insumo_id: number | null; pasta_solado_litros: number | null; clefa_solado_litros: number | null; pvc_solado_litros: number | null; clefa_empaque_litros: number | null; esponja_empaque_hojas: number | null }> = {}) {
       return {
         id_pedido: 5,
         estado,
@@ -141,6 +141,7 @@ describe('PedidoEstadoService', () => {
           nombre_modelo: 'Modelo X',
           imagen_url: undefined,
           cuero_pies: 'cuero_pies' in extra ? extra.cuero_pies : 3,
+          cuero_insumo_id: 'cuero_insumo_id' in extra ? extra.cuero_insumo_id : insumoCuero.id_insumo,
           pasta_solado_litros: 'pasta_solado_litros' in extra ? extra.pasta_solado_litros : 0.5,
           clefa_solado_litros: 'clefa_solado_litros' in extra ? extra.clefa_solado_litros : 0.3,
           pvc_solado_litros: 'pvc_solado_litros' in extra ? extra.pvc_solado_litros : 0.4,
@@ -150,20 +151,23 @@ describe('PedidoEstadoService', () => {
       };
     }
 
-    // Todos los insumos de receta (Cuero, Clefa, Pasta, PVC, Esponja) se buscan
-    // por rol_formula vía findOneBy. Este helper arma el mock para uno o varios
-    // roles a la vez.
+    // Clefa/Pasta/PVC/Esponja se buscan por rol_formula vía findOneBy. Cuero
+    // es distinto: se busca por id_insumo directo (producto.cuero_insumo_id).
+    // Este helper arma el mock para ambas formas de consulta a la vez.
     function mockInsumosPorRol(overrides: Partial<Record<'cuero' | 'clefa' | 'pasta' | 'pvc' | 'esponja', Insumo | null>> = {}) {
+      const cuero = overrides.cuero !== undefined ? overrides.cuero : insumoCuero;
       const porRol: Record<string, Insumo | null> = {
-        cuero: overrides.cuero !== undefined ? overrides.cuero : insumoCuero,
         clefa: overrides.clefa !== undefined ? overrides.clefa : insumoClefa,
         pasta: overrides.pasta !== undefined ? overrides.pasta : insumoPasta,
         pvc: overrides.pvc !== undefined ? overrides.pvc : insumoPvc,
         esponja: overrides.esponja !== undefined ? overrides.esponja : insumoEsponja,
       };
-      mockInsumoRepo.findOneBy.mockImplementation(({ rol_formula }: { rol_formula: string }) =>
-        Promise.resolve(porRol[rol_formula] ?? null),
-      );
+      mockInsumoRepo.findOneBy.mockImplementation((where: { rol_formula?: string; id_insumo?: number }) => {
+        if (where.id_insumo !== undefined) {
+          return Promise.resolve(cuero && cuero.id_insumo === where.id_insumo ? cuero : null);
+        }
+        return Promise.resolve(porRol[where.rol_formula!] ?? null);
+      });
     }
 
     it('avanza a Cortado (1 insumo) y descuenta Cuero vía kardex automático', async () => {
@@ -207,6 +211,17 @@ describe('PedidoEstadoService', () => {
 
     it('bloquea el avance a Cortado si el producto no tiene cuero_pies configurado', async () => {
       const pedido = pedidoEnEstado('Pendiente', { cuero_pies: null });
+      mockPedidoRepo.findOne.mockResolvedValue(pedido);
+
+      await expect(service.moverEstado(5, 'Cortado')).rejects.toThrow(
+        /no tiene configurada la cantidad de Cuero para Cortado/,
+      );
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+      expect(mockInsumoRepo.findOneBy).not.toHaveBeenCalled();
+    });
+
+    it('bloquea el avance a Cortado si el producto no tiene cuero_insumo_id configurado', async () => {
+      const pedido = pedidoEnEstado('Pendiente', { cuero_insumo_id: null });
       mockPedidoRepo.findOne.mockResolvedValue(pedido);
 
       await expect(service.moverEstado(5, 'Cortado')).rejects.toThrow(

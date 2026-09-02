@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConflictException } from '@nestjs/common';
+import { QueryFailedError } from 'typeorm';
 import { InsumoService } from './insumo.service';
 import { Insumo } from './entities/insumo.entity';
 import { KardexService } from '../kardex/kardex.service';
@@ -179,6 +180,35 @@ describe('InsumoService', () => {
         { excluirId: 5 },
       );
       expect(mockInsumoRepo.save).toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    function fkViolation(table: string): QueryFailedError {
+      const err = new QueryFailedError('DELETE ...', [], new Error('fk violation'));
+      (err as unknown as { code: string; table: string }).code = '23503';
+      (err as unknown as { code: string; table: string }).table = table;
+      return err;
+    }
+
+    it('rechaza eliminar un insumo asignado como cuero de un producto', async () => {
+      const insumo = { id_insumo: 20, nombre: 'Cuero Liso' };
+      mockInsumoRepo.findOne.mockResolvedValue(insumo);
+      mockInsumoRepo.delete.mockRejectedValue(fkViolation('productos'));
+
+      await expect(service.remove(20)).rejects.toThrow(ConflictException);
+      await expect(service.remove(20)).rejects.toThrow(/asignado como cuero/);
+    });
+
+    it('elimina normalmente un insumo sin referencias', async () => {
+      const insumo = { id_insumo: 21, nombre: 'Pegamento industrial' };
+      mockInsumoRepo.findOne.mockResolvedValue(insumo);
+      mockInsumoRepo.delete.mockResolvedValue({ affected: 1 });
+
+      await service.remove(21);
+
+      expect(mockInsumoRepo.delete).toHaveBeenCalledWith(21);
+      expect(mockAuditoriaService.registrar).toHaveBeenCalled();
     });
   });
 });

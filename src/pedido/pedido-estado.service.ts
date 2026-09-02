@@ -27,17 +27,29 @@ type CampoReceta =
 interface RecetaItem {
   nombreInsumo: string;
   campoProducto: CampoReceta;
-  buscarInsumo: (repo: Repository<Insumo>) => Promise<Insumo | null>;
+  buscarInsumo: (repo: Repository<Insumo>, producto?: Producto) => Promise<Insumo | null>;
+  // Validación de configuración adicional más allá del campo numérico
+  // (campoProducto); si falta, se reporta con el mismo mensaje de "falta
+  // configuración" que el resto. Por defecto se considera OK.
+  configOk?: (producto?: Producto) => boolean;
 }
 
 // Receta de consumo automático por docena, una por etapa del Kanban (Fase 2/3).
-// Los 5 insumos (Clefa, Pasta, Cuero, Esponja, PVC) se identifican por rol_formula,
-// no por nombre — a lo sumo un insumo por rol (índice único en BD).
+// Clefa/Pasta/Esponja/PVC se identifican por rol_formula (a lo sumo un insumo
+// por rol, índice único en BD). Cuero es distinto: cada producto referencia
+// directo al insumo de cuero que usa (cuero_insumo_id, elegido en el
+// frontend) — no hay un único "insumo de cuero" para toda la fábrica.
 // PVC se consume en Solado de forma independiente de Pasta/Clefa (Fase 3): no hay
 // relación de porcentaje entre los tres, cada uno se valida y descuenta por separado.
 const RECETAS: Record<EtapaConReceta, RecetaItem[]> = {
   Cortado: [
-    { nombreInsumo: 'Cuero', campoProducto: 'cuero_pies', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'cuero' }) },
+    {
+      nombreInsumo: 'Cuero',
+      campoProducto: 'cuero_pies',
+      configOk: (p) => !!p?.cuero_insumo_id,
+      buscarInsumo: (repo, p) =>
+        p?.cuero_insumo_id ? repo.findOneBy({ id_insumo: p.cuero_insumo_id }) : Promise.resolve(null),
+    },
   ],
   Aparado: [
     { nombreInsumo: 'Clefa', campoProducto: 'clefa_aparado_litros', buscarInsumo: (r) => r.findOneBy({ rol_formula: 'clefa' }) },
@@ -156,7 +168,8 @@ export class PedidoEstadoService implements IPedidoEstadoService {
 
     for (const item of receta) {
       const valor = producto?.[item.campoProducto];
-      if (valor === null || valor === undefined) {
+      const configOk = item.configOk ? item.configOk(producto) : true;
+      if (valor === null || valor === undefined || !configOk) {
         faltanConfig.push(item.nombreInsumo);
       } else {
         cantidades.set(item, this.round2(docenas * Number(valor)));
@@ -174,7 +187,7 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     const faltanInsumo: string[] = [];
     await Promise.all(
       receta.map(async (item) => {
-        const insumo = await item.buscarInsumo(this.insumoRepo);
+        const insumo = await item.buscarInsumo(this.insumoRepo, producto);
         if (!insumo) {
           faltanInsumo.push(item.nombreInsumo);
         } else {
@@ -239,13 +252,14 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     estadoDestino: EstadoPedido,
     receta: RecetaItem[],
   ): Promise<void> {
+    const producto = pedido.producto as Producto | undefined;
     const revertidos: string[] = [];
 
     await this.dataSource.transaction(async (manager) => {
       await manager.update(Pedido, pedido.id_pedido, { estado: estadoDestino, fecha_actualizacion: new Date() });
 
       for (const item of receta) {
-        const insumo = await item.buscarInsumo(this.insumoRepo);
+        const insumo = await item.buscarInsumo(this.insumoRepo, producto);
         if (!insumo) continue;
 
         const consumo = await this.kardexService.buscarUltimoConsumoAutomaticoNoRevertido(

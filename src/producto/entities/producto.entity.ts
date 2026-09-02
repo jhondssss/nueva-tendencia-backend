@@ -80,4 +80,10 @@ export class Producto {
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true })
   esponja_empaque_hojas: number | null;
+
+  // Insumo específico (Cuero Liso / Cuero Nubuck / otro) que este producto
+  // consume en Cortado, elegido desde un desplegable en el frontend — no se
+  // resuelve por convención (rol_formula). FK a insumos.id_insumo.
+  @Column({ type: 'int', nullable: true })
+  cuero_insumo_id: number | null;
 }
