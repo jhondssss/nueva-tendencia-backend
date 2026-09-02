@@ -4,12 +4,14 @@ import { Repository, Between } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
+import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { IReporteExcel, ResumenDiario } from './interfaces/reporte.interface';
 import * as ExcelJS from 'exceljs';
 import { esStockCritico } from '../common/stock-critico';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
-import { buildWherePedidos } from './reportes-filtro.util';
+import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
+import { buildWherePedidos, buildWhereKardex } from './reportes-filtro.util';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -33,9 +35,10 @@ const BORDER_THIN = {
 @Injectable()
 export class ExcelService implements IReporteExcel {
   constructor(
-    @InjectRepository(Pedido)   private pedidoRepo:   Repository<Pedido>,
-    @InjectRepository(Cliente)  private clienteRepo:  Repository<Cliente>,
-    @InjectRepository(Producto) private productoRepo: Repository<Producto>,
+    @InjectRepository(Pedido)           private pedidoRepo:   Repository<Pedido>,
+    @InjectRepository(Cliente)          private clienteRepo:  Repository<Cliente>,
+    @InjectRepository(Producto)         private productoRepo: Repository<Producto>,
+    @InjectRepository(KardexMovimiento) private kardexRepo:   Repository<KardexMovimiento>,
   ) {}
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -647,6 +650,53 @@ export class ExcelService implements IReporteExcel {
 
     // suppress unused variable warning
     void fechaLabel;
+
+    return wb.xlsx.writeBuffer() as Promise<any>;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // g) Excel — Kardex de Insumos
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async exportarExcelKardex(filtro?: KardexReporteFiltroDto): Promise<Buffer> {
+    const movimientos = await this.kardexRepo.find({
+      where: buildWhereKardex(filtro),
+      relations: { insumo: { categoria: true }, pedido: true },
+      order: { fecha: 'DESC' },
+    });
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Kardex Insumos');
+
+    ws.columns = [
+      { header: 'Fecha',        key: 'fecha',      width: 18 },
+      { header: 'Insumo',       key: 'insumo',      width: 26 },
+      { header: 'Categoría',    key: 'categoria',   width: 16 },
+      { header: 'Tipo',         key: 'tipo',        width: 12 },
+      { header: 'Cantidad',     key: 'cantidad',    width: 12 },
+      { header: 'Stock Ant.',   key: 'stock_ant',   width: 12 },
+      { header: 'Stock Nvo.',   key: 'stock_nvo',   width: 12 },
+      { header: 'Origen',       key: 'origen',      width: 12 },
+      { header: 'Pedido Ref.',  key: 'pedido',       width: 12 },
+    ];
+    this.applyHeaderStyle(ws, 9);
+
+    movimientos.forEach(m =>
+      ws.addRow({
+        fecha:     this.fmtDate(m.fecha),
+        insumo:    m.insumo?.nombre ?? '—',
+        categoria: m.insumo?.categoria?.nombre ?? '—',
+        tipo:      m.tipo,
+        cantidad:  Number(m.cantidad),
+        stock_ant: Number(m.stock_anterior),
+        stock_nvo: Number(m.stock_nuevo),
+        origen:    m.origen,
+        pedido:    m.origen === 'automatico' ? (m.pedido?.id_pedido ?? '—') : '—',
+      }),
+    );
+
+    this.styleDataRows(ws, 2, movimientos.length + 1);
+    this.autoFitColumns(ws);
 
     return wb.xlsx.writeBuffer() as Promise<any>;
   }

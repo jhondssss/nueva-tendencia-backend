@@ -21,6 +21,7 @@ export interface IReporteExcel {
   exportarExcelPedidosEntregados(filtro?: PedidoReporteFiltroDto): Promise<Buffer>;
   exportarExcelGanancias(month: number, year: number): Promise<Buffer>;
   exportarExcelDiario(data: ResumenDiario): Promise<Buffer>;
+  exportarExcelKardex(filtro?: KardexReporteFiltroDto): Promise<Buffer>;
 }
 
 // ─── Tipos para el reporte diario ─────────────────────────────────────────────

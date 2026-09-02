@@ -191,6 +191,20 @@ export class ReportesController {
     res.end(buffer);
   }
 
+  /** GET /reportes/excel/kardex?desde=&hasta=&insumo_id=&tipo=&origen=&categoria_insumo_id= */
+  @Roles('admin', 'operario')
+  @Get('excel/kardex')
+  async excelKardex(@Query() filtro: KardexReporteFiltroDto, @Res() res: Response) {
+    const buffer = await this.reportesService.exportarExcelKardex(filtro);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="kardex.xlsx"',
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
+  }
+
   // ── Diario ─────────────────────────────────────────────────────────────────
 
   /** GET /reportes/diario */

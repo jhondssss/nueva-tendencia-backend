@@ -64,6 +64,10 @@ export class ReportesService {
     return this.excelService.exportarExcelGanancias(month, year);
   }
 
+  exportarExcelKardex(filtro?: KardexReporteFiltroDto): Promise<Buffer> {
+    return this.excelService.exportarExcelKardex(filtro);
+  }
+
   // ── Diario ────────────────────────────────────────────────────────────────
 
   getResumenDiario(): Promise<ResumenDiario> {
