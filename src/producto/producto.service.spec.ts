@@ -5,6 +5,7 @@ import { QueryFailedError } from 'typeorm';
 import { ProductoService } from './producto.service';
 import { Producto } from './entities/producto.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
+import { CategoriaProducto } from '../categoria-producto/entities/categoria-producto.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 
@@ -25,6 +26,10 @@ describe('ProductoService', () => {
     findOne: jest.fn().mockResolvedValue(null),
   };
 
+  const mockCategoriaProductoRepo = {
+    findOne: jest.fn(),
+  };
+
   const mockKardexService = {};
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
 
@@ -34,6 +39,7 @@ describe('ProductoService', () => {
         ProductoService,
         { provide: getRepositoryToken(Producto), useValue: mockProductoRepo },
         { provide: getRepositoryToken(SolicitudPedido), useValue: mockSolicitudRepo },
+        { provide: getRepositoryToken(CategoriaProducto), useValue: mockCategoriaProductoRepo },
         { provide: KardexService, useValue: mockKardexService },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
       ],

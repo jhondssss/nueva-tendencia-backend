@@ -242,10 +242,11 @@ export class ExcelService implements IReporteExcel {
   // ══════════════════════════════════════════════════════════════════════════
 
   async exportarExcelStock(filtro?: StockReporteFiltroDto): Promise<Buffer> {
-    const productos = await this.productoRepo.find({
-      where: filtro?.categoria ? { categoria: filtro.categoria } : {},
-      order: { id_producto: 'ASC' },
-    });
+    const qb = this.productoRepo.createQueryBuilder('p').orderBy('p.id_producto', 'ASC');
+    if (filtro?.categoria) {
+      qb.leftJoin('p.categoria', 'cat').andWhere('cat.nombre = :categoria', { categoria: filtro.categoria });
+    }
+    const productos = await qb.getMany();
 
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Stock');

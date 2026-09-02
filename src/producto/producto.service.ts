@@ -1,7 +1,8 @@
 import { Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Not, IsNull, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
+import { CategoriaProducto } from '../categoria-producto/entities/categoria-producto.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -23,9 +24,19 @@ export class ProductoService {
     @InjectRepository(SolicitudPedido)
     private readonly solicitudRepo: Repository<SolicitudPedido>,
 
+    @InjectRepository(CategoriaProducto)
+    private readonly categoriaProductoRepo: Repository<CategoriaProducto>,
+
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
+
+  private async validarCategoriaExiste(categoriaId: number): Promise<void> {
+    const existe = await this.categoriaProductoRepo.findOne({ where: { id_categoria_producto: categoriaId } });
+    if (!existe) {
+      throw new NotFoundException(`Categoría de producto #${categoriaId} no encontrada`);
+    }
+  }
 
   async create(dto: CreateProductoDto, usuarioId?: number) {
     const existente = await this.repo.findOne({
@@ -35,7 +46,15 @@ export class ProductoService {
       throw new ConflictException('Ya existe un producto con ese nombre y marca');
     }
 
-    const producto = this.repo.create(dto as any);
+    if (dto.categoria_id !== undefined) {
+      await this.validarCategoriaExiste(dto.categoria_id);
+    }
+
+    const { categoria_id, ...resto } = dto;
+    const producto = this.repo.create({
+      ...resto,
+      categoria: categoria_id !== undefined ? ({ id_categoria_producto: categoria_id } as CategoriaProducto) : null,
+    } as any);
     const saved = await this.repo.save(producto) as unknown as Producto;
 
     // Registrar stock inicial como 'entrada' si es mayor a 0
@@ -73,12 +92,21 @@ export class ProductoService {
     this.logger.debug(`activo tras transform: ${dto.activo} (${typeof dto.activo})`);
     const actual = await this.findOne(id);
 
-    // Separar stock del resto de campos para control independiente
-    const { stock: newStock, ...camposResto } = dto as any;
+    if (dto.categoria_id !== undefined) {
+      await this.validarCategoriaExiste(dto.categoria_id);
+    }
+
+    // Separar stock y categoria_id del resto de campos: el stock se maneja
+    // aparte vía kardex, categoria_id se mapea a la relación `categoria`
+    const { stock: newStock, categoria_id, ...camposResto } = dto as any;
 
     // Actualizar campos que no son stock directamente
     if (Object.keys(camposResto).length > 0) {
       await this.repo.update({ id_producto: id }, camposResto);
+    }
+
+    if (categoria_id !== undefined) {
+      await this.repo.update({ id_producto: id }, { categoria: { id_categoria_producto: categoria_id } as CategoriaProducto });
     }
 
     // Si el stock cambió, actualizar y registrar en kardex
@@ -159,13 +187,15 @@ export class ProductoService {
   }
 
   async findCatalogo(page = 1, limit = 12) {
-    const [productos, total] = await this.repo.findAndCount({
-      where: { activo: true, categoria: Not(IsNull()) },
-      select: ['id_producto', 'nombre_modelo', 'descripcion_corta', 'precio_venta', 'imagen_url', 'categoria', 'stock'],
-      order: { id_producto: 'ASC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const [productos, total] = await this.repo
+      .createQueryBuilder('producto')
+      .leftJoinAndSelect('producto.categoria', 'categoria')
+      .where('producto.activo = true')
+      .andWhere('producto.categoria_producto_id IS NOT NULL')
+      .orderBy('producto.id_producto', 'ASC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
     const data: ProductoCatalogoDto[] = productos.map((producto) => ({
       id_producto: producto.id_producto,
@@ -173,7 +203,7 @@ export class ProductoService {
       descripcion: producto.descripcion_corta,
       precio: producto.precio_venta,
       imagen: producto.imagen_url ?? null,
-      categoria: producto.categoria as NonNullable<typeof producto.categoria>,
+      categoria: producto.categoria!.nombre,
       disponible: producto.stock > 0,
     }));
 

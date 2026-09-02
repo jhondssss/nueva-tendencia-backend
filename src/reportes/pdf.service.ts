@@ -326,7 +326,9 @@ export class PdfService implements IReportePDF {
       .createQueryBuilder('p')
       .where(condicionStockCritico('p'));
     if (filtro?.categoria) {
-      criticosQuery.andWhere('p.categoria = :categoria', { categoria: filtro.categoria });
+      criticosQuery
+        .leftJoin('p.categoria', 'cat')
+        .andWhere('cat.nombre = :categoria', { categoria: filtro.categoria });
     }
     const criticos = await criticosQuery.getMany();
 

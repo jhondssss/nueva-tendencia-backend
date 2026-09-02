@@ -1,9 +1,8 @@
 import {
   IsString, IsNumber, IsOptional, IsBoolean,
-  IsNotEmpty, Min, IsEnum,
+  IsNotEmpty, Min, IsInt,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import type { CategoriaCalzado } from '../entities/producto.entity';
 
 export class CreateProductoDto {
   @IsString()
@@ -72,8 +71,9 @@ export class CreateProductoDto {
   imagen_url?: string;
 
   @IsOptional()
-  @IsEnum(['nino', 'juvenil', 'adulto'])
-  categoria?: CategoriaCalzado;
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? value : Number(value)))
+  @IsInt()
+  categoria_id?: number;
 
   // Cantidad fija por docena de pares, consumida en cada etapa del Kanban (Fase 2).
   @IsOptional()

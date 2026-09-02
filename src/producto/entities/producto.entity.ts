@@ -1,7 +1,6 @@
 // src/producto/entities/producto.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
-
-export type CategoriaCalzado = 'nino' | 'juvenil' | 'adulto';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { CategoriaProducto } from '../../categoria-producto/entities/categoria-producto.entity';
 
 @Entity('productos')
 export class Producto {
@@ -51,12 +50,9 @@ export class Producto {
   @Column({ nullable: true })
   imagen_url: string;
 
-  @Column({
-    type: 'enum',
-    enum: ['nino', 'juvenil', 'adulto'],
-    nullable: true,
-  })
-  categoria: CategoriaCalzado | null;
+  @ManyToOne(() => CategoriaProducto, { eager: true, nullable: true })
+  @JoinColumn({ name: 'categoria_producto_id' })
+  categoria: CategoriaProducto | null;
 
   // Cantidad fija por docena de pares, consumida automáticamente en cada
   // etapa del Kanban (Fase 2). null = etapa no configurada para este producto.

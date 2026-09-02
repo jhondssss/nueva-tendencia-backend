@@ -32,6 +32,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `Insumo` | `insumos` | Materiales de producción (pegamento, cuero, etc.) |
 | `CategoriaInsumo` | `categorias_insumo` | Categorías gestionables de Insumo (material, adhesivo, cuero, etc.) |
 | `UnidadMedida` | `unidades_medida` | Unidades de medida gestionables de Insumo (litro, kilo, metro, etc.) |
+| `CategoriaProducto` | `categorias_producto` | Categorías gestionables de Producto (niño, juvenil, adulto); `categoria = null` = no aparece en el catálogo público |
 | `Auditoria` | `auditoria` | Log de acciones del sistema |
 
 ---
@@ -61,6 +62,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `AuthModule` | `/auth` | Login, registro, registro de operarios |
 | `UserModule` | `/users` | Gestión de usuarios (solo admin) |
 | `ProductoModule` | `/productos` | CRUD de calzados + subida de imagen a Cloudinary |
+| `CategoriaProductoModule` | `/categorias-producto` | CRUD de categorías de producto (usado por el selector de tipo en Productos) |
 | `ClienteModule` | `/clientes` | CRUD de clientes |
 | `PedidoModule` | `/pedidos` + `/publico/pedido` | Pedidos, Kanban, seguimiento público por token |
 | `TallaModule` | — (servicio interno) | Distribución de tallas por pedido y categoría |
@@ -95,6 +97,15 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | POST | `/productos` | Admin | Crear con imagen (multipart) |
 | PATCH | `/productos/:id` | Admin | Actualizar con imagen opcional |
 | DELETE | `/productos/:id` | Admin | Eliminar |
+
+### Categorías de producto — `/categorias-producto`
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/categorias-producto` | Autenticado | Lista todas (para poblar selectores) |
+| GET | `/categorias-producto/:id` | Autenticado | Detalle |
+| POST | `/categorias-producto` | Admin | Crear |
+| PATCH | `/categorias-producto/:id` | Admin | Actualizar |
+| DELETE | `/categorias-producto/:id` | Admin | Eliminar (bloqueado si hay productos usándola) |
 
 ### Clientes — `/clientes`
 | Método | Ruta | Auth | Descripción |

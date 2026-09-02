@@ -6,6 +6,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { ProductoModule } from './producto/producto.module';
+import { CategoriaProductoModule } from './categoria-producto/categoria-producto.module';
 import { ClienteModule } from './cliente/cliente.module';
 import { PedidoModule } from './pedido/pedido.module';
 import { SolicitudPedidoModule } from './solicitud-pedido/solicitud-pedido.module';
@@ -71,6 +72,7 @@ const dbLogger = new Logger('TypeOrmConfig');
       },
     }),
     ProductoModule,
+    CategoriaProductoModule,
     ClienteModule,
     PedidoModule,
     SolicitudPedidoModule,
