@@ -4,10 +4,12 @@ import { Repository, Between } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
+import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { IReportePDF, ResumenDiario } from './interfaces/reporte.interface';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
-import { buildWherePedidos } from './reportes-filtro.util';
+import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
+import { buildWherePedidos, buildWhereKardex } from './reportes-filtro.util';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit');
@@ -26,9 +28,10 @@ const CAFE_ALT = '#F9F4EF';
 @Injectable()
 export class PdfService implements IReportePDF {
   constructor(
-    @InjectRepository(Pedido)   private pedidoRepo:   Repository<Pedido>,
-    @InjectRepository(Producto) private productoRepo: Repository<Producto>,
-    @InjectRepository(Insumo)   private insumoRepo:   Repository<Insumo>,
+    @InjectRepository(Pedido)           private pedidoRepo:   Repository<Pedido>,
+    @InjectRepository(Producto)         private productoRepo: Repository<Producto>,
+    @InjectRepository(Insumo)           private insumoRepo:   Repository<Insumo>,
+    @InjectRepository(KardexMovimiento) private kardexRepo:   Repository<KardexMovimiento>,
   ) {}
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -869,6 +872,57 @@ export class PdfService implements IReportePDF {
         ], auWidths, auAligns, i % 2 === 1);
       });
     }
+
+    this.addPageNumbers(doc);
+    doc.end();
+    return finish;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // g) PDF — Kardex de Insumos
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async generarPDFKardex(filtro?: KardexReporteFiltroDto, usuario?: string): Promise<Buffer> {
+    const movimientos = await this.kardexRepo.find({
+      where: buildWhereKardex(filtro),
+      relations: { insumo: { categoria: true }, pedido: true },
+      order: { fecha: 'DESC' },
+    });
+
+    const { doc, finish } = this.buildDoc();
+    this.buildHeader(doc, 'Reporte de Kardex de Insumos', usuario);
+
+    const widths = [55, 100, 50, 55, 55, 55, 60, 65];
+    const aligns: ('left' | 'right' | 'center')[] =
+      ['center', 'left', 'center', 'right', 'right', 'right', 'center', 'center'];
+
+    const labels = ['Fecha', 'Insumo', 'Tipo', 'Cantidad', 'Stock Ant.', 'Stock Nvo.', 'Origen', 'Pedido'];
+    let y = this.buildTable(doc, doc.y, labels, widths);
+    const kardexHeaders = { labels, widths };
+
+    if (movimientos.length === 0) {
+      doc.moveDown(0.5).fillColor('#888888').fontSize(10).font('Helvetica')
+        .text('Sin movimientos para los filtros seleccionados.', { align: 'center' });
+      y = doc.y;
+    } else {
+      movimientos.forEach((m, i) => {
+        y = this.maybePageBreak(doc, y, 28, kardexHeaders);
+        y = this.drawDataRow(doc, y, [
+          this.fmtDate(m.fecha),
+          m.insumo?.nombre ?? '—',
+          m.tipo,
+          Number(m.cantidad).toFixed(2),
+          Number(m.stock_anterior).toFixed(2),
+          Number(m.stock_nuevo).toFixed(2),
+          m.origen,
+          m.origen === 'automatico' ? `#${m.pedido?.id_pedido ?? '—'}` : '—',
+        ], widths, aligns, i % 2 === 1);
+      });
+    }
+
+    doc.moveDown(1.2);
+    doc.fillColor(CAFE).fontSize(9).font('Helvetica-Bold')
+      .text(`Total de movimientos: ${movimientos.length}`, { align: 'right' });
 
     this.addPageNumbers(doc);
     doc.end();

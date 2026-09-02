@@ -2,6 +2,7 @@
 
 import { PedidoReporteFiltroDto } from '../dto/pedido-reporte-filtro.dto';
 import { StockReporteFiltroDto } from '../dto/stock-reporte-filtro.dto';
+import { KardexReporteFiltroDto } from '../dto/kardex-reporte-filtro.dto';
 
 export interface IReportePDF {
   generarPDFVentas(year: number, usuario?: string): Promise<Buffer>;
@@ -10,6 +11,7 @@ export interface IReportePDF {
   generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFGanancias(month: number, year: number, usuario?: string): Promise<Buffer>;
   generarPDFDiario(data: ResumenDiario, usuario?: string): Promise<Buffer>;
+  generarPDFKardex(filtro?: KardexReporteFiltroDto, usuario?: string): Promise<Buffer>;
 }
 
 export interface IReporteExcel {

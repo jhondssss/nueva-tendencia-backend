@@ -4,6 +4,7 @@ import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
+import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
 
 @Controller('reportes')
 export class ReportesController {
@@ -93,6 +94,19 @@ export class ReportesController {
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="ganancias-${y}-${String(m).padStart(2, '0')}.pdf"`,
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
+  }
+
+  /** GET /reportes/pdf/kardex?desde=&hasta=&insumo_id=&tipo=&origen=&categoria_insumo_id= */
+  @Roles('admin', 'operario')
+  @Get('pdf/kardex')
+  async pdfKardex(@Query() filtro: KardexReporteFiltroDto, @Res() res: Response, @Req() req: any) {
+    const buffer = await this.reportesService.generarPDFKardex(filtro, req.user?.email);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="kardex.pdf"',
       'Content-Length': String(buffer.length),
     });
     res.end(buffer);
