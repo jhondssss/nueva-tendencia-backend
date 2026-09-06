@@ -177,6 +177,36 @@ describe('PedidoCrudService', () => {
         1, 'adulto', tallas, 3,
       );
     });
+
+    // Regresión del bug de inflado en solicitudes de cliente aprobadas: SolicitudPedidoService.aprobar()
+    // crea el pedido con unidad 'par' y tallas ya absolutas (ej. 2 pares x 6 tallas = 12 pares reales).
+    // Antes del fix, create() pasaba `cantidad` (=12, total de pares, no docenas) como multiplicador y
+    // el desglose quedaba en 144 pares en vez de 12.
+    it('no vuelve a multiplicar las tallas cuando unidad es "par" (solicitud de cliente aprobada)', async () => {
+      const tallasAbsolutas = [
+        { talla: 37, cantidad_pares: 2 },
+        { talla: 38, cantidad_pares: 2 },
+        { talla: 39, cantidad_pares: 2 },
+        { talla: 40, cantidad_pares: 2 },
+        { talla: 41, cantidad_pares: 2 },
+        { talla: 42, cantidad_pares: 2 },
+      ];
+
+      await service.create({
+        cliente_id: 1,
+        producto_id: 1,
+        total: 500,
+        fecha_entrega: '2026-12-01',
+        cantidad: 12, // total de pares (proviene de solicitud.cantidad_pares), NO docenas
+        unidad: 'par',
+        categoria: 'adulto',
+        tallas_personalizadas: tallasAbsolutas,
+      } as any);
+
+      expect(mockTallaService.actualizarTallasPersonalizadas).toHaveBeenCalledWith(
+        1, 'adulto', tallasAbsolutas, 1,
+      );
+    });
   });
 
   describe('Autorización cruzada — mis-pedidos', () => {

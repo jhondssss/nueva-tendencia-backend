@@ -67,11 +67,14 @@ export class PedidoCrudService implements IPedidoCrudService {
     this.logger.debug(`Pedido #${savedPedido.id_pedido} guardado`);
 
     if (createPedidoDto.tallas_personalizadas && createPedidoDto.categoria) {
+      // unidad 'par' (ej. solicitudes de cliente aprobadas): las tallas ya vienen
+      // en valores absolutos, no como plantilla por docena — no se vuelven a multiplicar.
+      const multiplicadorTallas = unidad === 'par' ? 1 : cantidad;
       await this.tallaService.actualizarTallasPersonalizadas(
         savedPedido.id_pedido,
         createPedidoDto.categoria,
         createPedidoDto.tallas_personalizadas,
-        cantidad,
+        multiplicadorTallas,
       );
     } else if (createPedidoDto.categoria) {
       await this.tallaService.generarTallasParaPedido(
@@ -241,11 +244,13 @@ export class PedidoCrudService implements IPedidoCrudService {
     // ── Tallas: personalizada tiene prioridad sobre regeneración estándar ──
     const categoriaFinal = updatePedidoDto.categoria ?? pedido.categoria;
     if (updatePedidoDto.tallas_personalizadas && categoriaFinal) {
+      // Ver nota equivalente en create(): con unidad 'par' las tallas ya son absolutas.
+      const multiplicadorTallas = pedido.unidad === 'par' ? 1 : pedido.cantidad;
       await this.tallaService.actualizarTallasPersonalizadas(
         id,
         categoriaFinal,
         updatePedidoDto.tallas_personalizadas,
-        pedido.cantidad,
+        multiplicadorTallas,
       );
     } else if (updatePedidoDto.categoria) {
       await this.tallaService.generarTallasParaPedido(

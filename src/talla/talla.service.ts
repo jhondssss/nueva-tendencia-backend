@@ -54,8 +54,8 @@ export class TallaService {
 
     await this.tallaRepository.delete({ pedido: { id_pedido: pedidoId } });
 
-    // tallas trae la distribución POR DOCENA (mismo contrato que generarTallasParaPedido);
-    // se escala acá por la cantidad de docenas del pedido antes de persistir.
+    // cantidad_pares en `tallas` se multiplica por `cantidadDocenas` antes de persistir.
+    // Los llamadores con unidad 'par' (valores ya absolutos) deben pasar cantidadDocenas=1.
     const nuevas = tallas.map(t =>
       this.tallaRepository.create({
         talla: t.talla,

@@ -95,7 +95,9 @@ export class PedidoController {
   ) {
     const pedido = await this.pedidoService.findOne(+id);
     if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
-    return this.tallaService.actualizarTallasPersonalizadas(+id, body.categoria, body.tallas, pedido.cantidad);
+    // unidad 'par': las tallas ya vienen en valores absolutos, no se multiplican de nuevo.
+    const multiplicadorTallas = pedido.unidad === 'par' ? 1 : pedido.cantidad;
+    return this.tallaService.actualizarTallasPersonalizadas(+id, body.categoria, body.tallas, multiplicadorTallas);
   }
 
   @Roles('admin', 'operario')
