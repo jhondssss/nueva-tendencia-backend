@@ -1,5 +1,7 @@
 import { Logger, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -95,7 +97,9 @@ const dbLogger = new Logger('TypeOrmConfig');
     SeedModule,
     SearchModule,
   ],
+  controllers: [AppController],
   providers: [
+    AppService,
     // ── Rate limiting global ──
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // ── Guard de roles (ya existía) ──
