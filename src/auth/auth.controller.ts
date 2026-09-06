@@ -57,6 +57,7 @@ export class AuthController {
     return { message: 'Sesión cerrada' };
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @Post('register')
   async register(@Body() registerDto: RegisterDto) {
@@ -70,12 +71,14 @@ export class AuthController {
     return this.authService.registerOperario(registerDto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Public()
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {

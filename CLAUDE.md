@@ -142,8 +142,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 ### Pedido público (sin auth) — `/publico/pedido`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| GET | `/publico/pedido/:id` | Público | Estado del pedido por ID |
-| GET | `/publico/pedido/token/:token` | Público | Estado del pedido por token de seguimiento |
+| GET | `/publico/pedido/token/:token` | Público | Estado del pedido por token de seguimiento (único punto de acceso público; el lookup por ID numérico fue eliminado por ser un IDOR) |
 
 ### Kardex — `/kardex`
 | Método | Ruta | Auth | Descripción |

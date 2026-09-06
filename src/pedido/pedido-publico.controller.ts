@@ -2,7 +2,6 @@ import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApiTags } from '@nestjs/swagger';
-import { v4 as uuidv4 } from 'uuid';
 import { Public } from '../auth/decorators/public.decorator';
 import { Pedido } from './entities/pedido.entity';
 
@@ -47,24 +46,6 @@ export class PedidoPublicoController {
     });
 
     if (!pedido) throw new NotFoundException(`Pedido con token ${token} no encontrado`);
-
-    return this.buildResponse(pedido);
-  }
-
-  @Public()
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    const pedido = await this.pedidoRepo.findOne({
-      where: { id_pedido: +id },
-      relations: ['cliente', 'producto', 'talles'],
-    });
-
-    if (!pedido) throw new NotFoundException(`Pedido #${id} no encontrado`);
-
-    if (!pedido.token_seguimiento) {
-      pedido.token_seguimiento = uuidv4();
-      await this.pedidoRepo.update(pedido.id_pedido, { token_seguimiento: pedido.token_seguimiento });
-    }
 
     return this.buildResponse(pedido);
   }

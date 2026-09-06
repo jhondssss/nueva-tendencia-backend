@@ -176,8 +176,7 @@ src/
 ### Seguimiento público — `/publico/pedido`
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/publico/pedido/:id` | Estado por ID (sin auth) |
-| GET | `/publico/pedido/token/:token` | Estado por token de seguimiento |
+| GET | `/publico/pedido/token/:token` | Estado por token de seguimiento (sin auth) |
 
 ### Productos — `/productos`
 | Método | Ruta | Descripción |
