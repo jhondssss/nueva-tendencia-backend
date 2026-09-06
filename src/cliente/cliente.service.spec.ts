@@ -35,8 +35,12 @@ describe('ClienteService', () => {
   };
 
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
-  const mockUserService = { findByClienteId: jest.fn().mockResolvedValue(null) };
-  const mockMailService = {};
+  const mockUserService = {
+    findByClienteId: jest.fn().mockResolvedValue(null),
+    findByEmail: jest.fn().mockResolvedValue(null),
+    createClienteUser: jest.fn().mockResolvedValue(undefined),
+  };
+  const mockMailService = { sendClienteAccessEmail: jest.fn().mockResolvedValue(undefined) };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -141,6 +145,41 @@ describe('ClienteService', () => {
         expect.objectContaining({ accion: 'DELETE', modulo: 'clientes' }),
       );
       expect(result).toEqual({ raw: [], affected: 1 });
+    });
+  });
+
+  describe('darAcceso', () => {
+    const cliente = {
+      id_cliente: 1,
+      nombre: 'Juan',
+      apellido: 'Perez',
+      correo_electronico: 'juan@test.com',
+    };
+
+    beforeEach(() => {
+      mockClienteRepo.findOne.mockResolvedValue(cliente);
+      mockUserService.findByClienteId.mockResolvedValue(null);
+      mockUserService.findByEmail.mockResolvedValue(null);
+    });
+
+    it('crea el user copiando nombre y apellido del cliente', async () => {
+      await service.darAcceso(1, {});
+
+      expect(mockUserService.createClienteUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: cliente.correo_electronico,
+          clienteId: 1,
+          nombre: 'Juan',
+          apellido: 'Perez',
+        }),
+      );
+    });
+
+    it('bloquea si el cliente ya tiene una cuenta de acceso', async () => {
+      mockUserService.findByClienteId.mockResolvedValue({ id: 9 });
+
+      await expect(service.darAcceso(1, {})).rejects.toThrow(ConflictException);
+      expect(mockUserService.createClienteUser).not.toHaveBeenCalled();
     });
   });
 });

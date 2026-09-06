@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
+import { Cliente } from '../cliente/entities/cliente.entity';
 import { RegisterDto } from '../auth/dto/register.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -17,6 +18,8 @@ export class UserService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Cliente)
+    private clienteRepository: Repository<Cliente>,
   ) {}
 
   // ── Auth helpers ────────────────────────────────────────────────────
@@ -46,6 +49,8 @@ export class UserService {
     email: string;
     plainPassword: string;
     clienteId: number;
+    nombre?: string;
+    apellido?: string;
   }): Promise<User> {
     const hashedPassword = await bcrypt.hash(data.plainPassword, 10);
     const user = this.userRepository.create({
@@ -53,6 +58,8 @@ export class UserService {
       password: hashedPassword,
       role: Role.CLIENTE,
       clienteId: data.clienteId,
+      nombre: data.nombre,
+      apellido: data.apellido,
       requiereCambioPassword: true,
       activo: true,
     });
@@ -97,26 +104,57 @@ export class UserService {
 
   // ── Admin CRUD ──────────────────────────────────────────────────────
 
+  // Usuarios cliente creados antes de que dar-acceso copiara nombre/apellido
+  // del Cliente quedan con esas columnas en null; se resuelven acá en lectura
+  // para no requerir backfill de datos existentes.
+  private async resolveNombresCliente<T extends Partial<User>>(users: T[]): Promise<T[]> {
+    const idsSinNombre = users
+      .filter((u) => u.role === Role.CLIENTE && !u.nombre && u.clienteId)
+      .map((u) => u.clienteId as number);
+
+    if (idsSinNombre.length === 0) return users;
+
+    const clientes = await this.clienteRepository.find({
+      where: { id_cliente: In(idsSinNombre) },
+      select: ['id_cliente', 'nombre', 'apellido'],
+    });
+    const clientePorId = new Map(clientes.map((c) => [c.id_cliente, c]));
+
+    return users.map((u) => {
+      const cliente = u.clienteId ? clientePorId.get(u.clienteId) : undefined;
+      if (u.role === Role.CLIENTE && !u.nombre && cliente) {
+        return { ...u, nombre: cliente.nombre, apellido: cliente.apellido };
+      }
+      return u;
+    });
+  }
+
   async findAll(
     page = 1,
     limit = 10,
   ): Promise<{ data: Partial<User>[]; total: number; page: number; totalPages: number }> {
     const [users, total] = await this.userRepository.findAndCount({
-      select: ['id', 'email', 'nombre', 'apellido', 'role', 'activo'],
+      select: ['id', 'email', 'nombre', 'apellido', 'role', 'activo', 'clienteId'],
       order: { id: 'ASC' },
       skip: (page - 1) * limit,
       take: limit,
     });
-    return { data: users, total, page, totalPages: Math.ceil(total / limit) };
+    const resueltos = await this.resolveNombresCliente(users);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const data = resueltos.map(({ clienteId, ...rest }) => rest);
+    return { data, total, page, totalPages: Math.ceil(total / limit) };
   }
 
   async findOne(id: number): Promise<Partial<User>> {
     const user = await this.userRepository.findOne({
       where: { id },
-      select: ['id', 'email', 'nombre', 'apellido', 'role', 'activo'],
+      select: ['id', 'email', 'nombre', 'apellido', 'role', 'activo', 'clienteId'],
     });
     if (!user) throw new NotFoundException(`Usuario #${id} no encontrado`);
-    return user;
+    const [resuelto] = await this.resolveNombresCliente([user]);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { clienteId, ...rest } = resuelto;
+    return rest;
   }
 
   async adminCreate(dto: CreateUserDto): Promise<Partial<User>> {

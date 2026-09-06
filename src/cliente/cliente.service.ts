@@ -207,6 +207,8 @@ export class ClienteService {
       email,
       plainPassword: tempPassword,
       clienteId: cliente.id_cliente,
+      nombre: cliente.nombre,
+      apellido: cliente.apellido,
     });
 
     const loginUrl = 'https://nueva-tendencia-frontend.vercel.app/login';
