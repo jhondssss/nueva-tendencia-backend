@@ -48,7 +48,12 @@ const dbLogger = new Logger('TypeOrmConfig');
         const host     = process.env.DB_HOST     || 'localhost';
         const port     = parseInt(process.env.DB_PORT || '5432');
         const username = process.env.DB_USERNAME || 'postgres';
-        const password = process.env.DB_PASSWORD || '';
+        const password = process.env.DB_PASSWORD;
+        if (!password) {
+          throw new Error(
+            'DB_PASSWORD no está definido. Configurá la variable de entorno antes de iniciar la app.',
+          );
+        }
         const database = process.env.DB_NAME     || 'postgres';
         dbLogger.debug(`DB_HOST runtime: ${host}`);
         return {

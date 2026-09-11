@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, Between } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -9,6 +9,7 @@ import { condicionStockCritico } from '../common/stock-critico';
 
 @Injectable()
 export class TelegramService {
+  private readonly logger = new Logger(TelegramService.name);
   private readonly botToken = process.env.TELEGRAM_BOT_TOKEN;
   private readonly chatId   = process.env.TELEGRAM_CHAT_ID;
 
@@ -35,10 +36,10 @@ export class TelegramService {
         },
       );
       if (!res.ok) {
-        console.error(`[Telegram] sendPhoto HTTP ${res.status}:`, await res.text());
+        this.logger.error(`sendPhoto HTTP ${res.status}: ${await res.text()}`);
       }
     } catch (err) {
-      console.error('[Telegram] sendPhoto falló:', err);
+      this.logger.error('sendPhoto falló:', err);
     } finally {
       clearTimeout(timeout);
     }
@@ -61,10 +62,10 @@ export class TelegramService {
         },
       );
       if (!res.ok) {
-        console.error(`[Telegram] HTTP ${res.status}:`, await res.text());
+        this.logger.error(`HTTP ${res.status}: ${await res.text()}`);
       }
     } catch (err) {
-      console.error('[Telegram] sendMessage falló:', err);
+      this.logger.error('sendMessage falló:', err);
     } finally {
       clearTimeout(timeout);
     }
@@ -117,7 +118,7 @@ export class TelegramService {
         const respuesta = await this.assistantService.chat(pregunta);
         await this.sendMessage(respuesta, strChatId);
       } catch (err) {
-        console.error('[Telegram webhook] Error al procesar /nt:', err);
+        this.logger.error('Error al procesar /nt:', err);
         await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', strChatId);
       }
       return;
@@ -145,7 +146,7 @@ export class TelegramService {
       const respuesta = await this.assistantService.chat(cleanText || trimmed);
       await this.sendMessage(respuesta, strChatId);
     } catch (err) {
-      console.error('[Telegram webhook] Error al procesar mensaje libre:', err);
+      this.logger.error('Error al procesar mensaje libre:', err);
       await this.sendMessage('Ocurrió un error al procesar tu consulta. Intenta nuevamente.', strChatId);
     }
   }
@@ -205,13 +206,13 @@ export class TelegramService {
 
   @Cron('*/10 * * * *', { timeZone: 'America/La_Paz' })
   async keepAlive(): Promise<void> {
-    console.log('[KeepAlive]', new Date().toISOString());
+    this.logger.log(`KeepAlive ${new Date().toISOString()}`);
   }
 
   // 7am Bolivia
   @Cron('0 7 * * *', { timeZone: 'America/La_Paz' })
   async sendResumenDiario(chatId = this.chatId): Promise<void> {
-    console.log(`[Telegram Cron] Ejecutando sendResumenDiario - ${new Date().toISOString()}`);
+    this.logger.log(`Ejecutando sendResumenDiario - ${new Date().toISOString()}`);
     // Fecha actual en Bolivia (UTC-4)
     const ahora = new Date();
     const offsetBolivia = -4 * 60; // UTC-4 en minutos
@@ -226,10 +227,6 @@ export class TelegramService {
     // Rangos en UTC para ayer Bolivia: 00:00 Bolivia = 04:00 UTC
     const inicioAyerUTC = new Date(Date.UTC(anoHoy, mesHoy, diaHoy - 1, 4, 0, 0, 0));
     const finAyerUTC    = new Date(Date.UTC(anoHoy, mesHoy, diaHoy,     3, 59, 59, 999));
-
-    // Inicio del mes actual en Bolivia
-    const inicioMesUTC = new Date(Date.UTC(anoHoy, mesHoy, 1, 4, 0, 0, 0));
-    const finMesUTC    = new Date(Date.UTC(anoHoy, mesHoy + 1, 1, 3, 59, 59, 999));
 
     // Strings YYYY-MM-DD para comparar con fecha_entrega (tipo string en la entidad)
     const hoyStr    = `${anoHoy}-${String(mesHoy + 1).padStart(2, '0')}-${String(diaHoy).padStart(2, '0')}`;
@@ -350,7 +347,7 @@ export class TelegramService {
   // Lunes 7am Bolivia
   @Cron('0 7 * * 1', { timeZone: 'America/La_Paz' })
   async sendResumenSemanal(): Promise<void> {
-    console.log(`[Telegram Cron] Ejecutando sendResumenSemanal - ${new Date().toISOString()}`);
+    this.logger.log(`Ejecutando sendResumenSemanal - ${new Date().toISOString()}`);
 
     const ahora = new Date();
     const offsetBolivia = -4 * 60;
@@ -430,7 +427,7 @@ export class TelegramService {
     try {
       cuerpo = await this.assistantService.chat(promptGemini);
     } catch (err) {
-      console.error('[Telegram Cron] Gemini falló en resumen semanal:',
+      this.logger.error('Gemini falló en resumen semanal:',
         err?.message, err?.status, JSON.stringify(err));
       cuerpo = contextoNumericos;
     }

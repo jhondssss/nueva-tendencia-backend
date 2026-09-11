@@ -17,9 +17,6 @@ export class AuditoriaService {
   constructor(
     @InjectRepository(Auditoria)
     private readonly repo: Repository<Auditoria>,
-
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
   ) {}
 
   async registrar(dto: RegistrarAuditoriaDto): Promise<void> {

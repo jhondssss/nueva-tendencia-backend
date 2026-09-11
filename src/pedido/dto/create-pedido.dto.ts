@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsEnum, IsDateString, Min, IsInt, ValidateNested, IsArray } from 'class-validator';
+import { IsNumber, IsOptional, IsEnum, IsDateString, Min, IsInt, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TallaPersonalizadaDto {

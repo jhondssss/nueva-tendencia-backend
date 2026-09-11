@@ -4,12 +4,18 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
+if (!process.env.DB_PASSWORD) {
+  throw new Error(
+    'DB_PASSWORD no está definido. Configurá la variable de entorno antes de iniciar la app.',
+  );
+}
+
 export const AppDataSource = new DataSource({
   type: 'postgres',
   host:     process.env.DB_HOST     || 'localhost',
   port:     parseInt(process.env.DB_PORT || '5432'),
   username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || '',
+  password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME     || 'postgres',
   ssl: { rejectUnauthorized: false },
   entities:   ['src/**/*.entity.ts'],
