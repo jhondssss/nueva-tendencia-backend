@@ -17,7 +17,7 @@ jest.mock('bcrypt');
 describe('AuthService', () => {
   let service: AuthService;
 
-  const mockUserService = { findByEmail: jest.fn(), create: jest.fn(), findOne: jest.fn() };
+  const mockUserService = { findByEmail: jest.fn(), create: jest.fn(), findSessionProfile: jest.fn() };
   const mockJwtService = { sign: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
   const mockMailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
@@ -60,15 +60,24 @@ describe('AuthService', () => {
   });
 
   describe('me', () => {
-    it('delega en usersService.findOne y no expone el password', async () => {
-      const userData = { id: 3, email: 'cliente@test.com', nombre: 'Luis', apellido: 'Gomez', role: 'cliente', activo: true };
-      mockUserService.findOne.mockResolvedValue(userData);
+    it('delega en usersService.findSessionProfile y no expone el password', async () => {
+      const userData = {
+        id: 3, email: 'cliente@test.com', nombre: 'Luis', apellido: 'Gomez',
+        role: 'cliente', activo: true, clienteId: 10, requiereCambioPassword: false,
+      };
+      mockUserService.findSessionProfile.mockResolvedValue(userData);
 
       const result = await service.me(3);
 
-      expect(mockUserService.findOne).toHaveBeenCalledWith(3);
+      expect(mockUserService.findSessionProfile).toHaveBeenCalledWith(3);
       expect(result).toEqual(userData);
       expect(result).not.toHaveProperty('password');
+    });
+
+    it('lanza UnauthorizedException si el usuario de la sesión ya no existe', async () => {
+      mockUserService.findSessionProfile.mockResolvedValue(null);
+
+      await expect(service.me(999)).rejects.toThrow(UnauthorizedException);
     });
   });
 
