@@ -40,12 +40,14 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 
 ## Autenticación y autorización
 
-- **JWT** firmado con `@nestjs/jwt` (secret en código; mover a env en producción)
+- **JWT** firmado con `@nestjs/jwt` (secret en `JWT_SECRET`, fail-fast si no está definida)
   - Expiración: 1 hora
-  - Payload: `{ sub: userId, email, role }`
+  - Payload: `{ sub: userId, email, role, clienteId? }`
 - **Guard global**: `RolesGuard` verifica el token en **todos** los endpoints
+  - Acepta el JWT vía cookie HttpOnly `access_token` o vía header `Authorization: Bearer` (fallback permanente, usado por Swagger/Postman/tests)
   - `@Public()` — exime al endpoint de autenticación
   - `@Roles('admin')` — restringe a solo admins
+- **Guard global**: `CsrfGuard` — en mutaciones (`POST`/`PUT`/`PATCH`/`DELETE`) autenticadas por la cookie, exige el header `X-Requested-With: XMLHttpRequest`; las peticiones autenticadas por header `Authorization` no lo necesitan
 - **Roles disponibles**: `admin`, `operario`, `user`
   - `admin`: acceso total
   - `operario`: solo `GET` y `PATCH` (sin crear ni borrar)
@@ -85,7 +87,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 ### Auth — `/auth`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/auth/login` | Público (5 req/min) | Login → devuelve JWT + user en el body, y además setea cookie HttpOnly `access_token` (transición; el guard aún no la usa para autenticar) |
+| POST | `/auth/login` | Público (5 req/min) | Login → devuelve JWT + user en el body, y además setea cookie HttpOnly `access_token` (aceptada por `RolesGuard`) |
 | POST | `/auth/logout` | Público | Limpia la cookie `access_token` |
 | POST | `/auth/register` | Público | Registro de usuario |
 | POST | `/auth/register-operario` | Admin | Crea operario |
@@ -222,12 +224,14 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 ### Asistente IA — `/assistant`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| POST | `/assistant/chat` | Público | Chat con Gemini (historial opcional) |
+| POST | `/assistant/chat` | Admin, operario, cliente | Chat con Gemini (historial opcional) |
 
 ### Telegram — `/telegram`
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| GET | `/telegram/test-resumen` | Público | Dispara envío del resumen diario |
+| GET | `/telegram/test-resumen` | Admin | Dispara envío del resumen diario |
+| GET | `/telegram/test-semanal` | Admin | Dispara envío del resumen semanal |
+| POST | `/telegram/webhook` | Público (valida `X-Telegram-Bot-Api-Secret-Token` contra `TELEGRAM_WEBHOOK_SECRET`) | Webhook del bot de Telegram |
 
 ### Usuarios — `/users`
 | Método | Ruta | Auth | Descripción |
@@ -242,8 +246,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 |----------|-----|---------------------|
 | **Cloudinary** | Imágenes de productos | `CLOUDINARY_*` |
 | **Google Generative AI (Gemini)** | Asistente IA | `GEMINI_API_KEY` |
-| **Telegram Bot** | Notificaciones/resumen diario | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
-| **Aiven MySQL** | Base de datos | `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` |
+| **Telegram Bot** | Notificaciones/resumen diario + webhook | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET` |
 
 ---
 
@@ -271,8 +274,8 @@ npm run test:e2e      # Tests end-to-end
 
 ## Notas importantes
 
-- El JWT secret está hardcodeado en `auth.module.ts` — debe moverse a variable de entorno (`JWT_SECRET`) para producción real.
 - `synchronize: false` — nunca activar en producción; usar migraciones TypeORM.
 - Las imágenes de **insumos** se guardan en disco local (`uploads/insumos/`); las de **productos** van a Cloudinary.
 - El módulo `TallaModule` no tiene controller propio; `TallaService` es consumido por `PedidoController` vía `PATCH /pedidos/:id/tallas`.
 - `ScheduleModule` está registrado; revisar `TelegramService` y `DiarioService` para ver los cron jobs activos.
+- La mitigación CSRF (`CsrfGuard`) usa un header simple (`X-Requested-With`), no un token double-submit: decisión tomada porque el CORS ya tiene whitelist estricta de orígenes con credentials, lo cual cubre el vector de preflight que dejarían expuesto los endpoints `multipart/form-data`.

@@ -77,6 +77,12 @@ export class AuthService {
     };
   }
 
+  async me(userId: number) {
+    const user = await this.usersService.findSessionProfile(userId);
+    if (!user) throw new UnauthorizedException('Sesión inválida');
+    return user;
+  }
+
   async register(registerDto: RegisterDto) {
     const user = await this.usersService.create(registerDto, Role.USER);
     const { password, ...result } = user;

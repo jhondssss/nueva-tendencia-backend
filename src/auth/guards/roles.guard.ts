@@ -10,6 +10,9 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { ACCESS_TOKEN_COOKIE } from '../auth.constants';
+
+export type AuthSource = 'cookie' | 'header';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -27,7 +30,7 @@ export class RolesGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<Request>();
-    const token = this.extractToken(request);
+    const { token, source } = this.extractToken(request);
 
     if (!token) {
       throw new UnauthorizedException('Token de autenticación no proporcionado');
@@ -42,6 +45,7 @@ export class RolesGuard implements CanActivate {
 
     const role = payload.role;
     (request as any).user = payload;
+    (request as any).authSource = source;
 
     // Verificar roles requeridos por @Roles('admin') en el endpoint
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
@@ -72,9 +76,13 @@ export class RolesGuard implements CanActivate {
     throw new ForbiddenException('Rol no reconocido');
   }
 
-  private extractToken(request: Request): string | null {
+  private extractToken(request: Request): { token: string | null; source: AuthSource | null } {
+    const cookieToken = (request as any).cookies?.[ACCESS_TOKEN_COOKIE];
+    if (cookieToken) return { token: cookieToken, source: 'cookie' };
+
     const auth = request.headers.authorization;
-    if (!auth?.startsWith('Bearer ')) return null;
-    return auth.split(' ')[1];
+    if (auth?.startsWith('Bearer ')) return { token: auth.split(' ')[1], source: 'header' };
+
+    return { token: null, source: null };
   }
 }

@@ -36,6 +36,15 @@ export class UserService {
     return this.userRepository.findOne({ where: { clienteId } });
   }
 
+  /** Perfil de la sesión actual (/auth/me): incluye requiereCambioPassword, a
+   * diferencia de findOne() (pensado para el panel admin, que lo omite). */
+  async findSessionProfile(id: number): Promise<Partial<User> | null> {
+    return this.userRepository.findOne({
+      where: { id },
+      select: ['id', 'email', 'nombre', 'apellido', 'role', 'activo', 'clienteId', 'requiereCambioPassword'],
+    });
+  }
+
   async findClienteIdsConUsuario(clienteIds: number[]): Promise<Set<number>> {
     if (clienteIds.length === 0) return new Set();
     const users = await this.userRepository.find({

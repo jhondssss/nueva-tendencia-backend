@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -10,8 +10,7 @@ import { CambiarPasswordInicialDto } from './dto/cambiar-password-inicial.dto';
 import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
 import { RolesGuard } from './guards/roles.guard';
-
-const ACCESS_TOKEN_COOKIE = 'access_token';
+import { ACCESS_TOKEN_COOKIE } from './auth.constants';
 
 /**
  * SameSite=None + Secure es obligatorio para que la cookie viaje cross-domain
@@ -43,9 +42,8 @@ export class AuthController {
   ) {
     const user = await this.authService.validateUser(loginDto.email, loginDto.password);
     const result = await this.authService.login(user, req.ip);
-    // Cookie HttpOnly de transición: el guard todavía no la usa para autenticar
-    // (sigue leyendo solo el header Authorization). El body sigue devolviendo
-    // access_token para no romper al frontend actual.
+    // RolesGuard acepta esta cookie o el header Authorization. El body sigue
+    // devolviendo access_token para no romper al frontend actual (Swagger/Postman/tests).
     res.cookie(ACCESS_TOKEN_COOKIE, result.access_token, authCookieOptions());
     return result;
   }
@@ -55,6 +53,14 @@ export class AuthController {
   async logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(ACCESS_TOKEN_COOKIE, authCookieOptions());
     return { message: 'Sesión cerrada' };
+  }
+
+  // Cualquier rol autenticado puede consultar su propia sesión.
+  @Roles('admin', 'operario', 'user', 'cliente')
+  @Get('me')
+  async me(@Req() req: Request) {
+    const userId = (req as any).user?.sub as number;
+    return this.authService.me(userId);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
