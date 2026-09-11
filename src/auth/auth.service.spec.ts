@@ -17,7 +17,7 @@ jest.mock('bcrypt');
 describe('AuthService', () => {
   let service: AuthService;
 
-  const mockUserService = { findByEmail: jest.fn(), create: jest.fn() };
+  const mockUserService = { findByEmail: jest.fn(), create: jest.fn(), findOne: jest.fn() };
   const mockJwtService = { sign: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
   const mockMailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
@@ -56,6 +56,19 @@ describe('AuthService', () => {
         access_token: 'mock-jwt-token',
         user: { id: 1, email: 'admin@test.com', role: 'admin' },
       });
+    });
+  });
+
+  describe('me', () => {
+    it('delega en usersService.findOne y no expone el password', async () => {
+      const userData = { id: 3, email: 'cliente@test.com', nombre: 'Luis', apellido: 'Gomez', role: 'cliente', activo: true };
+      mockUserService.findOne.mockResolvedValue(userData);
+
+      const result = await service.me(3);
+
+      expect(mockUserService.findOne).toHaveBeenCalledWith(3);
+      expect(result).toEqual(userData);
+      expect(result).not.toHaveProperty('password');
     });
   });
 

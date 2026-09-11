@@ -77,6 +77,10 @@ export class AuthService {
     };
   }
 
+  async me(userId: number) {
+    return this.usersService.findOne(userId);
+  }
+
   async register(registerDto: RegisterDto) {
     const user = await this.usersService.create(registerDto, Role.USER);
     const { password, ...result } = user;

@@ -4,13 +4,14 @@ import { ACCESS_TOKEN_COOKIE } from './auth.constants';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let authService: { validateUser: jest.Mock; login: jest.Mock };
+  let authService: { validateUser: jest.Mock; login: jest.Mock; me: jest.Mock };
   let res: { cookie: jest.Mock; clearCookie: jest.Mock };
 
   beforeEach(() => {
     authService = {
       validateUser: jest.fn(),
       login: jest.fn(),
+      me: jest.fn(),
     };
     controller = new AuthController(authService as unknown as AuthService);
     res = { cookie: jest.fn(), clearCookie: jest.fn() };
@@ -36,6 +37,20 @@ describe('AuthController', () => {
       expect(cookieName).toBe(ACCESS_TOKEN_COOKIE);
       expect(cookieValue).toBe('jwt-de-prueba');
       expect(options).toMatchObject({ httpOnly: true, path: '/' });
+    });
+  });
+
+  describe('me', () => {
+    it('devuelve los datos del usuario logueado a partir del sub del JWT en request.user', async () => {
+      const userData = { id: 7, email: 'operario@nt.com', nombre: 'Ana', apellido: 'Perez', role: 'operario', activo: true };
+      authService.me.mockResolvedValue(userData);
+
+      const req = { user: { sub: 7, email: 'operario@nt.com', role: 'operario' } } as any;
+      const result = await controller.me(req);
+
+      expect(authService.me).toHaveBeenCalledWith(7);
+      expect(result).toBe(userData);
+      expect(result).not.toHaveProperty('password');
     });
   });
 

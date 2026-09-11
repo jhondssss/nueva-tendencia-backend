@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -53,6 +53,14 @@ export class AuthController {
   async logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie(ACCESS_TOKEN_COOKIE, authCookieOptions());
     return { message: 'Sesión cerrada' };
+  }
+
+  // Cualquier rol autenticado puede consultar su propia sesión.
+  @Roles('admin', 'operario', 'user', 'cliente')
+  @Get('me')
+  async me(@Req() req: Request) {
+    const userId = (req as any).user?.sub as number;
+    return this.authService.me(userId);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
