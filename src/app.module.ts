@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { CsrfGuard } from './auth/guards/csrf.guard';
 import { ProductoModule } from './producto/producto.module';
 import { CategoriaProductoModule } from './categoria-producto/categoria-producto.module';
 import { ClienteModule } from './cliente/cliente.module';
@@ -109,6 +110,9 @@ const dbLogger = new Logger('TypeOrmConfig');
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     // ── Guard de roles (ya existía) ──
     { provide: APP_GUARD, useClass: RolesGuard },
+    // ── CSRF: exige header custom en mutaciones autenticadas por cookie ──
+    // Debe ir después de RolesGuard, que es quien fija request.authSource.
+    { provide: APP_GUARD, useClass: CsrfGuard },
   ],
 })
 export class AppModule {}
