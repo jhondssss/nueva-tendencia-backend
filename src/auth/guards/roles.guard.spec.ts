@@ -10,8 +10,16 @@ describe('RolesGuard', () => {
   let jwtService: { verify: jest.Mock };
   let reflector: { getAllAndOverride: jest.Mock };
 
-  const buildContext = (method: string, authHeader?: string): ExecutionContext => {
-    const request: any = { method, headers: authHeader ? { authorization: authHeader } : {} };
+  const buildContext = (
+    method: string,
+    authHeader?: string,
+    cookies?: Record<string, string>,
+  ): ExecutionContext => {
+    const request: any = {
+      method,
+      headers: authHeader ? { authorization: authHeader } : {},
+      cookies: cookies ?? {},
+    };
     return {
       getHandler: () => ({}),
       getClass: () => ({}),
@@ -58,6 +66,49 @@ describe('RolesGuard', () => {
     const context = buildContext('GET', 'Bearer token-invalido');
 
     expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+  });
+
+  describe('extracción de token', () => {
+    it('autentica con la cookie access_token si no hay header Authorization', () => {
+      setMetadata(false, undefined);
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
+      const context = buildContext('GET', undefined, { access_token: 'token-cookie' });
+
+      expect(guard.canActivate(context)).toBe(true);
+      expect(jwtService.verify).toHaveBeenCalledWith('token-cookie');
+      const request = context.switchToHttp().getRequest();
+      expect(request.authSource).toBe('cookie');
+    });
+
+    it('cae al header Authorization si no hay cookie', () => {
+      setMetadata(false, undefined);
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
+      const context = buildContext('GET', 'Bearer token-header');
+
+      expect(guard.canActivate(context)).toBe(true);
+      expect(jwtService.verify).toHaveBeenCalledWith('token-header');
+      const request = context.switchToHttp().getRequest();
+      expect(request.authSource).toBe('header');
+    });
+
+    it('prioriza la cookie sobre el header si ambos están presentes', () => {
+      setMetadata(false, undefined);
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
+      const context = buildContext('GET', 'Bearer token-header', { access_token: 'token-cookie' });
+
+      guard.canActivate(context);
+      expect(jwtService.verify).toHaveBeenCalledWith('token-cookie');
+    });
+
+    it('lanza UnauthorizedException si el token de la cookie es inválido', () => {
+      setMetadata(false, undefined);
+      jwtService.verify.mockImplementation(() => {
+        throw new Error('jwt expired');
+      });
+      const context = buildContext('GET', undefined, { access_token: 'token-invalido' });
+
+      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    });
   });
 
   describe('rol admin', () => {
