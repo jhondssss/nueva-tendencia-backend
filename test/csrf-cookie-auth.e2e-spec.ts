@@ -95,4 +95,8 @@ describe('Autenticación por cookie + CSRF (e2e)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
   });
+
+  it('una petición sin cookie ni header es rechazada con 401 (mismo guard que protege /auth/me)', async () => {
+    await request(app.getHttpServer()).get('/recurso-de-prueba').expect(401);
+  });
 });
