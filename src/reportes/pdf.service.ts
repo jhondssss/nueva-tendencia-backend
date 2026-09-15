@@ -93,7 +93,26 @@ export class PdfService implements IReportePDF {
   }
 
   private fmtMonto(n: number): string {
-    return `Bs. ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    // Espacio de no separación (U+00A0) entre "Bs." y el monto: evita que pdfkit corte la línea ahí.
+    return `Bs. ${Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  /** Altura necesaria para que la celda más alta de la fila entre sin desbordar,
+   * usando la misma fuente/tamaño/ancho con la que luego se dibuja el texto. */
+  private rowHeight(
+    doc: any,
+    cells: (string | number)[],
+    widths: number[],
+    minH: number,
+    padV: number,
+    cellPad: number,
+  ): number {
+    let maxContentH = 0;
+    for (let i = 0; i < cells.length; i++) {
+      const h = doc.heightOfString(String(cells[i]), { width: widths[i] - cellPad });
+      if (h > maxContentH) maxContentH = h;
+    }
+    return Math.max(minH, maxContentH + padV);
   }
 
   private buildTable(
@@ -102,7 +121,8 @@ export class PdfService implements IReportePDF {
     labels: string[],
     widths: number[],
   ): number {
-    const H = 20;
+    doc.fontSize(7.5).font('Helvetica-Bold');
+    const H = this.rowHeight(doc, labels, widths, 20, 12, 6);
     const totalW = widths.reduce((a, b) => a + b, 0);
     doc.rect(50, y, totalW, H).fill(CAFE);
 
@@ -113,7 +133,6 @@ export class PdfService implements IReportePDF {
         .text(labels[i], x + 4, y + 6, {
           width: widths[i] - 6,
           align: 'center',
-          lineBreak: false,
         });
       x += widths[i];
     }
@@ -129,7 +148,8 @@ export class PdfService implements IReportePDF {
     alt: boolean,
     redBg = false,
   ): number {
-    const H = 18;
+    doc.fontSize(7).font('Helvetica');
+    const H = this.rowHeight(doc, cells, widths, 18, 10, 6);
     const totalW = widths.reduce((a, b) => a + b, 0);
 
     if (redBg)    doc.rect(50, y, totalW, H).fill('#FFDEDE');
@@ -144,7 +164,6 @@ export class PdfService implements IReportePDF {
         .text(String(cells[i]), x + 4, y + 5, {
           width: widths[i] - 6,
           align: aligns[i],
-          lineBreak: false,
         });
       x += widths[i];
     }
@@ -157,7 +176,8 @@ export class PdfService implements IReportePDF {
     cells: (string | number)[],
     widths: number[],
   ): number {
-    const H = 22;
+    doc.fontSize(8.5).font('Helvetica-Bold');
+    const H = this.rowHeight(doc, cells, widths, 22, 12, 8);
     const totalW = widths.reduce((a, b) => a + b, 0);
     doc.rect(50, y, totalW, H).fill('#E8DDD5');
 
@@ -168,7 +188,6 @@ export class PdfService implements IReportePDF {
         .text(String(cells[i]), x + 4, y + 6, {
           width: widths[i] - 8,
           align: i === 0 ? 'left' : 'right',
-          lineBreak: false,
         });
       x += widths[i];
     }
@@ -226,7 +245,7 @@ export class PdfService implements IReportePDF {
 
     const ventasHeaders = { labels: ['Mes', 'Ventas (Bs.)', '% del Total'], widths };
     MESES.forEach((mes, i) => {
-      y = this.maybePageBreak(doc, y, 28, ventasHeaders);
+      y = this.maybePageBreak(doc, y, 40, ventasHeaders);
       y = this.drawDataRow(doc, y, [
         mes,
         this.fmtMonto(totalesMes[i]),
@@ -234,7 +253,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y, 28, ventasHeaders);
+    y = this.maybePageBreak(doc, y, 40, ventasHeaders);
     this.buildFooter(doc, y, ['TOTAL', this.fmtMonto(grandTotal), '100 %'], widths);
 
     this.addPageNumbers(doc);
@@ -271,7 +290,7 @@ export class PdfService implements IReportePDF {
 
     const ventasHeaders = { labels: ['Día', 'Ventas (Bs.)', '% del Total'], widths };
     for (let d = 0; d < lastDay; d++) {
-      y = this.maybePageBreak(doc, y, 28, ventasHeaders);
+      y = this.maybePageBreak(doc, y, 40, ventasHeaders);
       y = this.drawDataRow(doc, y, [
         `${String(d + 1).padStart(2, '0')}/${mm}`,
         this.fmtMonto(totalesDia[d]),
@@ -279,7 +298,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, d % 2 === 1);
     }
 
-    y = this.maybePageBreak(doc, y, 28, ventasHeaders);
+    y = this.maybePageBreak(doc, y, 40, ventasHeaders);
     this.buildFooter(doc, y, ['TOTAL', this.fmtMonto(grandTotal), '100 %'], widths);
 
     this.addPageNumbers(doc);
@@ -310,7 +329,7 @@ export class PdfService implements IReportePDF {
     const estadosHeaders = { labels: ['Estado', 'Cantidad', '% del Total'], widths: sWidths };
     ESTADOS_PEDIDO.forEach((estado, i) => {
       const cant = pedidos.filter(p => p.estado === estado).length;
-      y = this.maybePageBreak(doc, y, 28, estadosHeaders);
+      y = this.maybePageBreak(doc, y, 40, estadosHeaders);
       y = this.drawDataRow(doc, y, [
         estado,
         String(cant),
@@ -323,7 +342,8 @@ export class PdfService implements IReportePDF {
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Detalle de Pedidos');
     doc.moveDown(0.3);
 
-    const dWidths = [28, 72, 48, 75, 55, 40, 42, 35, 55, 45];
+    // Cliente/Producto ensanchados y Total Bs. con margen para montos de 6 cifras (ver diagnóstico de superposición).
+    const dWidths = [22, 108, 30, 105, 42, 26, 30, 26, 46, 60];
     const dAligns: ('left' | 'right' | 'center')[] =
       ['center', 'left', 'center', 'left', 'center', 'right', 'right', 'right', 'center', 'right'];
 
@@ -339,7 +359,7 @@ export class PdfService implements IReportePDF {
     let sumaPares = 0;
     let sumaTotal = 0;
     pedidos.forEach((p, i) => {
-      y = this.maybePageBreak(doc, y, 28, detalleHeaders);
+      y = this.maybePageBreak(doc, y, 40, detalleHeaders);
       sumaPares += p.cantidad_pares ?? 0;
       sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
@@ -356,7 +376,7 @@ export class PdfService implements IReportePDF {
       ], dWidths, dAligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y, 28, detalleHeaders);
+    y = this.maybePageBreak(doc, y, 40, detalleHeaders);
     this.buildFooter(doc, y, [
       '', 'TOTAL GENERAL', '', '', '', '', '',
       String(sumaPares),
@@ -408,7 +428,7 @@ export class PdfService implements IReportePDF {
     ];
     const resumenHeaders = { labels: ['Resumen Ejecutivo', 'Valor'], widths: rWidths };
     resumenItems.forEach(([label, val], i) => {
-      y = this.maybePageBreak(doc, y, 28, resumenHeaders);
+      y = this.maybePageBreak(doc, y, 40, resumenHeaders);
       y = this.drawDataRow(doc, y, [label, val], rWidths, ['left', 'right'], i % 2 === 1);
     });
     doc.moveDown(1.2);
@@ -438,7 +458,7 @@ export class PdfService implements IReportePDF {
         widths: pWidths,
       };
       criticos.forEach((p, i) => {
-        y = this.maybePageBreak(doc, y, 28, productosHeaders);
+        y = this.maybePageBreak(doc, y, 40, productosHeaders);
         const cantSugerida = Math.max(0, p.nivel_minimo - p.stock);
         y = this.drawDataRow(doc, y, [
           p.nombre_modelo,
@@ -481,7 +501,7 @@ export class PdfService implements IReportePDF {
         widths: iWidths,
       };
       insumoCriticos.forEach((ins, i) => {
-        y = this.maybePageBreak(doc, y, 28, insumosHeaders);
+        y = this.maybePageBreak(doc, y, 40, insumosHeaders);
         const cantSugerida = Math.max(0, Number(ins.nivel_minimo) - Number(ins.stock));
         y = this.drawDataRow(doc, y, [
           ins.nombre,
@@ -514,7 +534,8 @@ export class PdfService implements IReportePDF {
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, 'Reporte de Pedidos Entregados', usuario);
 
-    const widths = [28, 72, 55, 75, 50, 38, 42, 35, 55, 45];
+    // Cliente/Producto ensanchados y Total Bs. con margen para montos de 6 cifras (ver diagnóstico de superposición).
+    const widths = [22, 108, 30, 105, 30, 34, 30, 30, 60, 46];
     const aligns: ('left' | 'right' | 'center')[] =
       ['center', 'left', 'center', 'left', 'center', 'right', 'center', 'right', 'right', 'center'];
 
@@ -530,7 +551,7 @@ export class PdfService implements IReportePDF {
     let sumaTotal = 0;
     const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
     pedidos.forEach((p, i) => {
-      y = this.maybePageBreak(doc, y, 28, entregadosHeaders);
+      y = this.maybePageBreak(doc, y, 40, entregadosHeaders);
       sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
         p.id_pedido,
@@ -546,7 +567,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y, 28, entregadosHeaders);
+    y = this.maybePageBreak(doc, y, 40, entregadosHeaders);
     const totalW = widths.reduce((a, b) => a + b, 0);
     this.buildFooter(doc, y, [
       'TOTAL', '', '', '', '', '', '', '', this.fmtMonto(sumaTotal), '',
@@ -600,7 +621,7 @@ export class PdfService implements IReportePDF {
     let sumaTotal = 0;
     let sumaPares = 0;
     pedidos.forEach((p, i) => {
-      y = this.maybePageBreak(doc, y, 28, gananciasHeaders);
+      y = this.maybePageBreak(doc, y, 40, gananciasHeaders);
       sumaTotal += Number(p.total);
       sumaPares += p.cantidad_pares ?? 0;
       const fechaEntrega = p.fecha_entrega
@@ -617,7 +638,7 @@ export class PdfService implements IReportePDF {
       ], widths, aligns, i % 2 === 1);
     });
 
-    y = this.maybePageBreak(doc, y, 28, gananciasHeaders);
+    y = this.maybePageBreak(doc, y, 40, gananciasHeaders);
     y = this.buildFooter(doc, y, [
       'TOTAL', '', '', '',
       String(pedidos.reduce((a, p) => a + (p.cantidad ?? 1), 0)),
@@ -672,7 +693,7 @@ export class PdfService implements IReportePDF {
 
     const metricasHeaders = { labels: ['Métrica', 'Valor'], widths: rWidths };
     metricas.forEach(([label, val], i) => {
-      y = this.maybePageBreak(doc, y, 28, metricasHeaders);
+      y = this.maybePageBreak(doc, y, 40, metricasHeaders);
       y = this.drawDataRow(doc, y, [label, val], rWidths, ['left', 'right'], i % 2 === 1);
     });
 
@@ -702,7 +723,7 @@ export class PdfService implements IReportePDF {
         widths: pWidths,
       };
       data.pedidosCreados.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y, 28, creadosHeaders);
+        y = this.maybePageBreak(doc, y, 40, creadosHeaders);
         y = this.drawDataRow(doc, y, [
           p.id_pedido,
           p.cliente?.nombre ?? '—',
@@ -729,7 +750,7 @@ export class PdfService implements IReportePDF {
         widths: pWidths,
       };
       data.pedidosMovidos.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y, 28, movidosHeaders);
+        y = this.maybePageBreak(doc, y, 40, movidosHeaders);
         y = this.drawDataRow(doc, y, [
           p.id_pedido,
           p.cliente?.nombre ?? '—',
@@ -764,7 +785,7 @@ export class PdfService implements IReportePDF {
         widths: vWidths,
       };
       data.pedidosTerminados.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y, 28, terminadosHeaders);
+        y = this.maybePageBreak(doc, y, 40, terminadosHeaders);
         y = this.drawDataRow(doc, y, [
           i + 1,
           p.cliente?.nombre ?? '—',
@@ -774,7 +795,7 @@ export class PdfService implements IReportePDF {
           this.fmtDate(p.fecha_entrega),
         ], vWidths, vAligns, i % 2 === 1);
       });
-      y = this.maybePageBreak(doc, y, 28, terminadosHeaders);
+      y = this.maybePageBreak(doc, y, 40, terminadosHeaders);
       this.buildFooter(doc, y, [
         `Total: ${data.pedidosTerminados.length} pedido(s)`,
         '', '', '',
@@ -811,7 +832,7 @@ export class PdfService implements IReportePDF {
         const hora = m.fecha instanceof Date
           ? m.fecha.toTimeString().slice(0, 5)
           : String(m.fecha).slice(11, 16);
-        y = this.maybePageBreak(doc, y, 28, {
+        y = this.maybePageBreak(doc, y, 40, {
           labels: ['#', 'Producto / Insumo', 'Tipo', 'Cantidad', 'Stock Ant.', 'Stock Nvo.', 'Hora'],
           widths: kWidths,
         });
@@ -853,7 +874,7 @@ export class PdfService implements IReportePDF {
         widths: aWidths,
       };
       data.alertasStock.forEach((p: any, i: number) => {
-        y = this.maybePageBreak(doc, y, 28, alertasStockHeaders);
+        y = this.maybePageBreak(doc, y, 40, alertasStockHeaders);
         y = this.drawDataRow(doc, y, [
           p.nombre_modelo,
           p.marca,
@@ -880,7 +901,7 @@ export class PdfService implements IReportePDF {
         widths: iWidths,
       };
       data.alertasInsumos.forEach((ins: any, i: number) => {
-        y = this.maybePageBreak(doc, y, 28, alertasInsumosHeaders);
+        y = this.maybePageBreak(doc, y, 40, alertasInsumosHeaders);
         y = this.drawDataRow(doc, y, [
           ins.nombre,
           ins.unidad_medida.nombre,
@@ -912,7 +933,7 @@ export class PdfService implements IReportePDF {
         widths: auWidths,
       };
       data.accionesAuditoria.forEach((a: any, i: number) => {
-        y = this.maybePageBreak(doc, y, 28, auditoriaHeaders);
+        y = this.maybePageBreak(doc, y, 40, auditoriaHeaders);
         y = this.drawDataRow(doc, y, [
           a.usuario?.email ?? '(sistema)',
           a.modulo,
@@ -955,7 +976,7 @@ export class PdfService implements IReportePDF {
       y = doc.y;
     } else {
       movimientos.forEach((m, i) => {
-        y = this.maybePageBreak(doc, y, 28, kardexHeaders);
+        y = this.maybePageBreak(doc, y, 40, kardexHeaders);
         y = this.drawDataRow(doc, y, [
           this.fmtDate(m.fecha),
           m.insumo?.nombre ?? '—',
