@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Pedido } from '../pedido/entities/pedido.entity';
@@ -993,6 +993,70 @@ export class PdfService implements IReportePDF {
     doc.moveDown(1.2);
     doc.fillColor(CAFE).fontSize(9).font('Helvetica-Bold')
       .text(`Total de movimientos: ${movimientos.length}`, { align: 'right' });
+
+    this.addPageNumbers(doc);
+    doc.end();
+    return finish;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // h) PDF — Comprobante de Pedido (documento interno, no factura fiscal)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /** `clienteId`: si viene definido, el comprobante solo se genera si el pedido
+   * pertenece a ese cliente (uso del rol cliente pidiendo su propio comprobante);
+   * para admin/operario se omite y no hay restricción de dueño. */
+  async generarComprobantePedido(pedidoId: number, usuario?: string, clienteId?: number): Promise<Buffer> {
+    const pedido = await this.pedidoRepo.findOne({
+      where: { id_pedido: pedidoId },
+      relations: ['cliente', 'producto', 'talles'],
+    });
+    if (!pedido) throw new NotFoundException(`Pedido #${pedidoId} no encontrado`);
+    if (clienteId !== undefined && pedido.cliente?.id_cliente !== clienteId) {
+      throw new ForbiddenException('No tenés permiso para acceder a este comprobante');
+    }
+
+    const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
+    const clienteNombre = `${pedido.cliente?.nombre ?? '—'} ${pedido.cliente?.apellido ?? ''}`.trim();
+
+    const { doc, finish } = this.buildDoc();
+    this.buildHeader(doc, `Comprobante de Pedido #${pedido.id_pedido}`, usuario);
+
+    const campos: [string, string][] = [
+      ['Número de pedido', `#${pedido.id_pedido}`],
+      ['Cliente', clienteNombre || '—'],
+      ['Producto', pedido.producto?.nombre_modelo ?? '—'],
+      ['Categoría', pedido.categoria ? catMap[pedido.categoria] : '—'],
+      ['Cantidad de pares', String(pedido.cantidad_pares ?? 0)],
+      ['Estado', pedido.estado],
+      ['Fecha de pedido', pedido.fecha_creacion ? this.fmtDate(pedido.fecha_creacion) : '—'],
+      ['Fecha de entrega', pedido.fecha_entrega ? this.fmtDate(pedido.fecha_entrega) : '—'],
+      ['Total', this.fmtMonto(Number(pedido.total))],
+    ];
+
+    const widths = [180, 315];
+    let y = this.buildTable(doc, doc.y, ['Campo', 'Detalle'], widths);
+    const camposHeaders = { labels: ['Campo', 'Detalle'], widths };
+    campos.forEach(([label, val], i) => {
+      y = this.maybePageBreak(doc, y, 40, camposHeaders);
+      y = this.drawDataRow(doc, y, [label, val], widths, ['left', 'left'], i % 2 === 1);
+    });
+
+    if (pedido.talles && pedido.talles.length > 0) {
+      doc.moveDown(1.2);
+      doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Distribución de Tallas');
+      doc.moveDown(0.3);
+
+      const tWidths = [247, 248];
+      y = this.buildTable(doc, doc.y, ['Talla', 'Cantidad de Pares'], tWidths);
+      const tallasHeaders = { labels: ['Talla', 'Cantidad de Pares'], widths: tWidths };
+      [...pedido.talles]
+        .sort((a, b) => a.talla - b.talla)
+        .forEach((t, i) => {
+          y = this.maybePageBreak(doc, y, 40, tallasHeaders);
+          y = this.drawDataRow(doc, y, [String(t.talla), String(t.cantidad_pares)], tWidths, ['center', 'center'], i % 2 === 1);
+        });
+    }
 
     this.addPageNumbers(doc);
     doc.end();

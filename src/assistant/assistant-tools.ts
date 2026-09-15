@@ -157,9 +157,22 @@ export const TOOL_DECLARATIONS: AssistantToolDeclaration[] = [
     },
   },
   {
+    name: 'generarComprobante',
+    description:
+      'Genera la URL de descarga de un comprobante interno en PDF de UN pedido puntual (no es una factura fiscal): incluye cliente, producto, categoría, tallas, cantidad de pares, estado, fecha de pedido, fecha de entrega y total. Usar esta tool (no generarReporte) cuando el usuario pide el "comprobante", "constancia" o "detalle en PDF" de un pedido específico identificado por su número. Disponible también para el rol cliente, pero SOLO puede generar el comprobante de uno de sus propios pedidos: si pide el de un pedido que no es suyo, la descarga se rechaza.',
+    parameters: {
+      type: 'object',
+      properties: {
+        pedidoId: { type: 'integer' },
+      },
+      required: ['pedidoId'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'generarReporte',
     description:
-      'Genera la URL de descarga de un reporte PDF que ya existe en el sistema (ventas, pedidos, stock, kardex, pedidos entregados o ganancias). No genera el archivo en este momento: solo devuelve la URL al endpoint real y una descripción corta para mostrar como texto del enlace. El navegador del usuario debe abrir esa URL para descargar el PDF (la sesión ya autenticada se envía automáticamente por cookie). No disponible para el rol cliente: los reportes son información interna del negocio. ' +
+      'Genera la URL de descarga de un reporte PDF que ya existe en el sistema (ventas, pedidos, stock, kardex, pedidos entregados o ganancias). No genera el archivo en este momento: solo devuelve la URL al endpoint real y una descripción corta para mostrar como texto del enlace. El navegador del usuario debe abrir esa URL para descargar el PDF (la sesión ya autenticada se envía automáticamente por cookie). No disponible para el rol cliente: los reportes son información interna del negocio. Para el comprobante de UN pedido puntual (no una tabla/reporte general) usar la tool generarComprobante en su lugar. ' +
       'IMPORTANTE sobre "filtros": completalo únicamente con lo que el usuario pide EXPLÍCITAMENTE en su mensaje ACTUAL, nunca lo infieras ni lo arrastres de turnos anteriores de la conversación, aunque se haya hablado de un cliente o pedido puntual antes. ' +
       'Ejemplo negativo: si antes se habló del pedido #215 de "Carlos" y ahora el usuario dice "generame el reporte" o "dame el reporte de pedidos" sin nombrar a Carlos en ESE mensaje, no agregues filtros.cliente="Carlos" — generá el reporte sin ese filtro. ' +
       'Ejemplo positivo: si el usuario dice "reporte de pedidos de Carlos" en su mensaje actual, ahí sí corresponde filtros.cliente="Carlos".',
@@ -220,6 +233,7 @@ export const TOOL_PERMISSIONS: Record<string, Role[]> = {
   consultarAuditoria: [Role.ADMIN],
   consultarTopClientes: [Role.ADMIN, Role.OPERARIO],
   generarReporte: [Role.ADMIN, Role.OPERARIO],
+  generarComprobante: [Role.ADMIN, Role.OPERARIO, Role.CLIENTE],
 };
 
 /** Tools que se declaran al modelo para un rol dado. Un rol sin permiso para
@@ -292,6 +306,30 @@ const REPORTES_ROLES: Record<string, Role[]> = {
   'pedidos-entregados': [Role.ADMIN, Role.OPERARIO],
   ganancias: [Role.ADMIN],
 };
+
+/** Arma la URL de descarga inyectando un token de un solo uso (misma lógica
+ * que POST /reportes/download-token), para que el enlace funcione en una
+ * navegación directa fuera de la sesión del chat, sin depender de que la
+ * cookie de sesión llegue cross-site. Compartida por generarReporte y
+ * generarComprobante para no duplicar la generación del token ni el armado
+ * de la URL base. */
+function generarUrlDescarga(
+  repos: AssistantRepos,
+  user: AssistantUser,
+  userId: number,
+  ruta: string,
+  params: URLSearchParams,
+): string {
+  const token = repos.downloadTokenService.generar({
+    sub: userId,
+    email: user.email,
+    role: user.role,
+    ...(user.role === Role.CLIENTE ? { clienteId: user.clienteId } : {}),
+  });
+  params.set('token', token);
+  const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+  return `${baseUrl}/reportes/${ruta}?${params.toString()}`;
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // Dispatcher — única puerta de entrada para ejecutar una tool
@@ -718,21 +756,34 @@ export async function executeTool(
           }
         }
 
-        // Se inyecta un token de descarga de un solo uso (misma lógica que
-        // POST /reportes/download-token) para que el enlace funcione en una
-        // navegación directa fuera de la sesión del chat, sin depender de que
-        // la cookie de sesión llegue cross-site.
-        const token = repos.downloadTokenService.generar({
-          sub: user.userId,
-          email: user.email,
-          role: user.role,
-        });
-        params.set('token', token);
-
-        const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-        const url = `${baseUrl}/reportes/${ruta}?${params.toString()}`;
+        const url = generarUrlDescarga(repos, user, user.userId, ruta, params);
 
         return { output: { url, descripcion } };
+      }
+
+      case 'generarComprobante': {
+        const pedidoId = parseEntero(args.pedidoId);
+        if (!pedidoId) return { error: 'Falta indicar el número de pedido.' };
+
+        if (!user.userId) {
+          return { error: 'No se pudo identificar tu usuario para generar el enlace de descarga.' };
+        }
+
+        // Para rol cliente se verifica la pertenencia del pedido ANTES de emitir
+        // cualquier URL: el clienteId nunca se lee de `args`, se fuerza siempre
+        // desde la sesión (mismo criterio que consultarPedidos). El endpoint
+        // vuelve a verificarlo del lado del servidor con el token de descarga,
+        // esto solo evita ofrecer un enlace que sabemos que va a fallar.
+        if (isCliente) {
+          const pedido = await repos.pedidoRepo.findOne({
+            where: { id_pedido: pedidoId, cliente: { id_cliente: user.clienteId } },
+          });
+          if (!pedido) return { error: 'No se encontró ese pedido asociado a tu cuenta.' };
+        }
+
+        const url = generarUrlDescarga(repos, user, user.userId, `pdf/comprobante/${pedidoId}`, new URLSearchParams());
+
+        return { output: { url, descripcion: `Comprobante del pedido #${pedidoId}` } };
       }
 
       default:

@@ -31,6 +31,14 @@ describe('DownloadTokenService', () => {
     expect(typeof payload.jti).toBe('string');
   });
 
+  it('preserva el clienteId en el payload cuando se genera para el rol cliente (comprobante de un pedido propio)', () => {
+    const token = service.generar({ sub: 3, email: 'cliente@nt.com', role: 'cliente', clienteId: 7 });
+
+    const payload = service.consumir(token);
+
+    expect(payload).toMatchObject({ sub: 3, email: 'cliente@nt.com', role: 'cliente', clienteId: 7, typ: 'download' });
+  });
+
   it('rechaza un token expirado', () => {
     const tokenExpirado = jwtService.sign(
       { sub: 1, email: 'admin@nt.com', role: 'admin', typ: 'download', jti: 'jti-expirado' },

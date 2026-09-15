@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Between } from 'typeorm';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PdfService } from './pdf.service';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
@@ -21,7 +22,7 @@ function expectValidPdf(buffer: Buffer) {
 describe('PdfService', () => {
   let service: PdfService;
 
-  const mockPedidoRepo = { find: jest.fn() };
+  const mockPedidoRepo = { find: jest.fn(), findOne: jest.fn() };
   const mockQueryBuilder = {
     where: jest.fn().mockReturnThis(),
     leftJoin: jest.fn().mockReturnThis(),
@@ -169,6 +170,64 @@ describe('PdfService', () => {
       mockPedidoRepo.find.mockResolvedValue([]);
 
       const buffer = await service.generarPDFGanancias(2, 2026);
+
+      expectValidPdf(buffer);
+    });
+  });
+
+  describe('generarComprobantePedido', () => {
+    const pedidoBase = {
+      id_pedido: 42,
+      cliente: { id_cliente: 7, nombre: 'Ana', apellido: 'Gómez' },
+      producto: { nombre_modelo: 'Bota Urbana' },
+      categoria: 'adulto',
+      cantidad_pares: 12,
+      estado: 'Terminado',
+      fecha_creacion: new Date('2026-08-01T10:00:00Z'),
+      fecha_entrega: '2026-08-15',
+      total: 1500,
+      talles: [
+        { id_talla: 1, talla: 40, cantidad_pares: 6 },
+        { id_talla: 2, talla: 41, cantidad_pares: 6 },
+      ],
+    };
+
+    it('genera el comprobante con los datos reales del pedido (caso feliz, sin restricción de dueño)', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue(pedidoBase);
+
+      const buffer = await service.generarComprobantePedido(42, 'admin@nt.com');
+
+      expectValidPdf(buffer);
+      expect(mockPedidoRepo.findOne).toHaveBeenCalledWith({
+        where: { id_pedido: 42 },
+        relations: ['cliente', 'producto', 'talles'],
+      });
+    });
+
+    it('lanza NotFoundException si el pedido no existe', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.generarComprobantePedido(999, 'admin@nt.com')).rejects.toThrow(NotFoundException);
+    });
+
+    it('permite el comprobante cuando el clienteId coincide con el dueño del pedido (cliente pidiendo su propio pedido)', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue(pedidoBase);
+
+      const buffer = await service.generarComprobantePedido(42, undefined, 7);
+
+      expectValidPdf(buffer);
+    });
+
+    it('rechaza con ForbiddenException cuando el clienteId no coincide con el dueño del pedido (pedido ajeno)', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue(pedidoBase);
+
+      await expect(service.generarComprobantePedido(42, undefined, 999)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('genera el comprobante sin sección de tallas cuando el pedido no tiene distribución personalizada (caso borde)', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue({ ...pedidoBase, talles: [] });
+
+      const buffer = await service.generarComprobantePedido(42);
 
       expectValidPdf(buffer);
     });

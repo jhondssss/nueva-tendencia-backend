@@ -405,3 +405,84 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     expect(result).toEqual({ error: expect.any(String) });
   });
 });
+
+describe('assistant-tools · executeTool · generarComprobante', () => {
+  const ORIGINAL_ENV = process.env.BACKEND_URL;
+
+  beforeEach(() => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+  });
+
+  afterEach(() => {
+    process.env.BACKEND_URL = ORIGINAL_ENV;
+  });
+
+  it('arma la URL del comprobante para admin sin consultar la pertenencia del pedido', async () => {
+    const pedidoRepo = { find: jest.fn(), findOne: jest.fn() };
+    const generar = jest.fn().mockReturnValue('mock-token');
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any, downloadTokenService: { generar } as any });
+
+    const result: any = await executeTool(
+      'generarComprobante',
+      { pedidoId: 42 },
+      { role: Role.ADMIN, userId: 1, email: 'admin@nt.com' },
+      repos,
+    );
+
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/comprobante/42?token=mock-token');
+    expect(result.output.descripcion).toBe('Comprobante del pedido #42');
+    expect(pedidoRepo.findOne).not.toHaveBeenCalled();
+    expect(generar).toHaveBeenCalledWith({ sub: 1, email: 'admin@nt.com', role: Role.ADMIN });
+  });
+
+  it('permite a un cliente generar el comprobante de su propio pedido y embebe su clienteId en el token', async () => {
+    const pedidoRepo = { find: jest.fn(), findOne: jest.fn().mockResolvedValue({ id_pedido: 42 }) };
+    const generar = jest.fn().mockReturnValue('mock-token');
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any, downloadTokenService: { generar } as any });
+
+    const result: any = await executeTool(
+      'generarComprobante',
+      { pedidoId: 42 },
+      { role: Role.CLIENTE, userId: 3, email: 'cliente@nt.com', clienteId: 7 },
+      repos,
+    );
+
+    expect(pedidoRepo.findOne).toHaveBeenCalledWith({
+      where: { id_pedido: 42, cliente: { id_cliente: 7 } },
+    });
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/comprobante/42?token=mock-token');
+    expect(generar).toHaveBeenCalledWith({ sub: 3, email: 'cliente@nt.com', role: Role.CLIENTE, clienteId: 7 });
+  });
+
+  it('rechaza sin generar ningún token si el pedido pedido no pertenece al cliente (pedido ajeno)', async () => {
+    const pedidoRepo = { find: jest.fn(), findOne: jest.fn().mockResolvedValue(null) };
+    const generar = jest.fn();
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any, downloadTokenService: { generar } as any });
+
+    const result = await executeTool(
+      'generarComprobante',
+      { pedidoId: 999 },
+      { role: Role.CLIENTE, userId: 3, email: 'cliente@nt.com', clienteId: 7 },
+      repos,
+    );
+
+    expect(result).toEqual({ error: expect.any(String) });
+    expect(generar).not.toHaveBeenCalled();
+  });
+
+  it('rechaza generarComprobante sin pedidoId', async () => {
+    const repos = buildRepos();
+
+    const result = await executeTool('generarComprobante', {}, { role: Role.ADMIN, userId: 1 }, repos);
+
+    expect(result).toEqual({ error: expect.any(String) });
+  });
+
+  it('rechaza generarComprobante si no se puede identificar el usuario (sin userId)', async () => {
+    const repos = buildRepos();
+
+    const result = await executeTool('generarComprobante', { pedidoId: 42 }, { role: Role.ADMIN }, repos);
+
+    expect(result).toEqual({ error: expect.any(String) });
+  });
+});

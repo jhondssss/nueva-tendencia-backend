@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -145,6 +145,24 @@ export class ReportesController {
     res.set({
       'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename="kardex.pdf"',
+      'Content-Length': String(buffer.length),
+    });
+    res.end(buffer);
+  }
+
+  /** GET /reportes/pdf/comprobante/:pedidoId — comprobante interno de UN pedido puntual
+   * (no factura fiscal). El rol cliente solo puede acceder al comprobante de su propio
+   * pedido: se verifica contra el pedido en BD, nunca contra lo que declare el cliente. */
+  @Roles('admin', 'operario', 'cliente')
+  @AllowDownloadToken()
+  @Get('pdf/comprobante/:pedidoId')
+  async pdfComprobante(@Param('pedidoId') pedidoId: string, @Res() res: Response, @Req() req: any) {
+    const id = parseInt(pedidoId, 10);
+    const clienteId = req.user?.role === 'cliente' ? req.user.clienteId : undefined;
+    const buffer = await this.reportesService.generarComprobantePedido(id, req.user?.email, clienteId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="comprobante-pedido-${id}.pdf"`,
       'Content-Length': String(buffer.length),
     });
     res.end(buffer);

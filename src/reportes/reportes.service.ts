@@ -42,6 +42,10 @@ export class ReportesService {
     return this.pdfService.generarPDFKardex(filtro, usuario);
   }
 
+  generarComprobantePedido(pedidoId: number, usuario?: string, clienteId?: number): Promise<Buffer> {
+    return this.pdfService.generarComprobantePedido(pedidoId, usuario, clienteId);
+  }
+
   // ── Excel ─────────────────────────────────────────────────────────────────
 
   exportarExcelPedidos(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
