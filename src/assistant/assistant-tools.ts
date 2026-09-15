@@ -145,13 +145,46 @@ export const TOOL_DECLARATIONS: AssistantToolDeclaration[] = [
   {
     name: 'consultarTopClientes',
     description:
-      'Clientes que más compraron, agregado por SUM de totales de pedidos con estado Terminado y ordenado de mayor a menor total. La agregación se calcula en el backend (SQL), no en el modelo.',
+      'Clientes que más compraron, agregado por SUM de totales de pedidos con estado Terminado y ordenado de mayor a menor total. La agregación se calcula en el backend (SQL), no en el modelo. La respuesta incluye un campo "criterio" que aclara que el total es solo de pedidos Terminado (ventas concretadas), no de todos los pedidos del cliente.',
     parameters: {
       type: 'object',
       properties: {
         mes: { type: 'integer', minimum: 1, maximum: 12 },
         limite: { type: 'integer', minimum: 1, maximum: 20 },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'generarReporte',
+    description:
+      'Genera la URL de descarga de un reporte PDF que ya existe en el sistema (ventas, pedidos, stock, kardex, pedidos entregados o ganancias). No genera el archivo en este momento: solo devuelve la URL al endpoint real y una descripción corta para mostrar como texto del enlace. El navegador del usuario debe abrir esa URL para descargar el PDF (la sesión ya autenticada se envía automáticamente por cookie). No disponible para el rol cliente: los reportes son información interna del negocio.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tipo: {
+          type: 'string',
+          enum: ['ventas', 'pedidos', 'stock', 'kardex', 'pedidos-entregados', 'ganancias'],
+        },
+        filtros: {
+          type: 'object',
+          properties: {
+            anio: { type: 'integer', minimum: 2000, maximum: 2100 },
+            mes: { type: 'integer', minimum: 1, maximum: 12 },
+            desde: { type: 'string', format: 'date' },
+            hasta: { type: 'string', format: 'date' },
+            cliente: { type: 'string', maxLength: 100 },
+            producto: { type: 'string', maxLength: 100 },
+            categoria: { type: 'string', enum: ['nino', 'juvenil', 'adulto'] },
+            insumoId: { type: 'integer' },
+            categoriaInsumoId: { type: 'integer' },
+            tipoMovimiento: { type: 'string', enum: ['entrada', 'salida', 'ajuste'] },
+            origen: { type: 'string', enum: ['manual', 'automatico'] },
+          },
+          additionalProperties: false,
+        },
+      },
+      required: ['tipo'],
       additionalProperties: false,
     },
   },
@@ -172,6 +205,7 @@ export const TOOL_PERMISSIONS: Record<string, Role[]> = {
   consultarKpisDashboard: [Role.ADMIN, Role.OPERARIO],
   consultarAuditoria: [Role.ADMIN],
   consultarTopClientes: [Role.ADMIN, Role.OPERARIO],
+  generarReporte: [Role.ADMIN, Role.OPERARIO],
 };
 
 /** Tools que se declaran al modelo para un rol dado. Un rol sin permiso para
@@ -216,6 +250,33 @@ function parseTexto(v: unknown, maxLength = 100): string | undefined {
 }
 
 const ESTADOS_PEDIDO = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'];
+const CATEGORIAS_CALZADO = ['nino', 'juvenil', 'adulto'];
+const TIPOS_KARDEX = ['entrada', 'salida', 'ajuste'];
+const ORIGENES_KARDEX = ['manual', 'automatico'];
+const MESES_NOMBRE = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+// Mismas rutas y restricciones de rol que ya exige ReportesController: la tool
+// nunca ofrece un enlace que el navegador del usuario no podría abrir.
+const REPORTES_TIPO_A_RUTA: Record<string, string> = {
+  ventas: 'pdf/ventas',
+  pedidos: 'pdf/pedidos',
+  stock: 'pdf/stock',
+  kardex: 'pdf/kardex',
+  'pedidos-entregados': 'pdf/pedidos-entregados',
+  ganancias: 'pdf/ganancias',
+};
+
+const REPORTES_ROLES: Record<string, Role[]> = {
+  ventas: [Role.ADMIN],
+  pedidos: [Role.ADMIN, Role.OPERARIO],
+  stock: [Role.ADMIN, Role.OPERARIO],
+  kardex: [Role.ADMIN, Role.OPERARIO],
+  'pedidos-entregados': [Role.ADMIN, Role.OPERARIO],
+  ganancias: [Role.ADMIN],
+};
 
 // ══════════════════════════════════════════════════════════════════════════
 // Dispatcher — única puerta de entrada para ejecutar una tool
@@ -532,6 +593,7 @@ export async function executeTool(
           .getRawMany();
 
         return {
+          criterio: 'Solo pedidos Terminado (ventas concretadas)',
           output: rows.map(r => ({
             id: Number(r.id_cliente),
             nombre: `${r.nombre} ${r.apellido ?? ''}`.trim(),
@@ -539,6 +601,101 @@ export async function executeTool(
             cantidad_pedidos: Number(r.cantidad_pedidos),
           })),
         };
+      }
+
+      case 'generarReporte': {
+        const tipo = typeof args.tipo === 'string' ? args.tipo : '';
+        const ruta = REPORTES_TIPO_A_RUTA[tipo];
+        if (!ruta) return { error: 'Tipo de reporte no reconocido.' };
+
+        const rolesPermitidos = REPORTES_ROLES[tipo];
+        if (!rolesPermitidos.includes(user.role as Role)) {
+          return { error: 'No tenés permiso para generar ese reporte.' };
+        }
+
+        const filtros = (typeof args.filtros === 'object' && args.filtros !== null ? args.filtros : {}) as Record<
+          string,
+          unknown
+        >;
+        const params = new URLSearchParams();
+
+        const anio = parseEntero(filtros.anio);
+        const mes = parseEntero(filtros.mes);
+        const desde = parseFechaISO(filtros.desde);
+        const hasta = parseFechaISO(filtros.hasta);
+        const categoria =
+          typeof filtros.categoria === 'string' && CATEGORIAS_CALZADO.includes(filtros.categoria)
+            ? filtros.categoria
+            : undefined;
+
+        let descripcion = '';
+
+        switch (tipo) {
+          case 'ventas': {
+            const anioReporte = anio ?? new Date().getFullYear();
+            params.set('year', String(anioReporte));
+            descripcion = `Reporte de ventas ${anioReporte}`;
+            break;
+          }
+
+          case 'ganancias': {
+            const hoy = new Date();
+            const mesReporte = mes && mes >= 1 && mes <= 12 ? mes : hoy.getMonth() + 1;
+            const anioReporte = anio ?? hoy.getFullYear();
+            params.set('month', String(mesReporte));
+            params.set('year', String(anioReporte));
+            descripcion = `Reporte de ganancias de ${MESES_NOMBRE[mesReporte - 1]} ${anioReporte}`;
+            break;
+          }
+
+          case 'pedidos':
+          case 'pedidos-entregados': {
+            const cliente = parseTexto(filtros.cliente);
+            const producto = parseTexto(filtros.producto);
+            if (cliente) params.set('cliente', cliente);
+            if (producto) params.set('producto', producto);
+            if (categoria) params.set('categoria', categoria);
+            if (desde) params.set('desde', desde);
+            if (hasta) params.set('hasta', hasta);
+            descripcion = tipo === 'pedidos' ? 'Reporte de pedidos' : 'Reporte de pedidos entregados';
+            if (desde && hasta) descripcion += ` (${desde} a ${hasta})`;
+            break;
+          }
+
+          case 'stock': {
+            if (categoria) params.set('categoria', categoria);
+            descripcion = 'Reporte de stock crítico';
+            break;
+          }
+
+          case 'kardex': {
+            const insumoId = parseEntero(filtros.insumoId);
+            const categoriaInsumoId = parseEntero(filtros.categoriaInsumoId);
+            const tipoMovimiento =
+              typeof filtros.tipoMovimiento === 'string' && TIPOS_KARDEX.includes(filtros.tipoMovimiento)
+                ? filtros.tipoMovimiento
+                : undefined;
+            const origen =
+              typeof filtros.origen === 'string' && ORIGENES_KARDEX.includes(filtros.origen)
+                ? filtros.origen
+                : undefined;
+            if (desde) params.set('desde', desde);
+            if (hasta) params.set('hasta', hasta);
+            if (insumoId) params.set('insumo_id', String(insumoId));
+            if (tipoMovimiento) params.set('tipo', tipoMovimiento);
+            if (origen) params.set('origen', origen);
+            if (categoriaInsumoId) params.set('categoria_insumo_id', String(categoriaInsumoId));
+            descripcion = 'Reporte de kardex de insumos';
+            if (desde && hasta) descripcion += ` (${desde} a ${hasta})`;
+            break;
+          }
+        }
+
+        const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+        const queryString = params.toString();
+        const url = `${baseUrl}/reportes/${ruta}${queryString ? `?${queryString}` : ''}`;
+
+        return { output: { url, descripcion } };
       }
 
       default:

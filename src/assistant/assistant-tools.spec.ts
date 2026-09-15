@@ -197,10 +197,169 @@ describe('assistant-tools · executeTool · consultarTopClientes', () => {
     expect(qb.andWhere).toHaveBeenCalledWith('EXTRACT(MONTH FROM p.fecha_entrega) = :mes', { mes: 9 });
     expect(qb.limit).toHaveBeenCalledWith(2);
     expect(result).toEqual({
+      criterio: 'Solo pedidos Terminado (ventas concretadas)',
       output: [
         { id: 1, nombre: 'Ana Pérez', total: 500, cantidad_pedidos: 3 },
         { id: 2, nombre: 'Luis', total: 200, cantidad_pedidos: 1 },
       ],
     });
+  });
+
+  it('siempre incluye el campo "criterio" aunque no haya clientes', async () => {
+    const qb: any = {
+      leftJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      addGroupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue([]),
+    };
+    const pedidoRepo = { find: jest.fn(), createQueryBuilder: jest.fn().mockReturnValue(qb) };
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any });
+
+    const result = await executeTool('consultarTopClientes', {}, { role: Role.OPERARIO }, repos);
+
+    expect(result).toEqual({ criterio: 'Solo pedidos Terminado (ventas concretadas)', output: [] });
+  });
+});
+
+describe('assistant-tools · executeTool · generarReporte', () => {
+  const ORIGINAL_ENV = process.env.BACKEND_URL;
+
+  afterEach(() => {
+    process.env.BACKEND_URL = ORIGINAL_ENV;
+  });
+
+  it('rechaza generarReporte para rol cliente', async () => {
+    const repos = buildRepos();
+
+    const result = await executeTool(
+      'generarReporte',
+      { tipo: 'pedidos' },
+      { role: Role.CLIENTE, clienteId: 42 },
+      repos,
+    );
+
+    expect(result).toEqual({ error: expect.any(String) });
+  });
+
+  it('rechaza un tipo de reporte inexistente', async () => {
+    const repos = buildRepos();
+
+    const result = await executeTool('generarReporte', { tipo: 'ganancias-2' }, { role: Role.ADMIN }, repos);
+
+    expect(result).toEqual({ error: expect.any(String) });
+  });
+
+  it('rechaza reportes exclusivos de admin (ventas, ganancias) para rol operario', async () => {
+    const repos = buildRepos();
+
+    const ventas = await executeTool('generarReporte', { tipo: 'ventas' }, { role: Role.OPERARIO }, repos);
+    const ganancias = await executeTool('generarReporte', { tipo: 'ganancias' }, { role: Role.OPERARIO }, repos);
+
+    expect(ventas).toEqual({ error: expect.any(String) });
+    expect(ganancias).toEqual({ error: expect.any(String) });
+  });
+
+  it('permite a operario generar reportes de pedidos, stock, kardex y pedidos-entregados', async () => {
+    const repos = buildRepos();
+
+    for (const tipo of ['pedidos', 'stock', 'kardex', 'pedidos-entregados']) {
+      const result = await executeTool('generarReporte', { tipo }, { role: Role.OPERARIO }, repos);
+      expect(result).toHaveProperty('output.url');
+    }
+  });
+
+  it('arma la URL de ventas con la base del backend y el año pedido', async () => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+    const repos = buildRepos();
+
+    const result: any = await executeTool(
+      'generarReporte',
+      { tipo: 'ventas', filtros: { anio: 2025 } },
+      { role: Role.ADMIN },
+      repos,
+    );
+
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/ventas?year=2025');
+    expect(result.output.descripcion).toBe('Reporte de ventas 2025');
+  });
+
+  it('usa http://localhost:3000 como base cuando no hay BACKEND_URL configurado', async () => {
+    delete process.env.BACKEND_URL;
+    const repos = buildRepos();
+
+    const result: any = await executeTool('generarReporte', { tipo: 'stock' }, { role: Role.ADMIN }, repos);
+
+    expect(result.output.url).toBe('http://localhost:3000/reportes/pdf/stock');
+  });
+
+  it('arma la URL de ganancias con mes y año, y una descripción legible', async () => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+    const repos = buildRepos();
+
+    const result: any = await executeTool(
+      'generarReporte',
+      { tipo: 'ganancias', filtros: { mes: 9, anio: 2026 } },
+      { role: Role.ADMIN },
+      repos,
+    );
+
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/ganancias?month=9&year=2026');
+    expect(result.output.descripcion).toBe('Reporte de ganancias de septiembre 2026');
+  });
+
+  it('arma la URL de pedidos con los filtros de cliente, categoría y rango de fechas', async () => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+    const repos = buildRepos();
+
+    const result: any = await executeTool(
+      'generarReporte',
+      {
+        tipo: 'pedidos',
+        filtros: { cliente: 'Ana', categoria: 'adulto', desde: '2026-09-01', hasta: '2026-09-30' },
+      },
+      { role: Role.ADMIN },
+      repos,
+    );
+
+    expect(result.output.url).toBe(
+      'https://api.nueva-tendencia.com/reportes/pdf/pedidos?cliente=Ana&categoria=adulto&desde=2026-09-01&hasta=2026-09-30',
+    );
+    expect(result.output.descripcion).toBe('Reporte de pedidos (2026-09-01 a 2026-09-30)');
+  });
+
+  it('arma la URL de kardex con insumo_id, tipo y origen usando los mismos nombres de query param que el endpoint', async () => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+    const repos = buildRepos();
+
+    const result: any = await executeTool(
+      'generarReporte',
+      { tipo: 'kardex', filtros: { insumoId: 7, tipoMovimiento: 'salida', origen: 'manual' } },
+      { role: Role.ADMIN },
+      repos,
+    );
+
+    expect(result.output.url).toBe(
+      'https://api.nueva-tendencia.com/reportes/pdf/kardex?insumo_id=7&tipo=salida&origen=manual',
+    );
+  });
+
+  it('ignora filtros con formato inválido en lugar de romper o propagarlos', async () => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+    const repos = buildRepos();
+
+    const result: any = await executeTool(
+      'generarReporte',
+      { tipo: 'stock', filtros: { categoria: 'gigante' } },
+      { role: Role.ADMIN },
+      repos,
+    );
+
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/stock');
   });
 });
