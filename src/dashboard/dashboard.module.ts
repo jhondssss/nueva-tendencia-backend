@@ -12,6 +12,6 @@ import { DashboardController } from './dashboard.controller';
   imports: [TypeOrmModule.forFeature([Pedido, Producto, Insumo])],
   controllers: [DashboardController],
   providers: [KpiService, PrediccionService, DashboardService],
-  exports: [PrediccionService],
+  exports: [PrediccionService, KpiService],
 })
 export class DashboardModule {}

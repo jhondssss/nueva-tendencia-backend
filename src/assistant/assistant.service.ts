@@ -7,9 +7,11 @@ import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Part } from '@google/genai';
 import { esStockCritico } from '../common/stock-critico';
 import { PrediccionService } from '../dashboard/prediccion.service';
+import { KpiService } from '../dashboard/kpi.service';
+import { buildToolsForRole, executeTool, AssistantRepos } from './assistant-tools';
 
 export interface ChatMessage {
   role: string;
@@ -47,12 +49,22 @@ Usa emojis relevantes: 👟 pedidos, 📦 productos, ✅ entregas, ⏳ en proces
 Sé conciso pero completo. Máximo 100 palabras por respuesta.
 El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
 
+// TODO(fase-1-function-calling): la mecánica de function calling (dispatcher,
+// autorización por rol, corte por MAX_TOOL_ROUNDS) está verificada con Gemini
+// mockeado en assistant.service.spec.ts, pero NO con Gemini real todavía —
+// la cuota gratuita diaria del modelo (20 req/día para gemini-3.8-flash, al
+// que resuelve el alias 'gemini-flash-latest') se agotó durante las pruebas
+// del 2026-09-15 antes de poder correr el smoke test end-to-end. No considerar
+// esto "confirmado end-to-end" hasta correr esas 3 preguntas reales y borrar
+// este comentario.
 @Injectable()
 export class AssistantService {
   private readonly logger = new Logger(AssistantService.name);
   private readonly genAI: GoogleGenAI | null;
   private static readonly MODEL_NAME = 'gemini-flash-latest';
   private static readonly TEMPERATURE = 0.3;
+  private static readonly MAX_TOOL_ROUNDS = 5;
+  private readonly repos: AssistantRepos;
 
   constructor(
     @InjectRepository(Pedido)           private readonly pedidoRepo:   Repository<Pedido>,
@@ -62,10 +74,21 @@ export class AssistantService {
     @InjectRepository(KardexMovimiento) private readonly kardexRepo:   Repository<KardexMovimiento>,
     @InjectRepository(Auditoria)        private readonly auditoriaRepo: Repository<Auditoria>,
     private readonly prediccionService: PrediccionService,
+    private readonly kpiService: KpiService,
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
     this.logger.debug(`GEMINI_API_KEY presente: ${!!apiKey}`);
     this.genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
+    this.repos = {
+      pedidoRepo: this.pedidoRepo,
+      clienteRepo: this.clienteRepo,
+      productoRepo: this.productoRepo,
+      insumoRepo: this.insumoRepo,
+      kardexRepo: this.kardexRepo,
+      auditoriaRepo: this.auditoriaRepo,
+      prediccionService: this.prediccionService,
+      kpiService: this.kpiService,
+    };
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -482,17 +505,38 @@ ${listaCatalogo}
         })),
       ];
 
+      const assistantUser: AssistantUser = { role: user?.role ?? '', clienteId: user?.clienteId };
+      const tools = buildToolsForRole(assistantUser.role);
+
       const chatSession = this.genAI.chats.create({
         model: AssistantService.MODEL_NAME,
         config: {
           temperature: AssistantService.TEMPERATURE,
           systemInstruction: isCliente ? SYSTEM_PROMPT_CLIENTE : SYSTEM_PROMPT_INTERNO,
+          tools: tools.length > 0 ? [{ functionDeclarations: tools }] : undefined,
         },
         history: geminiHistory,
       });
       this.logger.debug(`Llamando a Gemini con mensaje: ${message.slice(0, 100)}`);
-      const result = await chatSession.sendMessage({ message });
-      return (result.text ?? '').trim();
+      let response = await chatSession.sendMessage({ message });
+
+      for (
+        let ronda = 0;
+        response.functionCalls && response.functionCalls.length > 0 && ronda < AssistantService.MAX_TOOL_ROUNDS;
+        ronda++
+      ) {
+        const responseParts: Part[] = [];
+        for (const call of response.functionCalls) {
+          this.logger.debug(`Tool call: ${call.name} ${JSON.stringify(call.args ?? {})}`);
+          const resultado = await executeTool(call.name ?? '', call.args, assistantUser, this.repos);
+          responseParts.push({
+            functionResponse: { id: call.id, name: call.name, response: resultado },
+          });
+        }
+        response = await chatSession.sendMessage({ message: responseParts });
+      }
+
+      return (response.text ?? '').trim();
     } catch (err) {
       this.logger.error(`Gemini falló: ${err?.message} (status ${err?.status})`, err?.stack);
       return this.fallbackChat(message, user);

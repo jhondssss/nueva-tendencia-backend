@@ -1,0 +1,495 @@
+import { Between, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import type { FunctionDeclaration } from '@google/genai';
+import { Role } from '../auth/enums/role.enum';
+import { Pedido } from '../pedido/entities/pedido.entity';
+import { Cliente } from '../cliente/entities/cliente.entity';
+import { Producto } from '../producto/entities/producto.entity';
+import { Insumo } from '../insumo/entities/insumo.entity';
+import { KardexMovimiento } from '../kardex/entities/kardex.entity';
+import { Auditoria } from '../auditoria/entities/auditoria.entity';
+import { PrediccionService } from '../dashboard/prediccion.service';
+import { KpiService } from '../dashboard/kpi.service';
+import { esStockCritico } from '../common/stock-critico';
+import type { AssistantUser } from './assistant.service';
+
+// ══════════════════════════════════════════════════════════════════════════
+// Declaraciones expuestas a Gemini (function calling)
+// ══════════════════════════════════════════════════════════════════════════
+
+export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
+  {
+    name: 'consultarPedidos',
+    description:
+      'Lista pedidos con filtros opcionales. Para el rol cliente, siempre se devuelven únicamente los pedidos del cliente que está preguntando, sin importar qué se pida.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        estado: { type: 'string', enum: ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'] },
+        productoId: { type: 'integer' },
+        desde: { type: 'string', format: 'date' },
+        hasta: { type: 'string', format: 'date' },
+        soloVencidos: { type: 'boolean' },
+        limite: { type: 'integer', minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarCatalogoProductos',
+    description: 'Catálogo de productos disponibles, con búsqueda y filtro por categoría.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        categoriaId: { type: 'integer' },
+        disponible: { type: 'boolean' },
+        busqueda: { type: 'string', maxLength: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarStock',
+    description: 'Stock de productos o insumos, opcionalmente solo los que están en nivel crítico.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        tipo: { type: 'string', enum: ['producto', 'insumo'] },
+        soloCriticos: { type: 'boolean' },
+        categoriaId: { type: 'integer' },
+        busqueda: { type: 'string', maxLength: 100 },
+      },
+      required: ['tipo'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarVentas',
+    description: 'Ventas agregadas por mes, por producto (mes actual) o por categoría de calzado.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        anio: { type: 'integer', minimum: 2000, maximum: 2100 },
+        mes: { type: 'integer', minimum: 1, maximum: 12 },
+        agrupacion: { type: 'string', enum: ['mes', 'producto', 'categoria'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarClientes',
+    description: 'Lista de clientes registrados en el sistema.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        activo: { type: 'boolean' },
+        conPedidoActivo: { type: 'boolean' },
+        busqueda: { type: 'string', maxLength: 100 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarKardex',
+    description: 'Movimientos de inventario (Kardex) de productos o insumos: entradas, salidas y ajustes.',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        productoId: { type: 'integer' },
+        insumoId: { type: 'integer' },
+        tipo: { type: 'string', enum: ['entrada', 'salida', 'ajuste'] },
+        tipoRegistro: { type: 'string', enum: ['producto', 'insumo'] },
+        origen: { type: 'string', enum: ['manual', 'automatico'] },
+        desde: { type: 'string', format: 'date' },
+        hasta: { type: 'string', format: 'date' },
+        limite: { type: 'integer', minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarPrediccionStock',
+    description: 'Predicción de reposición de stock de productos (demanda mensual y semanas restantes).',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        productoId: { type: 'integer' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'consultarKpisDashboard',
+    description: 'Resumen de KPIs generales del negocio (ventas del mes, pedidos, alertas de stock, producción).',
+    parametersJsonSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'consultarAuditoria',
+    description: 'Registro de auditoría del sistema (acciones realizadas, módulo, usuario responsable).',
+    parametersJsonSchema: {
+      type: 'object',
+      properties: {
+        modulo: { type: 'string', maxLength: 50 },
+        usuarioId: { type: 'integer' },
+        desde: { type: 'string', format: 'date' },
+        hasta: { type: 'string', format: 'date' },
+        limite: { type: 'integer', minimum: 1, maximum: 50 },
+      },
+      additionalProperties: false,
+    },
+  },
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// Autorización por rol — capa 1 (declaración) y capa 2 (dispatcher)
+// ══════════════════════════════════════════════════════════════════════════
+
+export const TOOL_PERMISSIONS: Record<string, Role[]> = {
+  consultarPedidos: [Role.ADMIN, Role.OPERARIO, Role.CLIENTE],
+  consultarCatalogoProductos: [Role.ADMIN, Role.OPERARIO, Role.CLIENTE],
+  consultarStock: [Role.ADMIN, Role.OPERARIO],
+  consultarVentas: [Role.ADMIN, Role.OPERARIO],
+  consultarClientes: [Role.ADMIN, Role.OPERARIO],
+  consultarKardex: [Role.ADMIN, Role.OPERARIO],
+  consultarPrediccionStock: [Role.ADMIN, Role.OPERARIO],
+  consultarKpisDashboard: [Role.ADMIN, Role.OPERARIO],
+  consultarAuditoria: [Role.ADMIN],
+};
+
+/** Tools que se declaran al modelo para un rol dado. Un rol sin permiso para
+ * una función ni siquiera se entera de que existe. */
+export function buildToolsForRole(role: string | undefined): FunctionDeclaration[] {
+  return TOOL_DECLARATIONS.filter(t => TOOL_PERMISSIONS[t.name as string]?.includes(role as Role));
+}
+
+export interface AssistantRepos {
+  pedidoRepo: Repository<Pedido>;
+  clienteRepo: Repository<Cliente>;
+  productoRepo: Repository<Producto>;
+  insumoRepo: Repository<Insumo>;
+  kardexRepo: Repository<KardexMovimiento>;
+  auditoriaRepo: Repository<Auditoria>;
+  prediccionService: PrediccionService;
+  kpiService: KpiService;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Saneamiento de argumentos — los args del modelo son input no confiable,
+// igual que un body HTTP
+// ══════════════════════════════════════════════════════════════════════════
+
+function clampLimite(v: unknown, def = 20, max = 50): number {
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+  if (!Number.isFinite(n) || n <= 0) return def;
+  return Math.min(Math.floor(n), max);
+}
+
+function parseFechaISO(v: unknown): string | undefined {
+  return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
+}
+
+function parseEntero(v: unknown): number | undefined {
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function parseTexto(v: unknown, maxLength = 100): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim().slice(0, maxLength) : undefined;
+}
+
+const ESTADOS_PEDIDO = ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'];
+
+// ══════════════════════════════════════════════════════════════════════════
+// Dispatcher — única puerta de entrada para ejecutar una tool
+// ══════════════════════════════════════════════════════════════════════════
+
+export async function executeTool(
+  name: string,
+  rawArgs: Record<string, unknown> | undefined,
+  user: AssistantUser,
+  repos: AssistantRepos,
+): Promise<Record<string, unknown>> {
+  const allowedRoles = TOOL_PERMISSIONS[name];
+  if (!allowedRoles || !allowedRoles.includes(user.role as Role)) {
+    // No se ejecuta ninguna consulta al repositorio bajo ninguna circunstancia:
+    // esta verificación no depende de qué tools se le hayan declarado al modelo.
+    return { error: 'No tenés permiso para consultar esa información.' };
+  }
+
+  const isCliente = user.role === Role.CLIENTE;
+  if (isCliente && !user.clienteId) {
+    return { error: 'No se encontró una cuenta de cliente asociada a tu usuario.' };
+  }
+
+  const args = rawArgs ?? {};
+
+  try {
+    switch (name) {
+      case 'consultarPedidos': {
+        const where: Record<string, unknown> = {};
+
+        // El clienteId nunca se lee de `args`: para rol cliente se fuerza
+        // siempre desde la sesión, sin importar qué haya pedido el modelo.
+        if (isCliente) {
+          where.cliente = { id_cliente: user.clienteId };
+        }
+
+        const estado = typeof args.estado === 'string' && ESTADOS_PEDIDO.includes(args.estado) ? args.estado : undefined;
+        if (estado) where.estado = estado;
+
+        const productoId = parseEntero(args.productoId);
+        if (productoId) where.producto = { id_producto: productoId };
+
+        const desde = parseFechaISO(args.desde);
+        const hasta = parseFechaISO(args.hasta);
+        if (desde && hasta) where.fecha_entrega = Between(desde, hasta);
+        else if (desde) where.fecha_entrega = MoreThanOrEqual(desde);
+        else if (hasta) where.fecha_entrega = LessThanOrEqual(hasta);
+
+        const limite = clampLimite(args.limite);
+        let pedidos = await repos.pedidoRepo.find({ where, order: { fecha_entrega: 'DESC' }, take: limite });
+
+        if (args.soloVencidos === true) {
+          const hoy = new Date().toISOString().slice(0, 10);
+          pedidos = pedidos.filter(p => p.fecha_entrega < hoy && p.estado !== 'Terminado');
+        }
+
+        return {
+          output: pedidos.map(p => ({
+            id: p.id_pedido,
+            cliente: p.cliente?.nombre ?? '—',
+            producto: p.producto?.nombre_modelo ?? '—',
+            estado: p.estado,
+            fecha_entrega: p.fecha_entrega,
+            cantidad_pares: p.cantidad_pares,
+            total: Number(p.total),
+          })),
+        };
+      }
+
+      case 'consultarCatalogoProductos': {
+        const where: Record<string, unknown> = { activo: true };
+        const categoriaId = parseEntero(args.categoriaId);
+        if (categoriaId) where.categoria = { id_categoria_producto: categoriaId };
+
+        let productos = await repos.productoRepo.find({ where });
+
+        if (typeof args.disponible === 'boolean') {
+          productos = productos.filter(p => (p.stock > 0) === args.disponible);
+        }
+        const busqueda = parseTexto(args.busqueda)?.toLowerCase();
+        if (busqueda) {
+          productos = productos.filter(
+            p => p.nombre_modelo.toLowerCase().includes(busqueda) || p.marca.toLowerCase().includes(busqueda),
+          );
+        }
+        productos = productos.slice(0, 50);
+
+        return {
+          output: productos.map(p =>
+            isCliente
+              ? { nombre: p.nombre_modelo, marca: p.marca, precio: Number(p.precio_venta), disponible: p.stock > 0 }
+              : {
+                  id: p.id_producto,
+                  nombre: p.nombre_modelo,
+                  marca: p.marca,
+                  precio: Number(p.precio_venta),
+                  stock: p.stock,
+                  nivel_minimo: p.nivel_minimo,
+                  categoria: p.categoria?.nombre ?? null,
+                },
+          ),
+        };
+      }
+
+      case 'consultarStock': {
+        const tipo = args.tipo === 'insumo' ? 'insumo' : 'producto';
+        const categoriaId = parseEntero(args.categoriaId);
+        const busqueda = parseTexto(args.busqueda)?.toLowerCase();
+
+        if (tipo === 'producto') {
+          let productos = await repos.productoRepo.find({ where: { activo: true } });
+          if (categoriaId) productos = productos.filter(p => p.categoria?.id_categoria_producto === categoriaId);
+          if (args.soloCriticos === true) productos = productos.filter(p => esStockCritico(p.stock, p.nivel_minimo));
+          if (busqueda) productos = productos.filter(p => p.nombre_modelo.toLowerCase().includes(busqueda));
+          productos = productos.slice(0, 50);
+
+          return {
+            output: productos.map(p => ({
+              id: p.id_producto,
+              nombre: p.nombre_modelo,
+              stock: p.stock,
+              nivel_minimo: p.nivel_minimo,
+              critico: esStockCritico(p.stock, p.nivel_minimo),
+            })),
+          };
+        }
+
+        let insumos = await repos.insumoRepo.find({ where: { activo: true } });
+        if (categoriaId) insumos = insumos.filter(i => i.categoria?.id_categoria_insumo === categoriaId);
+        if (args.soloCriticos === true) insumos = insumos.filter(i => esStockCritico(i.stock, i.nivel_minimo));
+        if (busqueda) insumos = insumos.filter(i => i.nombre.toLowerCase().includes(busqueda));
+        insumos = insumos.slice(0, 50);
+
+        return {
+          output: insumos.map(i => ({
+            id: i.id_insumo,
+            nombre: i.nombre,
+            stock: Number(i.stock),
+            unidad: i.unidad_medida?.nombre ?? '—',
+            nivel_minimo: Number(i.nivel_minimo),
+            critico: esStockCritico(i.stock, i.nivel_minimo),
+          })),
+        };
+      }
+
+      case 'consultarVentas': {
+        const agrupacion = args.agrupacion === 'producto' || args.agrupacion === 'categoria' ? args.agrupacion : 'mes';
+
+        if (agrupacion === 'producto') {
+          return { output: await repos.prediccionService.getTopProductos() };
+        }
+
+        if (agrupacion === 'categoria') {
+          const rows = await repos.pedidoRepo
+            .createQueryBuilder('p')
+            .select('p.categoria', 'categoria')
+            .addSelect('COALESCE(SUM(p.total), 0)', 'total')
+            .where('p.estado = :terminado', { terminado: 'Terminado' })
+            .groupBy('p.categoria')
+            .getRawMany();
+          return { output: rows.map(r => ({ categoria: r.categoria, total: Math.round(Number(r.total) * 100) / 100 })) };
+        }
+
+        let ventas = await repos.prediccionService.getVentasPorMes();
+        const anio = parseEntero(args.anio);
+        const mes = parseEntero(args.mes);
+        if (anio) ventas = ventas.filter(v => v.mes.startsWith(String(anio)));
+        if (mes) ventas = ventas.filter(v => Number(v.mes.slice(5, 7)) === mes);
+        return { output: ventas };
+      }
+
+      case 'consultarClientes': {
+        const where: Record<string, unknown> = {};
+        if (typeof args.activo === 'boolean') where.activo = args.activo;
+
+        let clientes = await repos.clienteRepo.find({ where, order: { id_cliente: 'DESC' }, take: 200 });
+
+        const busqueda = parseTexto(args.busqueda)?.toLowerCase();
+        if (busqueda) {
+          clientes = clientes.filter(
+            c => c.nombre.toLowerCase().includes(busqueda) || (c.apellido ?? '').toLowerCase().includes(busqueda),
+          );
+        }
+
+        if (args.conPedidoActivo === true) {
+          const pedidosActivos = await repos.pedidoRepo.find({ where: { estado: Not('Terminado') } });
+          const idsConPedido = new Set(pedidosActivos.map(p => p.cliente?.id_cliente));
+          clientes = clientes.filter(c => idsConPedido.has(c.id_cliente));
+        }
+
+        clientes = clientes.slice(0, 50);
+
+        return {
+          output: clientes.map(c => ({
+            id: c.id_cliente,
+            nombre: `${c.nombre} ${c.apellido ?? ''}`.trim(),
+            tipo: c.tipo_cliente?.nombre ?? '—',
+            activo: c.activo,
+            telefono: c.telefono_principal,
+          })),
+        };
+      }
+
+      case 'consultarKardex': {
+        const where: Record<string, unknown> = {};
+        const productoId = parseEntero(args.productoId);
+        const insumoId = parseEntero(args.insumoId);
+        if (productoId) where.producto = { id_producto: productoId };
+        if (insumoId) where.insumo = { id_insumo: insumoId };
+
+        if (typeof args.tipo === 'string' && ['entrada', 'salida', 'ajuste'].includes(args.tipo)) where.tipo = args.tipo;
+        if (typeof args.tipoRegistro === 'string' && ['producto', 'insumo'].includes(args.tipoRegistro)) {
+          where.tipo_registro = args.tipoRegistro;
+        }
+        if (typeof args.origen === 'string' && ['manual', 'automatico'].includes(args.origen)) where.origen = args.origen;
+
+        const desde = parseFechaISO(args.desde);
+        const hasta = parseFechaISO(args.hasta);
+        if (desde && hasta) where.fecha = Between(new Date(desde), new Date(`${hasta}T23:59:59`));
+        else if (desde) where.fecha = MoreThanOrEqual(new Date(desde));
+        else if (hasta) where.fecha = LessThanOrEqual(new Date(`${hasta}T23:59:59`));
+
+        const limite = clampLimite(args.limite);
+        const movimientos = await repos.kardexRepo.find({
+          where,
+          relations: ['producto', 'insumo', 'usuario'],
+          order: { fecha: 'DESC' },
+          take: limite,
+        });
+
+        return {
+          output: movimientos.map(m => ({
+            fecha: m.fecha.toISOString().slice(0, 10),
+            tipo: m.tipo,
+            item: m.tipo_registro === 'producto' ? (m.producto?.nombre_modelo ?? '—') : (m.insumo?.nombre ?? '—'),
+            cantidad: Number(m.cantidad),
+            stock_anterior: Number(m.stock_anterior),
+            stock_nuevo: Number(m.stock_nuevo),
+            motivo: m.motivo ?? '—',
+            origen: m.origen,
+            usuario: m.usuario?.nombre ?? m.usuario?.email ?? '—',
+          })),
+        };
+      }
+
+      case 'consultarPrediccionStock': {
+        let prediccion = await repos.prediccionService.getPrediccionStock();
+        const productoId = parseEntero(args.productoId);
+        if (productoId) prediccion = prediccion.filter(p => p.id === productoId);
+        return { output: prediccion };
+      }
+
+      case 'consultarKpisDashboard': {
+        return { output: await repos.kpiService.getKpis() };
+      }
+
+      case 'consultarAuditoria': {
+        const where: Record<string, unknown> = {};
+        const modulo = parseTexto(args.modulo, 50);
+        if (modulo) where.modulo = modulo;
+        const usuarioId = parseEntero(args.usuarioId);
+        if (usuarioId) where.usuario = { id: usuarioId };
+
+        const desde = parseFechaISO(args.desde);
+        const hasta = parseFechaISO(args.hasta);
+        if (desde && hasta) where.fecha = Between(new Date(desde), new Date(`${hasta}T23:59:59`));
+        else if (desde) where.fecha = MoreThanOrEqual(new Date(desde));
+        else if (hasta) where.fecha = LessThanOrEqual(new Date(`${hasta}T23:59:59`));
+
+        const limite = clampLimite(args.limite);
+        const registros = await repos.auditoriaRepo.find({
+          where,
+          relations: ['usuario'],
+          order: { fecha: 'DESC' },
+          take: limite,
+        });
+
+        return {
+          output: registros.map(a => ({
+            fecha: a.fecha.toISOString().slice(0, 10),
+            accion: a.accion,
+            modulo: a.modulo,
+            descripcion: a.descripcion,
+            usuario: a.usuario?.nombre ?? a.usuario?.email ?? '—',
+          })),
+        };
+      }
+
+      default:
+        return { error: 'Función no reconocida.' };
+    }
+  } catch {
+    // Nunca se propaga el detalle real del error (stack, mensaje de la BD) al modelo.
+    return { error: 'Ocurrió un error al consultar la información.' };
+  }
+}
