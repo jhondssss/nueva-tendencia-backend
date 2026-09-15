@@ -142,6 +142,19 @@ export const TOOL_DECLARATIONS: AssistantToolDeclaration[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'consultarTopClientes',
+    description:
+      'Clientes que más compraron, agregado por SUM de totales de pedidos con estado Terminado y ordenado de mayor a menor total. La agregación se calcula en el backend (SQL), no en el modelo.',
+    parameters: {
+      type: 'object',
+      properties: {
+        mes: { type: 'integer', minimum: 1, maximum: 12 },
+        limite: { type: 'integer', minimum: 1, maximum: 20 },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -158,6 +171,7 @@ export const TOOL_PERMISSIONS: Record<string, Role[]> = {
   consultarPrediccionStock: [Role.ADMIN, Role.OPERARIO],
   consultarKpisDashboard: [Role.ADMIN, Role.OPERARIO],
   consultarAuditoria: [Role.ADMIN],
+  consultarTopClientes: [Role.ADMIN, Role.OPERARIO],
 };
 
 /** Tools que se declaran al modelo para un rol dado. Un rol sin permiso para
@@ -487,6 +501,42 @@ export async function executeTool(
             modulo: a.modulo,
             descripcion: a.descripcion,
             usuario: a.usuario?.nombre ?? a.usuario?.email ?? '—',
+          })),
+        };
+      }
+
+      case 'consultarTopClientes': {
+        const limite = clampLimite(args.limite, 5, 20);
+        const mes = parseEntero(args.mes);
+
+        const qb = repos.pedidoRepo
+          .createQueryBuilder('p')
+          .leftJoin('p.cliente', 'cliente')
+          .select('cliente.id_cliente', 'id_cliente')
+          .addSelect('cliente.nombre', 'nombre')
+          .addSelect('cliente.apellido', 'apellido')
+          .addSelect('COALESCE(SUM(p.total), 0)', 'total')
+          .addSelect('COUNT(*)', 'cantidad_pedidos')
+          .where('p.estado = :terminado', { terminado: 'Terminado' });
+
+        if (mes && mes >= 1 && mes <= 12) {
+          qb.andWhere('EXTRACT(MONTH FROM p.fecha_entrega) = :mes', { mes });
+        }
+
+        const rows = await qb
+          .groupBy('cliente.id_cliente')
+          .addGroupBy('cliente.nombre')
+          .addGroupBy('cliente.apellido')
+          .orderBy('total', 'DESC')
+          .limit(limite)
+          .getRawMany();
+
+        return {
+          output: rows.map(r => ({
+            id: Number(r.id_cliente),
+            nombre: `${r.nombre} ${r.apellido ?? ''}`.trim(),
+            total: Math.round(Number(r.total) * 100) / 100,
+            cantidad_pedidos: Number(r.cantidad_pedidos),
           })),
         };
       }

@@ -109,6 +109,7 @@ describe('AssistantService · function calling (mock de Groq)', () => {
     expect(nombresDeclarados).not.toContain('consultarKardex');
     expect(nombresDeclarados).not.toContain('consultarAuditoria');
     expect(nombresDeclarados).not.toContain('consultarClientes');
+    expect(nombresDeclarados).not.toContain('consultarTopClientes');
     expect(nombresDeclarados).toContain('consultarPedidos');
   });
 

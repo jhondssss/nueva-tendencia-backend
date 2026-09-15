@@ -72,6 +72,21 @@ describe('assistant-tools · executeTool · autorización por rol', () => {
     const result = await executeTool('borrarTodo', {}, { role: Role.ADMIN }, repos);
     expect(result).toEqual({ error: expect.any(String) });
   });
+
+  it('rechaza consultarTopClientes para rol cliente sin ejecutar ninguna consulta', async () => {
+    const pedidoRepo = { find: jest.fn(), createQueryBuilder: jest.fn() };
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any });
+
+    const result = await executeTool(
+      'consultarTopClientes',
+      { limite: 5 },
+      { role: Role.CLIENTE, clienteId: 42 },
+      repos,
+    );
+
+    expect(result).toEqual({ error: expect.any(String) });
+    expect(pedidoRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
 });
 
 describe('assistant-tools · executeTool · scoping de cliente', () => {
@@ -151,5 +166,41 @@ describe('assistant-tools · executeTool · consultarCatalogoProductos no filtra
     const output = (result as any).output;
     expect(output).toHaveLength(1);
     expect(output[0].costo_unidad).toBe(120);
+  });
+});
+
+describe('assistant-tools · executeTool · consultarTopClientes', () => {
+  it('agrega en SQL (SUM por cliente, ordenado desc) y devuelve el resultado ya resuelto', async () => {
+    const rows = [
+      { id_cliente: '1', nombre: 'Ana', apellido: 'Pérez', total: '500.00', cantidad_pedidos: '3' },
+      { id_cliente: '2', nombre: 'Luis', apellido: null, total: '200.00', cantidad_pedidos: '1' },
+    ];
+    const qb: any = {
+      leftJoin: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      groupBy: jest.fn().mockReturnThis(),
+      addGroupBy: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      getRawMany: jest.fn().mockResolvedValue(rows),
+    };
+    const pedidoRepo = { find: jest.fn(), createQueryBuilder: jest.fn().mockReturnValue(qb) };
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any });
+
+    const result = await executeTool('consultarTopClientes', { mes: 9, limite: 2 }, { role: Role.ADMIN }, repos);
+
+    expect(pedidoRepo.createQueryBuilder).toHaveBeenCalledWith('p');
+    expect(qb.where).toHaveBeenCalledWith('p.estado = :terminado', { terminado: 'Terminado' });
+    expect(qb.andWhere).toHaveBeenCalledWith('EXTRACT(MONTH FROM p.fecha_entrega) = :mes', { mes: 9 });
+    expect(qb.limit).toHaveBeenCalledWith(2);
+    expect(result).toEqual({
+      output: [
+        { id: 1, nombre: 'Ana Pérez', total: 500, cantidad_pedidos: 3 },
+        { id: 2, nombre: 'Luis', total: 200, cantidad_pedidos: 1 },
+      ],
+    });
   });
 });
