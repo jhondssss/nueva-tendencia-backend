@@ -298,6 +298,7 @@ export async function executeTool(
                   nombre: p.nombre_modelo,
                   marca: p.marca,
                   precio: Number(p.precio_venta),
+                  costo_unidad: Number(p.costo_unidad),
                   stock: p.stock,
                   nivel_minimo: p.nivel_minimo,
                   categoria: p.categoria?.nombre ?? null,

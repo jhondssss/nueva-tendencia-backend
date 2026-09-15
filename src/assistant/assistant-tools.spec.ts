@@ -112,3 +112,44 @@ describe('assistant-tools · executeTool · scoping de cliente', () => {
     expect(pedidoRepo.find).not.toHaveBeenCalled();
   });
 });
+
+describe('assistant-tools · executeTool · consultarCatalogoProductos no filtra costo_unidad por rol', () => {
+  const productoMock = {
+    id_producto: 1,
+    nombre_modelo: 'Bota X',
+    marca: 'NT',
+    precio_venta: 250,
+    costo_unidad: 120,
+    stock: 10,
+    nivel_minimo: 3,
+    activo: true,
+    categoria: null,
+  };
+
+  it('nunca incluye costo_unidad en la respuesta para rol cliente (dato interno de producción)', async () => {
+    const productoRepo = { find: jest.fn().mockResolvedValue([productoMock]) };
+    const repos = buildRepos({ productoRepo: productoRepo as any });
+
+    const result = await executeTool(
+      'consultarCatalogoProductos',
+      {},
+      { role: Role.CLIENTE, clienteId: 42 },
+      repos,
+    );
+
+    const output = (result as any).output;
+    expect(output).toHaveLength(1);
+    expect(output[0]).not.toHaveProperty('costo_unidad');
+  });
+
+  it('incluye costo_unidad en la respuesta para rol admin/operario, para razonar sobre costos', async () => {
+    const productoRepo = { find: jest.fn().mockResolvedValue([productoMock]) };
+    const repos = buildRepos({ productoRepo: productoRepo as any });
+
+    const result = await executeTool('consultarCatalogoProductos', {}, { role: Role.ADMIN }, repos);
+
+    const output = (result as any).output;
+    expect(output).toHaveLength(1);
+    expect(output[0].costo_unidad).toBe(120);
+  });
+});
