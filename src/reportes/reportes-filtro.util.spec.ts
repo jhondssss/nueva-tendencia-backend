@@ -67,6 +67,52 @@ describe('buildWherePedidos', () => {
       ),
     });
   });
+
+  // campoFecha: 'fecha_entrega' — usado por Pedidos Entregados para que
+  // coincida con el mismo criterio que Ventas y Ganancias (auditoría de
+  // reportes: junio 2026 confirmó 53 pedidos / Bs. 283.926 con este rango
+  // contra fecha_entrega + estado Terminado, frente a los 36 / Bs. 253.150
+  // que daba el bug de filtrar por fecha_creacion).
+  describe('con campoFecha: fecha_entrega', () => {
+    it('filtra por rango de fechas sobre fecha_entrega, con los strings ISO tal cual (columna date, sin hora)', () => {
+      const where = buildWherePedidos({ desde: '2026-06-01', hasta: '2026-06-30' }, 'fecha_entrega');
+      expect(where).toEqual({
+        fecha_entrega: Between('2026-06-01', '2026-06-30'),
+      });
+    });
+
+    it('filtra desde una fecha en adelante si solo hay desde', () => {
+      const where = buildWherePedidos({ desde: '2026-06-01' }, 'fecha_entrega');
+      expect(where).toEqual({
+        fecha_entrega: MoreThanOrEqual('2026-06-01'),
+      });
+    });
+
+    it('filtra hasta una fecha si solo hay hasta', () => {
+      const where = buildWherePedidos({ hasta: '2026-06-30' }, 'fecha_entrega');
+      expect(where).toEqual({
+        fecha_entrega: LessThanOrEqual('2026-06-30'),
+      });
+    });
+
+    it('combina cliente/producto/categoria con el rango sobre fecha_entrega', () => {
+      const where = buildWherePedidos(
+        { cliente: 'Juan', producto: 'Bota', categoria: 'nino', desde: '2026-06-01', hasta: '2026-06-30' },
+        'fecha_entrega',
+      );
+      expect(where).toEqual({
+        cliente: { nombre: Like('%Juan%') },
+        producto: { nombre_modelo: Like('%Bota%') },
+        categoria: 'nino',
+        fecha_entrega: Between('2026-06-01', '2026-06-30'),
+      });
+    });
+
+    it('sin filtro sigue devolviendo un where vacío', () => {
+      expect(buildWherePedidos(undefined, 'fecha_entrega')).toEqual({});
+      expect(buildWherePedidos({}, 'fecha_entrega')).toEqual({});
+    });
+  });
 });
 
 describe('buildWhereKardex', () => {

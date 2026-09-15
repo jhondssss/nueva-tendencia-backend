@@ -506,7 +506,7 @@ export class PdfService implements IReportePDF {
 
   async generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
-      where: { ...buildWherePedidos(filtro), estado: 'Terminado' },
+      where: { ...buildWherePedidos(filtro, 'fecha_entrega'), estado: 'Terminado' },
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });

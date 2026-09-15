@@ -7,25 +7,43 @@ import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
 /** Construye el `where` de TypeORM para los reportes de pedidos a partir de un
  * filtro opcional. Mismo patrón (cliente/producto por Like, rango de fechas con
  * Between/MoreThanOrEqual/LessThanOrEqual) que ya usa PedidoCrudService.findAll
- * y findByClienteId, pero sin atarlo a un cliente_id. */
-export function buildWherePedidos(filtro?: PedidoReporteFiltroDto): FindOptionsWhere<Pedido> {
+ * y findByClienteId, pero sin atarlo a un cliente_id.
+ *
+ * `campoFecha` decide sobre qué columna cae el rango `desde`/`hasta`:
+ * - 'fecha_creacion' (default): cuándo se creó el pedido — usado por el
+ *   reporte general de Pedidos, que incluye pedidos en cualquier estado.
+ * - 'fecha_entrega': cuándo se entregó — usado por Pedidos Entregados, para
+ *   que coincida con el mismo criterio que Ventas y Ganancias. Es columna
+ *   `date` (sin hora), así que el rango se arma con los strings ISO tal cual,
+ *   sin pasar por Date/hora local. */
+export function buildWherePedidos(
+  filtro?: PedidoReporteFiltroDto,
+  campoFecha: 'fecha_creacion' | 'fecha_entrega' = 'fecha_creacion',
+): FindOptionsWhere<Pedido> {
   if (!filtro) return {};
   const { cliente, producto, categoria, desde, hasta } = filtro;
 
-  const rangoFecha =
-    desde && hasta
-      ? Between(new Date(`${desde}T00:00:00`), new Date(`${hasta}T23:59:59.999`))
-      : desde
-        ? MoreThanOrEqual(new Date(`${desde}T00:00:00`))
-        : hasta
-          ? LessThanOrEqual(new Date(`${hasta}T23:59:59.999`))
-          : undefined;
+  const rangoFecha = campoFecha === 'fecha_entrega'
+    ? (desde && hasta
+        ? Between(desde, hasta)
+        : desde
+          ? MoreThanOrEqual(desde)
+          : hasta
+            ? LessThanOrEqual(hasta)
+            : undefined)
+    : (desde && hasta
+        ? Between(new Date(`${desde}T00:00:00`), new Date(`${hasta}T23:59:59.999`))
+        : desde
+          ? MoreThanOrEqual(new Date(`${desde}T00:00:00`))
+          : hasta
+            ? LessThanOrEqual(new Date(`${hasta}T23:59:59.999`))
+            : undefined);
 
   return {
     ...(cliente  && { cliente:  { nombre:        Like(`%${cliente}%`)  } }),
     ...(producto && { producto: { nombre_modelo: Like(`%${producto}%`) } }),
     ...(categoria && { categoria }),
-    ...(rangoFecha && { fecha_creacion: rangoFecha }),
+    ...(rangoFecha && { [campoFecha]: rangoFecha }),
   };
 }
 

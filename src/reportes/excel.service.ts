@@ -308,7 +308,7 @@ export class ExcelService implements IReporteExcel {
 
   async exportarExcelPedidosEntregados(filtro?: PedidoReporteFiltroDto): Promise<Buffer> {
     const pedidos = await this.pedidoRepo.find({
-      where: { ...buildWherePedidos(filtro), estado: 'Terminado' },
+      where: { ...buildWherePedidos(filtro, 'fecha_entrega'), estado: 'Terminado' },
       relations: ['cliente', 'producto'],
       order: { id_pedido: 'ASC' },
     });

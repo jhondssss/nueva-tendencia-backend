@@ -99,7 +99,8 @@ export class ReportesController {
     res.end(buffer);
   }
 
-  /** GET /reportes/pdf/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
+  /** GET /reportes/pdf/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta=
+   * desde/hasta filtran por fecha_entrega (mismo criterio que Ventas y Ganancias). */
   @Roles('admin', 'operario')
   @AllowDownloadToken()
   @Get('pdf/pedidos-entregados')
@@ -151,7 +152,8 @@ export class ReportesController {
 
   // ── Excel endpoints ────────────────────────────────────────────────────────
 
-  /** GET /reportes/excel/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
+  /** GET /reportes/excel/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta=
+   * desde/hasta filtran por fecha_entrega (mismo criterio que Ventas y Ganancias). */
   @Roles('admin', 'operario')
   @AllowDownloadToken()
   @Get('excel/pedidos-entregados')

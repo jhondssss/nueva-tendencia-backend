@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Between } from 'typeorm';
 import * as ExcelJS from 'exceljs';
 import { ExcelService } from './excel.service';
 import { Pedido } from '../pedido/entities/pedido.entity';
@@ -85,6 +86,33 @@ describe('ExcelService', () => {
       const ws = wb.getWorksheet('Stock')!;
 
       expect(ws.rowCount).toBe(1);
+    });
+  });
+
+  describe('exportarExcelPedidosEntregados', () => {
+    // Caso real de la auditoría de reportes (junio 2026): filtrar por
+    // fecha_entrega + estado Terminado da 53 pedidos / Bs. 283.926 — el
+    // mismo criterio "oficial" que usan Ventas y Ganancias. Antes del fix,
+    // el reporte filtraba por fecha_creacion (36 pedidos / Bs. 253.150 para
+    // el mismo rango), un número distinto para el mismo mes.
+    it('filtra por fecha_entrega y la fila TOTAL coincide con el total oficial de junio 2026 (Bs. 283.926)', async () => {
+      mockPedidoRepo.find.mockResolvedValue([
+        { id_pedido: 1, cliente: { nombre: 'Juan', id_cliente: 1 }, producto: { nombre_modelo: 'Bota' }, categoria: 'adulto', cantidad: 1, unidad: 'docena', cantidad_pares: 12, total: 150000, fecha_entrega: '2026-06-10' },
+        { id_pedido: 2, cliente: { nombre: 'Ana', id_cliente: 2 }, producto: { nombre_modelo: 'Sandalia' }, categoria: 'nino', cantidad: 1, unidad: 'par', cantidad_pares: 1, total: 133926, fecha_entrega: '2026-06-25' },
+      ]);
+
+      const buffer = await service.exportarExcelPedidosEntregados({ desde: '2026-06-01', hasta: '2026-06-30' });
+
+      expect(mockPedidoRepo.find).toHaveBeenCalledWith({
+        where: { fecha_entrega: Between('2026-06-01', '2026-06-30'), estado: 'Terminado' },
+        relations: ['cliente', 'producto'],
+        order: { id_pedido: 'ASC' },
+      });
+
+      const wb = await readWorkbook(buffer as any);
+      const ws = wb.getWorksheet('Pedidos Entregados')!;
+      const totalRow = ws.getRow(4); // fila 2 y 3 son datos, fila 4 es el total
+      expect(totalRow.getCell(9).value).toBe(283926); // columna 'Total (Bs.)'
     });
   });
 
