@@ -12,6 +12,7 @@ import type { ChatCompletionMessageParam, ChatCompletionTool } from 'groq-sdk/re
 import { esStockCritico } from '../common/stock-critico';
 import { PrediccionService } from '../dashboard/prediccion.service';
 import { KpiService } from '../dashboard/kpi.service';
+import { DownloadTokenService } from '../auth/download-token.service';
 import { buildToolsForRole, executeTool, AssistantRepos } from './assistant-tools';
 
 export interface ChatMessage {
@@ -21,6 +22,8 @@ export interface ChatMessage {
 
 export interface AssistantUser {
   role: string;
+  userId?: number;
+  email?: string;
   clienteId?: number;
 }
 
@@ -68,6 +71,7 @@ export class AssistantService {
     @InjectRepository(Auditoria)        private readonly auditoriaRepo: Repository<Auditoria>,
     private readonly prediccionService: PrediccionService,
     private readonly kpiService: KpiService,
+    private readonly downloadTokenService: DownloadTokenService,
   ) {
     const apiKey = process.env.GROQ_API_KEY;
     this.logger.debug(`GROQ_API_KEY presente: ${!!apiKey}`);
@@ -81,6 +85,7 @@ export class AssistantService {
       auditoriaRepo: this.auditoriaRepo,
       prediccionService: this.prediccionService,
       kpiService: this.kpiService,
+      downloadTokenService: this.downloadTokenService,
     };
   }
 
@@ -482,7 +487,12 @@ ${listaCatalogo}
         ? await this.buildContextCliente(user!.clienteId!)
         : await this.buildContextInterno();
 
-      const assistantUser: AssistantUser = { role: user?.role ?? '', clienteId: user?.clienteId };
+      const assistantUser: AssistantUser = {
+        role: user?.role ?? '',
+        userId: user?.userId,
+        email: user?.email,
+        clienteId: user?.clienteId,
+      };
       const toolDeclarations = buildToolsForRole(assistantUser.role);
       const tools: ChatCompletionTool[] | undefined =
         toolDeclarations.length > 0

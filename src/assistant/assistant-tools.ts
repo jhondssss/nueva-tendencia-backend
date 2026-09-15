@@ -9,6 +9,7 @@ import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { PrediccionService } from '../dashboard/prediccion.service';
 import { KpiService } from '../dashboard/kpi.service';
 import { esStockCritico } from '../common/stock-critico';
+import { DownloadTokenService } from '../auth/download-token.service';
 import type { AssistantUser } from './assistant.service';
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -223,6 +224,7 @@ export interface AssistantRepos {
   auditoriaRepo: Repository<Auditoria>;
   prediccionService: PrediccionService;
   kpiService: KpiService;
+  downloadTokenService: DownloadTokenService;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -613,6 +615,10 @@ export async function executeTool(
           return { error: 'No tenés permiso para generar ese reporte.' };
         }
 
+        if (!user.userId) {
+          return { error: 'No se pudo identificar tu usuario para generar el enlace de descarga.' };
+        }
+
         const filtros = (typeof args.filtros === 'object' && args.filtros !== null ? args.filtros : {}) as Record<
           string,
           unknown
@@ -691,9 +697,19 @@ export async function executeTool(
           }
         }
 
+        // Se inyecta un token de descarga de un solo uso (misma lógica que
+        // POST /reportes/download-token) para que el enlace funcione en una
+        // navegación directa fuera de la sesión del chat, sin depender de que
+        // la cookie de sesión llegue cross-site.
+        const token = repos.downloadTokenService.generar({
+          sub: user.userId,
+          email: user.email,
+          role: user.role,
+        });
+        params.set('token', token);
+
         const baseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-        const queryString = params.toString();
-        const url = `${baseUrl}/reportes/${ruta}${queryString ? `?${queryString}` : ''}`;
+        const url = `${baseUrl}/reportes/${ruta}?${params.toString()}`;
 
         return { output: { url, descripcion } };
       }

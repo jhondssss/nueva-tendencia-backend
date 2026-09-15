@@ -9,11 +9,13 @@ import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { DashboardModule } from '../dashboard/dashboard.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Pedido, Cliente, Producto, Insumo, KardexMovimiento, Auditoria]),
     DashboardModule,
+    AuthModule,
   ],
   controllers: [AssistantController],
   providers: [AssistantService],

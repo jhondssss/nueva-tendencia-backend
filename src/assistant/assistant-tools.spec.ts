@@ -12,6 +12,7 @@ function buildRepos(overrides: Partial<AssistantRepos> = {}): AssistantRepos {
     auditoriaRepo: emptyRepo as any,
     prediccionService: {} as any,
     kpiService: {} as any,
+    downloadTokenService: { generar: jest.fn().mockReturnValue('mock-token') } as any,
     ...overrides,
   };
 }
@@ -269,7 +270,7 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     const repos = buildRepos();
 
     for (const tipo of ['pedidos', 'stock', 'kardex', 'pedidos-entregados']) {
-      const result = await executeTool('generarReporte', { tipo }, { role: Role.OPERARIO }, repos);
+      const result = await executeTool('generarReporte', { tipo }, { role: Role.OPERARIO, userId: 1 }, repos);
       expect(result).toHaveProperty('output.url');
     }
   });
@@ -281,11 +282,11 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     const result: any = await executeTool(
       'generarReporte',
       { tipo: 'ventas', filtros: { anio: 2025 } },
-      { role: Role.ADMIN },
+      { role: Role.ADMIN, userId: 1 },
       repos,
     );
 
-    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/ventas?year=2025');
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/ventas?year=2025&token=mock-token');
     expect(result.output.descripcion).toBe('Reporte de ventas 2025');
   });
 
@@ -293,9 +294,9 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     delete process.env.BACKEND_URL;
     const repos = buildRepos();
 
-    const result: any = await executeTool('generarReporte', { tipo: 'stock' }, { role: Role.ADMIN }, repos);
+    const result: any = await executeTool('generarReporte', { tipo: 'stock' }, { role: Role.ADMIN, userId: 1 }, repos);
 
-    expect(result.output.url).toBe('http://localhost:3000/reportes/pdf/stock');
+    expect(result.output.url).toBe('http://localhost:3000/reportes/pdf/stock?token=mock-token');
   });
 
   it('arma la URL de ganancias con mes y año, y una descripción legible', async () => {
@@ -305,11 +306,13 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     const result: any = await executeTool(
       'generarReporte',
       { tipo: 'ganancias', filtros: { mes: 9, anio: 2026 } },
-      { role: Role.ADMIN },
+      { role: Role.ADMIN, userId: 1 },
       repos,
     );
 
-    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/ganancias?month=9&year=2026');
+    expect(result.output.url).toBe(
+      'https://api.nueva-tendencia.com/reportes/pdf/ganancias?month=9&year=2026&token=mock-token',
+    );
     expect(result.output.descripcion).toBe('Reporte de ganancias de septiembre 2026');
   });
 
@@ -323,12 +326,12 @@ describe('assistant-tools · executeTool · generarReporte', () => {
         tipo: 'pedidos',
         filtros: { cliente: 'Ana', categoria: 'adulto', desde: '2026-09-01', hasta: '2026-09-30' },
       },
-      { role: Role.ADMIN },
+      { role: Role.ADMIN, userId: 1 },
       repos,
     );
 
     expect(result.output.url).toBe(
-      'https://api.nueva-tendencia.com/reportes/pdf/pedidos?cliente=Ana&categoria=adulto&desde=2026-09-01&hasta=2026-09-30',
+      'https://api.nueva-tendencia.com/reportes/pdf/pedidos?cliente=Ana&categoria=adulto&desde=2026-09-01&hasta=2026-09-30&token=mock-token',
     );
     expect(result.output.descripcion).toBe('Reporte de pedidos (2026-09-01 a 2026-09-30)');
   });
@@ -340,12 +343,12 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     const result: any = await executeTool(
       'generarReporte',
       { tipo: 'kardex', filtros: { insumoId: 7, tipoMovimiento: 'salida', origen: 'manual' } },
-      { role: Role.ADMIN },
+      { role: Role.ADMIN, userId: 1 },
       repos,
     );
 
     expect(result.output.url).toBe(
-      'https://api.nueva-tendencia.com/reportes/pdf/kardex?insumo_id=7&tipo=salida&origen=manual',
+      'https://api.nueva-tendencia.com/reportes/pdf/kardex?insumo_id=7&tipo=salida&origen=manual&token=mock-token',
     );
   });
 
@@ -356,10 +359,32 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     const result: any = await executeTool(
       'generarReporte',
       { tipo: 'stock', filtros: { categoria: 'gigante' } },
-      { role: Role.ADMIN },
+      { role: Role.ADMIN, userId: 1 },
       repos,
     );
 
-    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/stock');
+    expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/stock?token=mock-token');
+  });
+
+  it('genera el token de descarga con el sub, email y rol del usuario del chat', async () => {
+    const generar = jest.fn().mockReturnValue('un-token-real');
+    const repos = buildRepos({ downloadTokenService: { generar } as any });
+
+    await executeTool(
+      'generarReporte',
+      { tipo: 'stock' },
+      { role: Role.ADMIN, userId: 7, email: 'admin@nt.com' },
+      repos,
+    );
+
+    expect(generar).toHaveBeenCalledWith({ sub: 7, email: 'admin@nt.com', role: Role.ADMIN });
+  });
+
+  it('rechaza generarReporte si no se puede identificar el usuario (sin userId)', async () => {
+    const repos = buildRepos();
+
+    const result = await executeTool('generarReporte', { tipo: 'stock' }, { role: Role.ADMIN }, repos);
+
+    expect(result).toEqual({ error: expect.any(String) });
   });
 });

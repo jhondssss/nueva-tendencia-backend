@@ -9,6 +9,7 @@ import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { PrediccionService } from '../dashboard/prediccion.service';
 import { KpiService } from '../dashboard/kpi.service';
+import { DownloadTokenService } from '../auth/download-token.service';
 
 // Se mockea el SDK de Groq para probar la mecánica del loop de function
 // calling (ejecución de tools, corte por MAX_TOOL_ROUNDS, filtrado de tools
@@ -66,6 +67,7 @@ describe('AssistantService · function calling (mock de Groq)', () => {
         { provide: getRepositoryToken(Auditoria), useValue: emptyRepo() },
         { provide: PrediccionService, useValue: { getVentasPorMes: jest.fn().mockResolvedValue([]) } },
         { provide: KpiService, useValue: { getKpis: jest.fn().mockResolvedValue({}) } },
+        { provide: DownloadTokenService, useValue: { generar: jest.fn().mockReturnValue('mock-token') } },
       ],
     }).compile();
 

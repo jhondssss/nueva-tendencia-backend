@@ -14,6 +14,8 @@ export class AssistantController {
   ): Promise<{ response: string }> {
     const response = await this.assistantService.chat(body.message, body.history, {
       role: req.user?.role,
+      userId: req.user?.sub,
+      email: req.user?.email,
       clienteId: req.user?.clienteId,
     });
     return { response };
