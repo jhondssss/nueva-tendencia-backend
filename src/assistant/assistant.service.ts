@@ -7,7 +7,7 @@ import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { esStockCritico } from '../common/stock-critico';
 import { PrediccionService } from '../dashboard/prediccion.service';
 
@@ -50,8 +50,9 @@ El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta 
 @Injectable()
 export class AssistantService {
   private readonly logger = new Logger(AssistantService.name);
-  private readonly modelInterno: GenerativeModel | null;
-  private readonly modelCliente: GenerativeModel | null;
+  private readonly genAI: GoogleGenAI | null;
+  private static readonly MODEL_NAME = 'gemini-flash-latest';
+  private static readonly TEMPERATURE = 0.3;
 
   constructor(
     @InjectRepository(Pedido)           private readonly pedidoRepo:   Repository<Pedido>,
@@ -64,22 +65,7 @@ export class AssistantService {
   ) {
     const apiKey = process.env.GEMINI_API_KEY;
     this.logger.debug(`GEMINI_API_KEY presente: ${!!apiKey}`);
-    if (apiKey) {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      this.modelInterno = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: { temperature: 0.3 },
-        systemInstruction: SYSTEM_PROMPT_INTERNO,
-      });
-      this.modelCliente = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
-        generationConfig: { temperature: 0.3 },
-        systemInstruction: SYSTEM_PROMPT_CLIENTE,
-      });
-    } else {
-      this.modelInterno = null;
-      this.modelCliente = null;
-    }
+    this.genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -471,9 +457,7 @@ ${listaCatalogo}
       return 'No encuentro una cuenta de cliente asociada a tu usuario. Por favor contactá al soporte de Nueva Tendencia para que revisen tu cuenta. 😊';
     }
 
-    const model = isCliente ? this.modelCliente : this.modelInterno;
-
-    if (!model) {
+    if (!this.genAI) {
       return this.fallbackChat(message, user);
     }
 
@@ -498,10 +482,17 @@ ${listaCatalogo}
         })),
       ];
 
-      const chatSession = model.startChat({ history: geminiHistory });
+      const chatSession = this.genAI.chats.create({
+        model: AssistantService.MODEL_NAME,
+        config: {
+          temperature: AssistantService.TEMPERATURE,
+          systemInstruction: isCliente ? SYSTEM_PROMPT_CLIENTE : SYSTEM_PROMPT_INTERNO,
+        },
+        history: geminiHistory,
+      });
       this.logger.debug(`Llamando a Gemini con mensaje: ${message.slice(0, 100)}`);
-      const result = await chatSession.sendMessage(message);
-      return result.response.text().trim();
+      const result = await chatSession.sendMessage({ message });
+      return (result.text ?? '').trim();
     } catch (err) {
       this.logger.error(`Gemini falló: ${err?.message} (status ${err?.status})`, err?.stack);
       return this.fallbackChat(message, user);

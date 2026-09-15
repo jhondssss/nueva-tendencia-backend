@@ -23,7 +23,7 @@
     "migration:show": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:show -d data-source.ts"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^2.22.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
