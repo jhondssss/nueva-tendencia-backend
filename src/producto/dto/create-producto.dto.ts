@@ -5,6 +5,7 @@ import {
 import { Transform } from 'class-transformer';
 
 export class CreateProductoDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty({ message: 'El nombre del modelo es obligatorio' })
   nombre_modelo: string;

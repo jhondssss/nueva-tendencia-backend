@@ -1019,6 +1019,11 @@ export class PdfService implements IReportePDF {
     const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
     const clienteNombre = `${pedido.cliente?.nombre ?? '—'} ${pedido.cliente?.apellido ?? ''}`.trim();
 
+    const cueroInsumo = pedido.cuero_insumo_id
+      ? await this.insumoRepo.findOneBy({ id_insumo: pedido.cuero_insumo_id })
+      : null;
+    const tipoCuero = cueroInsumo ? cueroInsumo.nombre.replace(/^Cuero\s+/i, '') : '—';
+
     const { doc, finish } = this.buildDoc();
     this.buildHeader(doc, `Comprobante de Pedido #${pedido.id_pedido}`, usuario);
 
@@ -1027,6 +1032,7 @@ export class PdfService implements IReportePDF {
       ['Cliente', clienteNombre || '—'],
       ['Producto', pedido.producto?.nombre_modelo ?? '—'],
       ['Categoría', pedido.categoria ? catMap[pedido.categoria] : '—'],
+      ['Tipo de cuero', tipoCuero],
       ['Cantidad de pares', String(pedido.cantidad_pares ?? 0)],
       ['Estado', pedido.estado],
       ['Fecha de pedido', pedido.fecha_creacion ? this.fmtDate(pedido.fecha_creacion) : '—'],
@@ -1050,13 +1056,43 @@ export class PdfService implements IReportePDF {
       const tWidths = [247, 248];
       y = this.buildTable(doc, doc.y, ['Talla', 'Cantidad de Pares'], tWidths);
       const tallasHeaders = { labels: ['Talla', 'Cantidad de Pares'], widths: tWidths };
+      let sumaTallas = 0;
       [...pedido.talles]
         .sort((a, b) => a.talla - b.talla)
         .forEach((t, i) => {
+          sumaTallas += t.cantidad_pares;
           y = this.maybePageBreak(doc, y, 40, tallasHeaders);
           y = this.drawDataRow(doc, y, [String(t.talla), String(t.cantidad_pares)], tWidths, ['center', 'center'], i % 2 === 1);
         });
+
+      y = this.maybePageBreak(doc, y, 40, tallasHeaders);
+      y = this.buildFooter(doc, y, ['TOTAL', String(sumaTallas)], tWidths);
     }
+
+    doc.y = y;
+    doc.moveDown(1.5);
+    y = this.maybePageBreak(doc, doc.y, 120);
+    doc.y = y;
+
+    doc
+      .fillColor(CAFE).fontSize(10).font('Helvetica-Bold')
+      .text('Recibí conforme');
+    doc.moveDown(1.5);
+
+    const firmaY = doc.y;
+    doc.moveTo(50, firmaY).lineTo(280, firmaY).strokeColor('#888888').lineWidth(0.5).stroke();
+    doc.moveDown(0.4);
+    doc.fillColor('#333333').fontSize(9).font('Helvetica').text('Firma', 50);
+
+    doc.moveDown(1);
+    doc.fillColor('#333333').fontSize(9).font('Helvetica').text('Nombre: ____________________________');
+    doc.moveDown(0.6);
+    doc.fillColor('#333333').fontSize(9).font('Helvetica').text('Fecha: ____________________________');
+
+    doc.moveDown(1.5);
+    doc
+      .fillColor('#999999').fontSize(7).font('Helvetica-Oblique')
+      .text('Documento interno de la empresa — no válido como factura fiscal.', { align: 'center' });
 
     this.addPageNumbers(doc);
     doc.end();

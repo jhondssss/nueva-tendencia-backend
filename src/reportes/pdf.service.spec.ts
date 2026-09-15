@@ -30,7 +30,7 @@ describe('PdfService', () => {
     getMany: jest.fn(),
   };
   const mockProductoRepo = { createQueryBuilder: jest.fn(() => mockQueryBuilder) };
-  const mockInsumoRepo = { createQueryBuilder: jest.fn(() => mockQueryBuilder) };
+  const mockInsumoRepo = { createQueryBuilder: jest.fn(() => mockQueryBuilder), findOneBy: jest.fn() };
   const mockKardexRepo = { find: jest.fn() };
 
   beforeEach(async () => {
@@ -229,6 +229,25 @@ describe('PdfService', () => {
 
       const buffer = await service.generarComprobantePedido(42);
 
+      expectValidPdf(buffer);
+    });
+
+    it('incluye el tipo de cuero cuando el pedido tiene cuero_insumo_id (caso feliz)', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue({ ...pedidoBase, cuero_insumo_id: 14 });
+      mockInsumoRepo.findOneBy.mockResolvedValue({ id_insumo: 14, nombre: 'Cuero Nubuck' });
+
+      const buffer = await service.generarComprobantePedido(42);
+
+      expect(mockInsumoRepo.findOneBy).toHaveBeenCalledWith({ id_insumo: 14 });
+      expectValidPdf(buffer);
+    });
+
+    it('muestra "—" como tipo de cuero cuando el pedido no tiene cuero_insumo_id (caso borde)', async () => {
+      mockPedidoRepo.findOne.mockResolvedValue({ ...pedidoBase, cuero_insumo_id: null });
+
+      const buffer = await service.generarComprobantePedido(42);
+
+      expect(mockInsumoRepo.findOneBy).not.toHaveBeenCalled();
       expectValidPdf(buffer);
     });
   });
