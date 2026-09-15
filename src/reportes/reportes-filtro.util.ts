@@ -3,6 +3,7 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
+import { matchClienteNombreCompleto } from '../common/cliente-nombre.util';
 
 /** Construye el `where` de TypeORM para los reportes de pedidos a partir de un
  * filtro opcional. Mismo patrón (cliente/producto por Like, rango de fechas con
@@ -40,7 +41,7 @@ export function buildWherePedidos(
             : undefined);
 
   return {
-    ...(cliente  && { cliente:  { nombre:        Like(`%${cliente}%`)  } }),
+    ...(cliente  && { cliente:  { nombre: matchClienteNombreCompleto(cliente) } }),
     ...(producto && { producto: { nombre_modelo: Like(`%${producto}%`) } }),
     ...(categoria && { categoria }),
     ...(rangoFecha && { [campoFecha]: rangoFecha }),

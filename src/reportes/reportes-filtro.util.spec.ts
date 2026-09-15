@@ -1,5 +1,16 @@
-import { Between, Like, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Between, FindOperator, Like, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { buildWherePedidos, buildWhereKardex } from './reportes-filtro.util';
+
+/** El operador de cliente ya no es un `Like` simple (ver matchClienteNombreCompleto),
+ * así que en vez de comparar por igualdad de objeto verificamos que el SQL que
+ * genera busca contra nombre Y apellido combinados, con el alias que le pase
+ * TypeORM en tiempo de consulta (simulado acá con 'cliente.nombre'). */
+function sqlDeOperadorCliente(op: unknown): string {
+  const raw = op as FindOperator<string>;
+  expect(raw.type).toBe('raw');
+  expect(raw.getSql).toBeDefined();
+  return raw.getSql!('cliente.nombre');
+}
 
 describe('buildWherePedidos', () => {
   it('devuelve un where vacío si no se pasa filtro', () => {
@@ -10,9 +21,35 @@ describe('buildWherePedidos', () => {
     expect(buildWherePedidos({})).toEqual({});
   });
 
-  it('filtra por cliente con Like', () => {
-    const where = buildWherePedidos({ cliente: 'Juan' });
-    expect(where).toEqual({ cliente: { nombre: Like('%Juan%') } });
+  it('filtra por cliente contra nombre y apellido combinados (nombre completo con apellido)', () => {
+    const where = buildWherePedidos({ cliente: 'Carlos Mamani Flores' });
+    const sql = sqlDeOperadorCliente((where.cliente as { nombre: unknown }).nombre);
+    expect(sql).toContain('"cliente"."nombre"');
+    expect(sql).toContain('"cliente"."apellido"');
+    expect(sql).toContain('ILIKE');
+    expect(((where.cliente as { nombre: FindOperator<string> }).nombre.objectLiteralParameters)).toEqual({
+      clienteBusqueda: '%Carlos Mamani Flores%',
+    });
+  });
+
+  it('filtra por cliente cuando solo se pasa el nombre de pila', () => {
+    const where = buildWherePedidos({ cliente: 'Carlos' });
+    const sql = sqlDeOperadorCliente((where.cliente as { nombre: unknown }).nombre);
+    expect(sql).toContain('"cliente"."nombre"');
+    expect(sql).toContain('"cliente"."apellido"');
+    expect(((where.cliente as { nombre: FindOperator<string> }).nombre.objectLiteralParameters)).toEqual({
+      clienteBusqueda: '%Carlos%',
+    });
+  });
+
+  it('filtra por cliente cuando solo se pasa el apellido', () => {
+    const where = buildWherePedidos({ cliente: 'Mamani Flores' });
+    const sql = sqlDeOperadorCliente((where.cliente as { nombre: unknown }).nombre);
+    expect(sql).toContain('"cliente"."nombre"');
+    expect(sql).toContain('"cliente"."apellido"');
+    expect(((where.cliente as { nombre: FindOperator<string> }).nombre.objectLiteralParameters)).toEqual({
+      clienteBusqueda: '%Mamani Flores%',
+    });
   });
 
   it('filtra por producto con Like', () => {
@@ -57,8 +94,9 @@ describe('buildWherePedidos', () => {
       desde: '2026-01-01',
       hasta: '2026-01-31',
     });
-    expect(where).toEqual({
-      cliente: { nombre: Like('%Juan%') },
+    const { cliente, ...resto } = where as { cliente: { nombre: unknown } } & Record<string, unknown>;
+    expect(sqlDeOperadorCliente(cliente.nombre)).toContain('"cliente"."apellido"');
+    expect(resto).toEqual({
       producto: { nombre_modelo: Like('%Bota%') },
       categoria: 'nino',
       fecha_creacion: Between(
@@ -100,8 +138,9 @@ describe('buildWherePedidos', () => {
         { cliente: 'Juan', producto: 'Bota', categoria: 'nino', desde: '2026-06-01', hasta: '2026-06-30' },
         'fecha_entrega',
       );
-      expect(where).toEqual({
-        cliente: { nombre: Like('%Juan%') },
+      const { cliente, ...resto } = where as { cliente: { nombre: unknown } } & Record<string, unknown>;
+      expect(sqlDeOperadorCliente(cliente.nombre)).toContain('"cliente"."apellido"');
+      expect(resto).toEqual({
         producto: { nombre_modelo: Like('%Bota%') },
         categoria: 'nino',
         fecha_entrega: Between('2026-06-01', '2026-06-30'),

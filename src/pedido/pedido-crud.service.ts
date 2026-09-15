@@ -16,6 +16,7 @@ import { TelegramService } from '../telegram/telegram.service';
 import { IPedidoCrudService } from './interfaces/pedido.interface';
 import { paginate } from '../common/pagination';
 import { PARES_POR_UNIDAD } from '../common/constants';
+import { matchClienteNombreCompleto } from '../common/cliente-nombre.util';
 
 @Injectable()
 export class PedidoCrudService implements IPedidoCrudService {
@@ -119,7 +120,7 @@ export class PedidoCrudService implements IPedidoCrudService {
   async findAll(clienteNombre?: string, productoNombre?: string, page = 1, limit = 30) {
     const [data, total] = await this.pedidoRepo.findAndCount({
       where: {
-        ...(clienteNombre  && { cliente:  { nombre:        Like(`%${clienteNombre}%`)  } }),
+        ...(clienteNombre  && { cliente:  { nombre: matchClienteNombreCompleto(clienteNombre) } }),
         ...(productoNombre && { producto: { nombre_modelo: Like(`%${productoNombre}%`) } }),
       },
       relations: ['cliente', 'producto', 'talles'],

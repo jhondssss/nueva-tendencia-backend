@@ -159,7 +159,10 @@ export const TOOL_DECLARATIONS: AssistantToolDeclaration[] = [
   {
     name: 'generarReporte',
     description:
-      'Genera la URL de descarga de un reporte PDF que ya existe en el sistema (ventas, pedidos, stock, kardex, pedidos entregados o ganancias). No genera el archivo en este momento: solo devuelve la URL al endpoint real y una descripción corta para mostrar como texto del enlace. El navegador del usuario debe abrir esa URL para descargar el PDF (la sesión ya autenticada se envía automáticamente por cookie). No disponible para el rol cliente: los reportes son información interna del negocio.',
+      'Genera la URL de descarga de un reporte PDF que ya existe en el sistema (ventas, pedidos, stock, kardex, pedidos entregados o ganancias). No genera el archivo en este momento: solo devuelve la URL al endpoint real y una descripción corta para mostrar como texto del enlace. El navegador del usuario debe abrir esa URL para descargar el PDF (la sesión ya autenticada se envía automáticamente por cookie). No disponible para el rol cliente: los reportes son información interna del negocio. ' +
+      'IMPORTANTE sobre "filtros": completalo únicamente con lo que el usuario pide EXPLÍCITAMENTE en su mensaje ACTUAL, nunca lo infieras ni lo arrastres de turnos anteriores de la conversación, aunque se haya hablado de un cliente o pedido puntual antes. ' +
+      'Ejemplo negativo: si antes se habló del pedido #215 de "Carlos" y ahora el usuario dice "generame el reporte" o "dame el reporte de pedidos" sin nombrar a Carlos en ESE mensaje, no agregues filtros.cliente="Carlos" — generá el reporte sin ese filtro. ' +
+      'Ejemplo positivo: si el usuario dice "reporte de pedidos de Carlos" en su mensaje actual, ahí sí corresponde filtros.cliente="Carlos".',
     parameters: {
       type: 'object',
       properties: {
@@ -174,8 +177,18 @@ export const TOOL_DECLARATIONS: AssistantToolDeclaration[] = [
             mes: { type: 'integer', minimum: 1, maximum: 12 },
             desde: { type: 'string', format: 'date' },
             hasta: { type: 'string', format: 'date' },
-            cliente: { type: 'string', maxLength: 100 },
-            producto: { type: 'string', maxLength: 100 },
+            cliente: {
+              type: 'string',
+              maxLength: 100,
+              description:
+                'Solo si el usuario nombra a un cliente explícitamente en su mensaje ACTUAL pidiendo el reporte. No lo completes por un cliente mencionado en turnos anteriores de la conversación.',
+            },
+            producto: {
+              type: 'string',
+              maxLength: 100,
+              description:
+                'Solo si el usuario nombra un producto explícitamente en su mensaje ACTUAL pidiendo el reporte. No lo completes por un producto mencionado en turnos anteriores de la conversación.',
+            },
             categoria: { type: 'string', enum: ['nino', 'juvenil', 'adulto'] },
             insumoId: { type: 'integer' },
             categoriaInsumoId: { type: 'integer' },
@@ -459,9 +472,10 @@ export async function executeTool(
 
         const busqueda = parseTexto(args.busqueda)?.toLowerCase();
         if (busqueda) {
-          clientes = clientes.filter(
-            c => c.nombre.toLowerCase().includes(busqueda) || (c.apellido ?? '').toLowerCase().includes(busqueda),
-          );
+          // Contra nombre y apellido combinados, no solo nombre: un nombre completo
+          // como "Carlos Mamani Flores" no matchea contra ninguno de los dos campos
+          // por separado (son columnas distintas en la BD).
+          clientes = clientes.filter(c => `${c.nombre} ${c.apellido ?? ''}`.toLowerCase().includes(busqueda));
         }
 
         if (args.conPedidoActivo === true) {
