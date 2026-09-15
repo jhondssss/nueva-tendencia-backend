@@ -1,19 +1,42 @@
-import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ReportesService } from './reportes.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { AllowDownloadToken } from '../auth/decorators/allow-download-token.decorator';
+import { DownloadTokenService, DOWNLOAD_TOKEN_TTL_SECONDS } from '../auth/download-token.service';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
 import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
 
 @Controller('reportes')
 export class ReportesController {
-  constructor(private readonly reportesService: ReportesService) {}
+  constructor(
+    private readonly reportesService: ReportesService,
+    private readonly downloadTokenService: DownloadTokenService,
+  ) {}
+
+  /**
+   * Token de un solo uso (2 min) para autorizar UNA descarga puntual de un
+   * endpoint de este controller vía navegación directa (window.open), donde
+   * no se puede adjuntar el header Authorization ni depender de la cookie de
+   * sesión (bloqueo de cookies de terceros en navegación cross-site).
+   */
+  @Roles('admin', 'operario')
+  @Post('download-token')
+  crearTokenDescarga(@Req() req: any) {
+    const token = this.downloadTokenService.generar({
+      sub: req.user.sub,
+      email: req.user.email,
+      role: req.user.role,
+    });
+    return { token, expiresIn: DOWNLOAD_TOKEN_TTL_SECONDS };
+  }
 
   // ── PDF endpoints ──────────────────────────────────────────────────────────
 
   /** GET /reportes/pdf/ventas?year=2025 */
   @Roles('admin')
+  @AllowDownloadToken()
   @Get('pdf/ventas')
   async pdfVentas(@Query('year') year: string, @Res() res: Response, @Req() req: any) {
     const y = parseInt(year, 10) || new Date().getFullYear();
@@ -28,6 +51,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/pedidos?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('pdf/pedidos')
   async pdfPedidos(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response, @Req() req: any) {
     const buffer = await this.reportesService.generarPDFPedidos(filtro, req.user?.email);
@@ -41,6 +65,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/stock?categoria= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('pdf/stock')
   async pdfStock(@Query() filtro: StockReporteFiltroDto, @Res() res: Response, @Req() req: any) {
     const buffer = await this.reportesService.generarPDFStock(filtro, req.user?.email);
@@ -54,6 +79,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/stock-critico?categoria= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('pdf/stock-critico')
   async pdfStockCritico(@Query() filtro: StockReporteFiltroDto, @Res() res: Response, @Req() req: any) {
     const buffer = await this.reportesService.generarPDFStock(filtro, req.user?.email);
@@ -67,6 +93,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('pdf/pedidos-entregados')
   async pdfPedidosEntregados(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response, @Req() req: any) {
     const buffer = await this.reportesService.generarPDFPedidosEntregados(filtro, req.user?.email);
@@ -80,6 +107,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/ganancias?month=3&year=2026 */
   @Roles('admin')
+  @AllowDownloadToken()
   @Get('pdf/ganancias')
   async pdfGanancias(
     @Query('month') month: string,
@@ -101,6 +129,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/kardex?desde=&hasta=&insumo_id=&tipo=&origen=&categoria_insumo_id= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('pdf/kardex')
   async pdfKardex(@Query() filtro: KardexReporteFiltroDto, @Res() res: Response, @Req() req: any) {
     const buffer = await this.reportesService.generarPDFKardex(filtro, req.user?.email);
@@ -116,6 +145,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/pedidos-entregados?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('excel/pedidos-entregados')
   async excelPedidosEntregados(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelPedidosEntregados(filtro);
@@ -130,6 +160,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/ganancias?month=3&year=2026 */
   @Roles('admin')
+  @AllowDownloadToken()
   @Get('excel/ganancias')
   async excelGanancias(
     @Query('month') month: string,
@@ -151,6 +182,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/pedidos?cliente=&producto=&categoria=&desde=&hasta= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('excel/pedidos')
   async excelPedidos(@Query() filtro: PedidoReporteFiltroDto, @Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelPedidos(filtro);
@@ -165,6 +197,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/clientes */
   @Roles('admin')
+  @AllowDownloadToken()
   @Get('excel/clientes')
   async excelClientes(@Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelClientes();
@@ -179,6 +212,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/stock?categoria= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('excel/stock')
   async excelStock(@Query() filtro: StockReporteFiltroDto, @Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelStock(filtro);
@@ -193,6 +227,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/kardex?desde=&hasta=&insumo_id=&tipo=&origen=&categoria_insumo_id= */
   @Roles('admin', 'operario')
+  @AllowDownloadToken()
   @Get('excel/kardex')
   async excelKardex(@Query() filtro: KardexReporteFiltroDto, @Res() res: Response) {
     const buffer = await this.reportesService.exportarExcelKardex(filtro);
@@ -216,6 +251,7 @@ export class ReportesController {
 
   /** GET /reportes/pdf/diario */
   @Roles('admin')
+  @AllowDownloadToken()
   @Get('pdf/diario')
   async pdfDiario(@Res() res: Response, @Req() req: any) {
     const now    = new Date();
@@ -231,6 +267,7 @@ export class ReportesController {
 
   /** GET /reportes/excel/diario */
   @Roles('admin')
+  @AllowDownloadToken()
   @Get('excel/diario')
   async excelDiario(@Res() res: Response) {
     const now    = new Date();

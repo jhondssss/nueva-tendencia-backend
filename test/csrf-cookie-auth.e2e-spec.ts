@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { CsrfGuard } from '../src/auth/guards/csrf.guard';
 import { RolesGuard } from '../src/auth/guards/roles.guard';
+import { DownloadTokenService } from '../src/auth/download-token.service';
 import { ACCESS_TOKEN_COOKIE } from '../src/auth/auth.constants';
 
 const JWT_SECRET_TEST = 'secreto-de-test';
@@ -37,6 +38,10 @@ class RecursoDePruebaController {
   imports: [JwtModule.register({ secret: JWT_SECRET_TEST, signOptions: { expiresIn: '1h' } })],
   controllers: [RecursoDePruebaController],
   providers: [
+    // Este test no ejercita tokens de descarga (ningún endpoint tiene
+    // @AllowDownloadToken()), así que alcanza con un stub — RolesGuard solo
+    // necesita la dependencia resuelta en el constructor.
+    { provide: DownloadTokenService, useValue: { consumir: jest.fn() } },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
   ],

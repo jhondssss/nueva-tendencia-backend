@@ -10,15 +10,18 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { ALLOW_DOWNLOAD_TOKEN_KEY } from '../decorators/allow-download-token.decorator';
 import { ACCESS_TOKEN_COOKIE } from '../auth.constants';
+import { DownloadTokenService } from '../download-token.service';
 
-export type AuthSource = 'cookie' | 'header';
+export type AuthSource = 'cookie' | 'header' | 'download-token';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
+    private readonly downloadTokenService: DownloadTokenService,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -32,20 +35,39 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const { token, source } = this.extractToken(request);
 
-    if (!token) {
-      throw new UnauthorizedException('Token de autenticación no proporcionado');
-    }
+    let payload: { sub: number; email?: string; role: string; clienteId?: number };
 
-    let payload: { sub: number; email: string; role: string; clienteId?: number };
-    try {
-      payload = this.jwtService.verify(token);
-    } catch {
-      throw new UnauthorizedException('Token inválido o expirado');
+    if (token) {
+      try {
+        payload = this.jwtService.verify(token);
+      } catch {
+        throw new UnauthorizedException('Token inválido o expirado');
+      }
+      (request as any).authSource = source;
+    } else {
+      // Sin cookie ni header: en endpoints marcados con @AllowDownloadToken()
+      // se acepta como última alternativa un token de descarga de un solo uso
+      // por query param (ver DownloadTokenService) — pensado para navegación
+      // directa (window.open) donde no se puede adjuntar Authorization ni
+      // depender de que la cookie de sesión haya llegado.
+      const allowsDownloadToken = this.reflector.getAllAndOverride<boolean>(
+        ALLOW_DOWNLOAD_TOKEN_KEY,
+        [context.getHandler(), context.getClass()],
+      );
+      const queryToken = allowsDownloadToken
+        ? (request.query?.token as string | undefined)
+        : undefined;
+
+      if (!queryToken) {
+        throw new UnauthorizedException('Token de autenticación no proporcionado');
+      }
+
+      payload = this.downloadTokenService.consumir(queryToken);
+      (request as any).authSource = 'download-token';
     }
 
     const role = payload.role;
     (request as any).user = payload;
-    (request as any).authSource = source;
 
     // Verificar roles requeridos por @Roles('admin') en el endpoint
     const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [

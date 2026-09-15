@@ -2,6 +2,7 @@
 import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { DownloadTokenService } from './download-token.service';
 import { UserModule } from '../user/user.module';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -31,7 +32,8 @@ import { MailModule } from '../mail/mail.module';
       },
     }),
   ],
-  providers: [AuthService],
+  providers: [AuthService, DownloadTokenService],
   controllers: [AuthController],
+  exports: [DownloadTokenService],
 })
 export class AuthModule {}

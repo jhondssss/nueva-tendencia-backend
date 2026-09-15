@@ -9,17 +9,16 @@ import {
   Post,
   Query,
   Req,
-  UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserService } from './user.service';
 
+// RolesGuard ya se aplica globalmente vía APP_GUARD (ver app.module.ts);
+// @Roles('admin') alcanza para restringir este controller.
 @Controller('users')
-@UseGuards(RolesGuard)
 @Roles('admin')
 export class UserController {
   constructor(private readonly userService: UserService) {}

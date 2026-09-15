@@ -4,21 +4,26 @@ import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
+import { ALLOW_DOWNLOAD_TOKEN_KEY } from '../decorators/allow-download-token.decorator';
+import { DownloadTokenService } from '../download-token.service';
 
 describe('RolesGuard', () => {
   let guard: RolesGuard;
   let jwtService: { verify: jest.Mock };
   let reflector: { getAllAndOverride: jest.Mock };
+  let downloadTokenService: { consumir: jest.Mock };
 
   const buildContext = (
     method: string,
     authHeader?: string,
     cookies?: Record<string, string>,
+    query?: Record<string, string>,
   ): ExecutionContext => {
     const request: any = {
       method,
       headers: authHeader ? { authorization: authHeader } : {},
       cookies: cookies ?? {},
+      query: query ?? {},
     };
     return {
       getHandler: () => ({}),
@@ -27,10 +32,15 @@ describe('RolesGuard', () => {
     } as unknown as ExecutionContext;
   };
 
-  const setMetadata = (isPublic: boolean | undefined, roles: string[] | undefined) => {
+  const setMetadata = (
+    isPublic: boolean | undefined,
+    roles: string[] | undefined,
+    allowDownloadToken?: boolean,
+  ) => {
     reflector.getAllAndOverride.mockImplementation((key: string) => {
       if (key === IS_PUBLIC_KEY) return isPublic;
       if (key === ROLES_KEY) return roles;
+      if (key === ALLOW_DOWNLOAD_TOKEN_KEY) return allowDownloadToken;
       return undefined;
     });
   };
@@ -38,7 +48,12 @@ describe('RolesGuard', () => {
   beforeEach(() => {
     jwtService = { verify: jest.fn() };
     reflector = { getAllAndOverride: jest.fn() };
-    guard = new RolesGuard(jwtService as unknown as JwtService, reflector as unknown as Reflector);
+    downloadTokenService = { consumir: jest.fn() };
+    guard = new RolesGuard(
+      jwtService as unknown as JwtService,
+      reflector as unknown as Reflector,
+      downloadTokenService as unknown as DownloadTokenService,
+    );
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -187,6 +202,76 @@ describe('RolesGuard', () => {
       const context = buildContext('GET', 'Bearer token');
 
       expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    });
+  });
+
+  describe('token de descarga por query param (@AllowDownloadToken)', () => {
+    it('permite la descarga con un token de descarga válido cuando no hay cookie ni header', () => {
+      setMetadata(false, ['admin', 'operario'], true);
+      downloadTokenService.consumir.mockReturnValue({
+        sub: 1,
+        email: 'admin@nt.com',
+        role: 'admin',
+        typ: 'download',
+        jti: 'jti-1',
+      });
+      const context = buildContext('GET', undefined, undefined, { token: 'token-descarga-valido' });
+
+      expect(guard.canActivate(context)).toBe(true);
+      expect(downloadTokenService.consumir).toHaveBeenCalledWith('token-descarga-valido');
+      expect(jwtService.verify).not.toHaveBeenCalled();
+      const request = context.switchToHttp().getRequest();
+      expect(request.authSource).toBe('download-token');
+    });
+
+    it('rechaza el token de descarga si el rol que trae no está habilitado para el endpoint, aunque el token sea válido en su firma', () => {
+      setMetadata(false, ['admin'], true);
+      downloadTokenService.consumir.mockReturnValue({
+        sub: 9,
+        email: 'cliente@nt.com',
+        role: 'cliente',
+        typ: 'download',
+        jti: 'jti-cliente',
+      });
+      const context = buildContext('GET', undefined, undefined, { token: 'token-de-cliente' });
+
+      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+      expect(downloadTokenService.consumir).toHaveBeenCalledWith('token-de-cliente');
+    });
+
+    it('propaga el rechazo del servicio si el token de descarga expiró o ya fue usado', () => {
+      setMetadata(false, ['admin', 'operario'], true);
+      downloadTokenService.consumir.mockImplementation(() => {
+        throw new UnauthorizedException('Token de descarga inválido o expirado');
+      });
+      const context = buildContext('GET', undefined, undefined, { token: 'token-expirado' });
+
+      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    });
+
+    it('ignora el token de descarga por query param si el endpoint no tiene @AllowDownloadToken()', () => {
+      setMetadata(false, ['admin', 'operario'], false);
+      const context = buildContext('GET', undefined, undefined, { token: 'token-descarga-valido' });
+
+      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      expect(downloadTokenService.consumir).not.toHaveBeenCalled();
+    });
+
+    it('sigue exigiendo cookie/header cuando no se manda ningún token de descarga', () => {
+      setMetadata(false, ['admin', 'operario'], true);
+      const context = buildContext('GET');
+
+      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      expect(downloadTokenService.consumir).not.toHaveBeenCalled();
+    });
+
+    it('prioriza la cookie/header por sobre el token de descarga si ambos están presentes', () => {
+      setMetadata(false, ['admin', 'operario'], true);
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
+      const context = buildContext('GET', undefined, { access_token: 'token-cookie' }, { token: 'token-descarga' });
+
+      expect(guard.canActivate(context)).toBe(true);
+      expect(downloadTokenService.consumir).not.toHaveBeenCalled();
     });
   });
 });

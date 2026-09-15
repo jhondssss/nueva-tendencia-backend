@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards, Req, Res } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -9,7 +9,6 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CambiarPasswordInicialDto } from './dto/cambiar-password-inicial.dto';
 import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
-import { RolesGuard } from './guards/roles.guard';
 import { ACCESS_TOKEN_COOKIE } from './auth.constants';
 
 /**
@@ -70,7 +69,6 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
-  @UseGuards(RolesGuard)
   @Roles('admin')
   @Post('register-operario')
   async registerOperario(@Body() registerDto: RegisterDto) {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from '../auth/auth.module';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
 import { Producto } from '../producto/entities/producto.entity';
@@ -14,6 +15,7 @@ import { ReportesController } from './reportes.controller';
 
 @Module({
   imports: [
+    AuthModule,
     TypeOrmModule.forFeature([
       Pedido, Cliente, Producto,
       Insumo, KardexMovimiento, Auditoria,
