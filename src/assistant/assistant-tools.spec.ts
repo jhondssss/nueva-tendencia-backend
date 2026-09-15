@@ -275,7 +275,7 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     }
   });
 
-  it('arma la URL de ventas con la base del backend y el año pedido', async () => {
+  it('arma la URL de ventas con la base del backend y el año pedido, sin mes (todos los meses)', async () => {
     process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
     const repos = buildRepos();
 
@@ -287,7 +287,24 @@ describe('assistant-tools · executeTool · generarReporte', () => {
     );
 
     expect(result.output.url).toBe('https://api.nueva-tendencia.com/reportes/pdf/ventas?year=2025&token=mock-token');
-    expect(result.output.descripcion).toBe('Reporte de ventas 2025');
+    expect(result.output.descripcion).toBe('Reporte de ventas — Todos los meses (2025)');
+  });
+
+  it('arma la URL de ventas con mes+año cuando se pide un mes específico', async () => {
+    process.env.BACKEND_URL = 'https://api.nueva-tendencia.com';
+    const repos = buildRepos();
+
+    const result: any = await executeTool(
+      'generarReporte',
+      { tipo: 'ventas', filtros: { mes: 9, anio: 2026 } },
+      { role: Role.ADMIN, userId: 1 },
+      repos,
+    );
+
+    expect(result.output.url).toBe(
+      'https://api.nueva-tendencia.com/reportes/pdf/ventas?year=2026&month=9&token=mock-token',
+    );
+    expect(result.output.descripcion).toBe('Reporte de ventas — Septiembre 2026');
   });
 
   it('usa http://localhost:3000 como base cuando no hay BACKEND_URL configurado', async () => {

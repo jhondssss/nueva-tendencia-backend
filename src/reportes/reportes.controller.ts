@@ -34,16 +34,24 @@ export class ReportesController {
 
   // ── PDF endpoints ──────────────────────────────────────────────────────────
 
-  /** GET /reportes/pdf/ventas?year=2025 */
+  /** GET /reportes/pdf/ventas?year=2025&month=9 (month es opcional: sin él, desglose de los 12 meses) */
   @Roles('admin')
   @AllowDownloadToken()
   @Get('pdf/ventas')
-  async pdfVentas(@Query('year') year: string, @Res() res: Response, @Req() req: any) {
+  async pdfVentas(
+    @Query('year') year: string,
+    @Query('month') month: string,
+    @Res() res: Response,
+    @Req() req: any,
+  ) {
     const y = parseInt(year, 10) || new Date().getFullYear();
-    const buffer = await this.reportesService.generarPDFVentas(y, req.user?.email);
+    const mParsed = parseInt(month, 10);
+    const m = mParsed >= 1 && mParsed <= 12 ? mParsed : undefined;
+    const buffer = await this.reportesService.generarPDFVentas(y, req.user?.email, m);
+    const filename = m ? `ventas-${y}-${String(m).padStart(2, '0')}.pdf` : `ventas-${y}.pdf`;
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="ventas-${y}.pdf"`,
+      'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Length': String(buffer.length),
     });
     res.end(buffer);

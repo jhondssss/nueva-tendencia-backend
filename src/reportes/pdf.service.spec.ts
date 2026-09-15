@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { Between } from 'typeorm';
 import { PdfService } from './pdf.service';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
@@ -63,6 +64,28 @@ describe('PdfService', () => {
       mockPedidoRepo.find.mockResolvedValue([]);
 
       const buffer = await service.generarPDFVentas(2026);
+
+      expectValidPdf(buffer);
+    });
+
+    it('con mes+año, desglosa por día en lugar de por mes (comportamiento actual sin filtro sigue intacto)', async () => {
+      mockPedidoRepo.find.mockResolvedValue([
+        { fecha_entrega: '2026-09-05', total: 400 },
+        { fecha_entrega: '2026-09-20', total: 600 },
+      ]);
+
+      const buffer = await service.generarPDFVentas(2026, 'admin@nt.com', 9);
+
+      expectValidPdf(buffer);
+      expect(mockPedidoRepo.find).toHaveBeenCalledWith({
+        where: { estado: 'Terminado', fecha_entrega: Between('2026-09-01', '2026-09-30') },
+      });
+    });
+
+    it('con mes+año sin ventas en el mes, no revienta por división entre cero (caso borde)', async () => {
+      mockPedidoRepo.find.mockResolvedValue([]);
+
+      const buffer = await service.generarPDFVentas(2026, undefined, 2);
 
       expectValidPdf(buffer);
     });

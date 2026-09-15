@@ -197,7 +197,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 ### Reportes — `/reportes` (todos exigen JWT vía `@Roles`, ninguno es `@Public()`)
 | Método | Ruta | Auth | Descripción |
 |--------|------|------|-------------|
-| GET | `/reportes/pdf/ventas?year=` | Admin | PDF de ventas por año |
+| GET | `/reportes/pdf/ventas?year=&month=` | Admin | PDF de ventas por año (month opcional: sin él, desglose de los 12 meses; con él, desglose diario de ese mes) |
 | GET | `/reportes/pdf/pedidos` | Admin, operario | PDF de pedidos |
 | GET | `/reportes/pdf/stock` | Admin, operario | PDF de stock crítico |
 | GET | `/reportes/pdf/pedidos-entregados` | Admin, operario | PDF de pedidos entregados |

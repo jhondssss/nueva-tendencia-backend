@@ -640,7 +640,14 @@ export async function executeTool(
           case 'ventas': {
             const anioReporte = anio ?? new Date().getFullYear();
             params.set('year', String(anioReporte));
-            descripcion = `Reporte de ventas ${anioReporte}`;
+            if (mes && mes >= 1 && mes <= 12) {
+              params.set('month', String(mes));
+              const nombreMes = MESES_NOMBRE[mes - 1];
+              const nombreMesCapitalizado = nombreMes.charAt(0).toUpperCase() + nombreMes.slice(1);
+              descripcion = `Reporte de ventas — ${nombreMesCapitalizado} ${anioReporte}`;
+            } else {
+              descripcion = `Reporte de ventas — Todos los meses (${anioReporte})`;
+            }
             break;
           }
 

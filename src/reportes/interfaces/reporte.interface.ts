@@ -5,7 +5,7 @@ import { StockReporteFiltroDto } from '../dto/stock-reporte-filtro.dto';
 import { KardexReporteFiltroDto } from '../dto/kardex-reporte-filtro.dto';
 
 export interface IReportePDF {
-  generarPDFVentas(year: number, usuario?: string): Promise<Buffer>;
+  generarPDFVentas(year: number, usuario?: string, month?: number): Promise<Buffer>;
   generarPDFPedidos(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFStock(filtro?: StockReporteFiltroDto, usuario?: string): Promise<Buffer>;
   generarPDFPedidosEntregados(filtro?: PedidoReporteFiltroDto, usuario?: string): Promise<Buffer>;

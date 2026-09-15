@@ -200,7 +200,11 @@ export class PdfService implements IReportePDF {
   // a) PDF — Ventas por Mes
   // ══════════════════════════════════════════════════════════════════════════
 
-  async generarPDFVentas(year: number, usuario?: string): Promise<Buffer> {
+  async generarPDFVentas(year: number, usuario?: string, month?: number): Promise<Buffer> {
+    if (month && month >= 1 && month <= 12) {
+      return this.generarPDFVentasDelMes(year, month, usuario);
+    }
+
     const pedidos = await this.pedidoRepo.find({
       where: { estado: 'Terminado', fecha_entrega: Between(`${year}-01-01`, `${year}-12-31`) as any },
     });
@@ -229,6 +233,51 @@ export class PdfService implements IReportePDF {
         grandTotal > 0 ? `${((totalesMes[i] / grandTotal) * 100).toFixed(1)} %` : '—',
       ], widths, aligns, i % 2 === 1);
     });
+
+    y = this.maybePageBreak(doc, y, 28, ventasHeaders);
+    this.buildFooter(doc, y, ['TOTAL', this.fmtMonto(grandTotal), '100 %'], widths);
+
+    this.addPageNumbers(doc);
+    doc.end();
+    return finish;
+  }
+
+  /** Desglose diario de ventas de un mes puntual (misma tabla, granularidad de día en vez de mes). */
+  private async generarPDFVentasDelMes(year: number, month: number, usuario?: string): Promise<Buffer> {
+    const mm = String(month).padStart(2, '0');
+    const lastDay = new Date(year, month, 0).getDate();
+    const pedidos = await this.pedidoRepo.find({
+      where: {
+        estado: 'Terminado',
+        fecha_entrega: Between(`${year}-${mm}-01`, `${year}-${mm}-${String(lastDay).padStart(2, '0')}`) as any,
+      },
+    });
+
+    const totalesDia = Array<number>(lastDay).fill(0);
+    for (const p of pedidos) {
+      const s = (p.fecha_entrega ? new Date(p.fecha_entrega) : new Date()).toISOString().slice(0, 10);
+      const diaIdx = parseInt(s.split('-')[2], 10) - 1;
+      if (diaIdx >= 0 && diaIdx < lastDay) totalesDia[diaIdx] += Number(p.total);
+    }
+    const grandTotal = totalesDia.reduce((a, b) => a + b, 0);
+
+    const mesNombre = MESES[month - 1] ?? String(month);
+    const { doc, finish } = this.buildDoc();
+    this.buildHeader(doc, `Reporte de Ventas por Día — ${mesNombre} ${year}`, usuario);
+
+    const widths = [170, 163, 162];
+    const aligns: ('left' | 'right' | 'center')[] = ['left', 'right', 'right'];
+    let y = this.buildTable(doc, doc.y, ['Día', 'Ventas (Bs.)', '% del Total'], widths);
+
+    const ventasHeaders = { labels: ['Día', 'Ventas (Bs.)', '% del Total'], widths };
+    for (let d = 0; d < lastDay; d++) {
+      y = this.maybePageBreak(doc, y, 28, ventasHeaders);
+      y = this.drawDataRow(doc, y, [
+        `${String(d + 1).padStart(2, '0')}/${mm}`,
+        this.fmtMonto(totalesDia[d]),
+        grandTotal > 0 ? `${((totalesDia[d] / grandTotal) * 100).toFixed(1)} %` : '—',
+      ], widths, aligns, d % 2 === 1);
+    }
 
     y = this.maybePageBreak(doc, y, 28, ventasHeaders);
     this.buildFooter(doc, y, ['TOTAL', this.fmtMonto(grandTotal), '100 %'], widths);
