@@ -43,8 +43,12 @@ export class DiarioService implements IReporteDiario {
       relations: ['cliente', 'producto'],
     });
 
+    // "Ventas del día" usa fecha_entrega (columna date, sin hora) — mismo
+    // criterio "oficial" que ya usan Ventas, Ganancias y Pedidos Entregados.
+    // No usar fecha_actualizacion aquí: esa columna se pisa con cualquier
+    // edición del pedido y no representa cuándo se vendió.
     const pedidosTerminados = await this.pedidoRepo.find({
-      where: { estado: 'Terminado', fecha_actualizacion: Between(start, end) },
+      where: { estado: 'Terminado', fecha_entrega: fecha },
       relations: ['cliente', 'producto'],
     });
 
