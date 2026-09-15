@@ -7,7 +7,8 @@ import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { Auditoria } from '../auditoria/entities/auditoria.entity';
-import { GoogleGenAI, Part } from '@google/genai';
+import Groq from 'groq-sdk';
+import type { ChatCompletionMessageParam, ChatCompletionTool } from 'groq-sdk/resources/chat/completions';
 import { esStockCritico } from '../common/stock-critico';
 import { PrediccionService } from '../dashboard/prediccion.service';
 import { KpiService } from '../dashboard/kpi.service';
@@ -49,19 +50,11 @@ Usa emojis relevantes: 👟 pedidos, 📦 productos, ✅ entregas, ⏳ en proces
 Sé conciso pero completo. Máximo 100 palabras por respuesta.
 El usuario puede escribir con errores ortográficos o abreviaciones. Interpreta siempre la intención aunque haya errores de escritura.`;
 
-// TODO(fase-1-function-calling): la mecánica de function calling (dispatcher,
-// autorización por rol, corte por MAX_TOOL_ROUNDS) está verificada con Gemini
-// mockeado en assistant.service.spec.ts, pero NO con Gemini real todavía —
-// la cuota gratuita diaria del modelo (20 req/día para gemini-3.8-flash, al
-// que resuelve el alias 'gemini-flash-latest') se agotó durante las pruebas
-// del 2026-09-15 antes de poder correr el smoke test end-to-end. No considerar
-// esto "confirmado end-to-end" hasta correr esas 3 preguntas reales y borrar
-// este comentario.
 @Injectable()
 export class AssistantService {
   private readonly logger = new Logger(AssistantService.name);
-  private readonly genAI: GoogleGenAI | null;
-  private static readonly MODEL_NAME = 'gemini-flash-latest';
+  private readonly groq: Groq | null;
+  private static readonly MODEL_NAME = 'openai/gpt-oss-120b';
   private static readonly TEMPERATURE = 0.3;
   private static readonly MAX_TOOL_ROUNDS = 5;
   private readonly repos: AssistantRepos;
@@ -76,9 +69,9 @@ export class AssistantService {
     private readonly prediccionService: PrediccionService,
     private readonly kpiService: KpiService,
   ) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    this.logger.debug(`GEMINI_API_KEY presente: ${!!apiKey}`);
-    this.genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
+    const apiKey = process.env.GROQ_API_KEY;
+    this.logger.debug(`GROQ_API_KEY presente: ${!!apiKey}`);
+    this.groq = apiKey ? new Groq({ apiKey }) : null;
     this.repos = {
       pedidoRepo: this.pedidoRepo,
       clienteRepo: this.clienteRepo,
@@ -480,7 +473,7 @@ ${listaCatalogo}
       return 'No encuentro una cuenta de cliente asociada a tu usuario. Por favor contactá al soporte de Nueva Tendencia para que revisen tu cuenta. 😊';
     }
 
-    if (!this.genAI) {
+    if (!this.groq) {
       return this.fallbackChat(message, user);
     }
 
@@ -489,56 +482,69 @@ ${listaCatalogo}
         ? await this.buildContextCliente(user!.clienteId!)
         : await this.buildContextInterno();
 
+      const assistantUser: AssistantUser = { role: user?.role ?? '', clienteId: user?.clienteId };
+      const toolDeclarations = buildToolsForRole(assistantUser.role);
+      const tools: ChatCompletionTool[] | undefined =
+        toolDeclarations.length > 0
+          ? toolDeclarations.map(t => ({
+              type: 'function' as const,
+              function: { name: t.name, description: t.description, parameters: t.parameters },
+            }))
+          : undefined;
+
       // El contexto de BD se inyecta como primer turno del historial
-      const geminiHistory = [
+      const messages: ChatCompletionMessageParam[] = [
+        { role: 'system', content: isCliente ? SYSTEM_PROMPT_CLIENTE : SYSTEM_PROMPT_INTERNO },
+        { role: 'user', content: contexto },
         {
-          role: 'user',
-          parts: [{ text: contexto }],
-        },
-        {
-          role: 'model',
-          parts: [{ text: 'Entendido. Tengo los datos actualizados del negocio y estoy listo para responder.' }],
+          role: 'assistant',
+          content: 'Entendido. Tengo los datos actualizados del negocio y estoy listo para responder.',
         },
         ...history.map(h => ({
-          role: h.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: h.text }],
+          role: h.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+          content: h.text,
         })),
+        { role: 'user', content: message },
       ];
 
-      const assistantUser: AssistantUser = { role: user?.role ?? '', clienteId: user?.clienteId };
-      const tools = buildToolsForRole(assistantUser.role);
-
-      const chatSession = this.genAI.chats.create({
+      this.logger.debug(`Llamando a Groq con mensaje: ${message.slice(0, 100)}`);
+      let response = await this.groq.chat.completions.create({
         model: AssistantService.MODEL_NAME,
-        config: {
-          temperature: AssistantService.TEMPERATURE,
-          systemInstruction: isCliente ? SYSTEM_PROMPT_CLIENTE : SYSTEM_PROMPT_INTERNO,
-          tools: tools.length > 0 ? [{ functionDeclarations: tools }] : undefined,
-        },
-        history: geminiHistory,
+        temperature: AssistantService.TEMPERATURE,
+        messages,
+        tools,
       });
-      this.logger.debug(`Llamando a Gemini con mensaje: ${message.slice(0, 100)}`);
-      let response = await chatSession.sendMessage({ message });
+      let choice = response.choices[0];
 
       for (
         let ronda = 0;
-        response.functionCalls && response.functionCalls.length > 0 && ronda < AssistantService.MAX_TOOL_ROUNDS;
+        choice.message.tool_calls && choice.message.tool_calls.length > 0 && ronda < AssistantService.MAX_TOOL_ROUNDS;
         ronda++
       ) {
-        const responseParts: Part[] = [];
-        for (const call of response.functionCalls) {
-          this.logger.debug(`Tool call: ${call.name} ${JSON.stringify(call.args ?? {})}`);
-          const resultado = await executeTool(call.name ?? '', call.args, assistantUser, this.repos);
-          responseParts.push({
-            functionResponse: { id: call.id, name: call.name, response: resultado },
-          });
+        messages.push(choice.message);
+        for (const call of choice.message.tool_calls) {
+          let args: Record<string, unknown> = {};
+          try {
+            args = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+          } catch {
+            args = {};
+          }
+          this.logger.debug(`Tool call: ${call.function.name} ${JSON.stringify(args)}`);
+          const resultado = await executeTool(call.function.name, args, assistantUser, this.repos);
+          messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(resultado) });
         }
-        response = await chatSession.sendMessage({ message: responseParts });
+        response = await this.groq.chat.completions.create({
+          model: AssistantService.MODEL_NAME,
+          temperature: AssistantService.TEMPERATURE,
+          messages,
+          tools,
+        });
+        choice = response.choices[0];
       }
 
-      return (response.text ?? '').trim();
+      return (choice.message.content ?? '').trim();
     } catch (err) {
-      this.logger.error(`Gemini falló: ${err?.message} (status ${err?.status})`, err?.stack);
+      this.logger.error(`Groq falló: ${err?.message} (status ${err?.status})`, err?.stack);
       return this.fallbackChat(message, user);
     }
   }

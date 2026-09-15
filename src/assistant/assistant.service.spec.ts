@@ -10,20 +10,40 @@ import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { PrediccionService } from '../dashboard/prediccion.service';
 import { KpiService } from '../dashboard/kpi.service';
 
-// Se mockea el SDK de Gemini para probar la mecánica del loop de function
+// Se mockea el SDK de Groq para probar la mecánica del loop de function
 // calling (ejecución de tools, corte por MAX_TOOL_ROUNDS, filtrado de tools
-// por rol) SIN gastar cuota real de la API. Esto NO reemplaza la
-// confirmación end-to-end contra Gemini real — ver TODO en assistant.service.ts.
-const mockSendMessage = jest.fn();
-const mockCreate = jest.fn(() => ({ sendMessage: mockSendMessage }));
+// por rol) sin gastar cuota real de la API.
+const mockCreate = jest.fn();
 
-jest.mock('@google/genai', () => ({
-  GoogleGenAI: jest.fn().mockImplementation(() => ({
-    chats: { create: mockCreate },
-  })),
-}));
+jest.mock('groq-sdk', () => {
+  return jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: mockCreate } },
+  }));
+});
 
-describe('AssistantService · function calling (mock de Gemini)', () => {
+function respuestaTexto(text: string) {
+  return { choices: [{ message: { role: 'assistant', content: text, tool_calls: undefined } }] };
+}
+
+function respuestaToolCalls(calls: Array<{ id: string; name: string; args: Record<string, unknown> }>) {
+  return {
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: calls.map(c => ({
+            id: c.id,
+            type: 'function',
+            function: { name: c.name, arguments: JSON.stringify(c.args) },
+          })),
+        },
+      },
+    ],
+  };
+}
+
+describe('AssistantService · function calling (mock de Groq)', () => {
   let service: AssistantService;
   let pedidoRepo: { find: jest.Mock };
   let productoRepo: { find: jest.Mock };
@@ -31,7 +51,7 @@ describe('AssistantService · function calling (mock de Gemini)', () => {
   const emptyRepo = () => ({ find: jest.fn().mockResolvedValue([]) });
 
   beforeEach(async () => {
-    process.env.GEMINI_API_KEY = 'test-key';
+    process.env.GROQ_API_KEY = 'test-key';
     pedidoRepo = emptyRepo();
     productoRepo = emptyRepo();
 
@@ -54,36 +74,37 @@ describe('AssistantService · function calling (mock de Gemini)', () => {
 
   afterEach(() => jest.clearAllMocks());
 
-  it('ejecuta la tool pedida por Gemini contra la base real y le devuelve el resultado', async () => {
+  it('ejecuta la tool pedida por Groq contra la base real y le devuelve el resultado', async () => {
     productoRepo.find.mockResolvedValue([
       { id_producto: 1, nombre_modelo: 'Bota X', marca: 'NT', stock: 2, nivel_minimo: 5, activo: true },
     ]);
 
-    mockSendMessage
-      .mockResolvedValueOnce({
-        functionCalls: [{ name: 'consultarStock', args: { tipo: 'producto', soloCriticos: true }, id: 'call-1' }],
-      })
-      .mockResolvedValueOnce({ text: 'La Bota X tiene stock crítico.' });
+    mockCreate
+      .mockResolvedValueOnce(
+        respuestaToolCalls([{ id: 'call-1', name: 'consultarStock', args: { tipo: 'producto', soloCriticos: true } }]),
+      )
+      .mockResolvedValueOnce(respuestaTexto('La Bota X tiene stock crítico.'));
 
     const respuesta = await service.chat('¿Qué productos tienen stock crítico?', [], { role: 'admin' });
 
     expect(respuesta).toBe('La Bota X tiene stock crítico.');
     expect(productoRepo.find).toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledTimes(2);
+    expect(mockCreate).toHaveBeenCalledTimes(2);
 
-    const segundaLlamada = mockSendMessage.mock.calls[1][0];
-    const parteRespuesta = segundaLlamada.message[0].functionResponse;
-    expect(parteRespuesta.name).toBe('consultarStock');
-    expect(parteRespuesta.response.output[0].nombre).toBe('Bota X');
+    const segundaLlamada = mockCreate.mock.calls[1][0];
+    const mensajeTool = segundaLlamada.messages.at(-1);
+    expect(mensajeTool.role).toBe('tool');
+    expect(mensajeTool.tool_call_id).toBe('call-1');
+    expect(JSON.parse(mensajeTool.content).output[0].nombre).toBe('Bota X');
   });
 
   it('no declara al modelo las tools restringidas para rol cliente', async () => {
-    mockSendMessage.mockResolvedValueOnce({ text: 'Tu pedido está en camino.' });
+    mockCreate.mockResolvedValueOnce(respuestaTexto('Tu pedido está en camino.'));
 
     await service.chat('¿Cómo va mi pedido?', [], { role: 'cliente', clienteId: 7 });
 
-    const config = mockCreate.mock.calls[0][0].config;
-    const nombresDeclarados = config.tools[0].functionDeclarations.map((f: any) => f.name);
+    const primeraLlamada = mockCreate.mock.calls[0][0];
+    const nombresDeclarados = primeraLlamada.tools.map((t: any) => t.function.name);
 
     expect(nombresDeclarados).not.toContain('consultarKardex');
     expect(nombresDeclarados).not.toContain('consultarAuditoria');
@@ -92,35 +113,32 @@ describe('AssistantService · function calling (mock de Gemini)', () => {
   });
 
   it('sí declara consultarKardex y consultarAuditoria para rol admin', async () => {
-    mockSendMessage.mockResolvedValueOnce({ text: 'Listo.' });
+    mockCreate.mockResolvedValueOnce(respuestaTexto('Listo.'));
 
     await service.chat('Dame un resumen', [], { role: 'admin' });
 
-    const config = mockCreate.mock.calls[0][0].config;
-    const nombresDeclarados = config.tools[0].functionDeclarations.map((f: any) => f.name);
+    const primeraLlamada = mockCreate.mock.calls[0][0];
+    const nombresDeclarados = primeraLlamada.tools.map((t: any) => t.function.name);
 
     expect(nombresDeclarados).toContain('consultarKardex');
     expect(nombresDeclarados).toContain('consultarAuditoria');
   });
 
   it('corta el loop de tool calls en MAX_TOOL_ROUNDS aunque el modelo siga pidiendo funciones', async () => {
-    mockSendMessage.mockResolvedValue({
-      functionCalls: [{ name: 'consultarKpisDashboard', args: {}, id: 'loop' }],
-      text: '',
-    });
+    mockCreate.mockResolvedValue(respuestaToolCalls([{ id: 'loop', name: 'consultarKpisDashboard', args: {} }]));
 
     await service.chat('Dame un resumen', [], { role: 'admin' });
 
-    // 1 llamada inicial + máximo 5 rondas de tool calls = 6 llamadas a sendMessage, nunca más.
-    expect(mockSendMessage).toHaveBeenCalledTimes(6);
+    // 1 llamada inicial + máximo 5 rondas de tool calls = 6 llamadas a create, nunca más.
+    expect(mockCreate).toHaveBeenCalledTimes(6);
   });
 
   it('ignora un clienteId falso que el modelo intenta pasar en los args de una tool', async () => {
-    mockSendMessage
-      .mockResolvedValueOnce({
-        functionCalls: [{ name: 'consultarPedidos', args: { clienteId: 999, limite: 5 }, id: 'call-1' }],
-      })
-      .mockResolvedValueOnce({ text: 'Tu pedido está en camino.' });
+    mockCreate
+      .mockResolvedValueOnce(
+        respuestaToolCalls([{ id: 'call-1', name: 'consultarPedidos', args: { clienteId: 999, limite: 5 } }]),
+      )
+      .mockResolvedValueOnce(respuestaTexto('Tu pedido está en camino.'));
 
     await service.chat('¿Cómo va mi pedido?', [], { role: 'cliente', clienteId: 42 });
 

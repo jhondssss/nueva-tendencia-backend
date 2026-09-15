@@ -23,7 +23,6 @@
     "migration:show": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:show -d data-source.ts"
   },
   "dependencies": {
-    "@google/genai": "^2.22.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
@@ -42,6 +41,7 @@
     "cloudinary": "^2.9.0",
     "cookie-parser": "^1.4.7",
     "exceljs": "^4.4.0",
+    "groq-sdk": "^1.6.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",

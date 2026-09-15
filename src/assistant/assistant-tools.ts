@@ -1,5 +1,4 @@
 import { Between, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
-import type { FunctionDeclaration } from '@google/genai';
 import { Role } from '../auth/enums/role.enum';
 import { Pedido } from '../pedido/entities/pedido.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
@@ -13,15 +12,21 @@ import { esStockCritico } from '../common/stock-critico';
 import type { AssistantUser } from './assistant.service';
 
 // ══════════════════════════════════════════════════════════════════════════
-// Declaraciones expuestas a Gemini (function calling)
+// Declaraciones expuestas al modelo (function calling, formato OpenAI/Groq)
 // ══════════════════════════════════════════════════════════════════════════
 
-export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
+export interface AssistantToolDeclaration {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+export const TOOL_DECLARATIONS: AssistantToolDeclaration[] = [
   {
     name: 'consultarPedidos',
     description:
       'Lista pedidos con filtros opcionales. Para el rol cliente, siempre se devuelven únicamente los pedidos del cliente que está preguntando, sin importar qué se pida.',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         estado: { type: 'string', enum: ['Pendiente', 'Cortado', 'Aparado', 'Solado', 'Empaque', 'Terminado'] },
@@ -37,7 +42,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarCatalogoProductos',
     description: 'Catálogo de productos disponibles, con búsqueda y filtro por categoría.',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         categoriaId: { type: 'integer' },
@@ -50,7 +55,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarStock',
     description: 'Stock de productos o insumos, opcionalmente solo los que están en nivel crítico.',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         tipo: { type: 'string', enum: ['producto', 'insumo'] },
@@ -65,7 +70,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarVentas',
     description: 'Ventas agregadas por mes, por producto (mes actual) o por categoría de calzado.',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         anio: { type: 'integer', minimum: 2000, maximum: 2100 },
@@ -78,7 +83,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarClientes',
     description: 'Lista de clientes registrados en el sistema.',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         activo: { type: 'boolean' },
@@ -91,7 +96,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarKardex',
     description: 'Movimientos de inventario (Kardex) de productos o insumos: entradas, salidas y ajustes.',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         productoId: { type: 'integer' },
@@ -109,7 +114,7 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarPrediccionStock',
     description: 'Predicción de reposición de stock de productos (demanda mensual y semanas restantes).',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         productoId: { type: 'integer' },
@@ -120,12 +125,12 @@ export const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
     name: 'consultarKpisDashboard',
     description: 'Resumen de KPIs generales del negocio (ventas del mes, pedidos, alertas de stock, producción).',
-    parametersJsonSchema: { type: 'object', properties: {}, additionalProperties: false },
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'consultarAuditoria',
     description: 'Registro de auditoría del sistema (acciones realizadas, módulo, usuario responsable).',
-    parametersJsonSchema: {
+    parameters: {
       type: 'object',
       properties: {
         modulo: { type: 'string', maxLength: 50 },
@@ -157,7 +162,7 @@ export const TOOL_PERMISSIONS: Record<string, Role[]> = {
 
 /** Tools que se declaran al modelo para un rol dado. Un rol sin permiso para
  * una función ni siquiera se entera de que existe. */
-export function buildToolsForRole(role: string | undefined): FunctionDeclaration[] {
+export function buildToolsForRole(role: string | undefined): AssistantToolDeclaration[] {
   return TOOL_DECLARATIONS.filter(t => TOOL_PERMISSIONS[t.name as string]?.includes(role as Role));
 }
 
