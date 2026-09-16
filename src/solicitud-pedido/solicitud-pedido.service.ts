@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SolicitudPedido } from './entities/solicitud-pedido.entity';
@@ -152,6 +152,33 @@ export class SolicitudPedidoService {
         dto.motivo_rechazo,
       )
       .catch(() => {});
+
+    return saved;
+  }
+
+  /** Cancelación por el propio cliente dueño de la solicitud. Reutiliza el
+   * estado 'Rechazada' (sin agregar un estado nuevo al CHECK de BD) y deja
+   * constancia del origen en motivo_rechazo. */
+  async cancelar(id: number, clienteId: number) {
+    const solicitud = await this.findOneOrFail(id);
+    if (solicitud.cliente.id_cliente !== clienteId) {
+      throw new ForbiddenException('No tenés permiso para cancelar esta solicitud');
+    }
+    if (solicitud.estado !== 'Pendiente') {
+      throw new ConflictException(
+        `La solicitud #${id} ya fue ${solicitud.estado.toLowerCase()} y no se puede cancelar`,
+      );
+    }
+
+    solicitud.estado = 'Rechazada';
+    solicitud.motivo_rechazo = 'Cancelada por el cliente';
+    const saved = await this.solicitudRepo.save(solicitud);
+
+    void this.auditoriaService.registrar({
+      accion: 'UPDATE',
+      modulo: 'solicitudes-pedido',
+      descripcion: `Cliente ${solicitud.cliente.nombre} canceló su solicitud #${id}`,
+    });
 
     return saved;
   }

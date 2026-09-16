@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SolicitudPedidoService } from './solicitud-pedido.service';
 import { SolicitudPedidoController } from './solicitud-pedido.controller';
 import { SolicitudPedido } from './entities/solicitud-pedido.entity';
@@ -164,6 +164,49 @@ describe('SolicitudPedidoService', () => {
     });
   });
 
+  describe('cancelar', () => {
+    const CLIENTE_A = 1;
+    const CLIENTE_B = 2;
+    const solicitudPendiente = {
+      id_solicitud: 3,
+      estado: 'Pendiente',
+      cliente: { id_cliente: CLIENTE_A, nombre: 'Ana', correo_electronico: 'ana@test.com' },
+      producto: { id_producto: 5, nombre_modelo: 'Bota X' },
+    };
+
+    it('el cliente dueño cancela su propia solicitud pendiente', async () => {
+      mockSolicitudRepo.findOne.mockResolvedValue({ ...solicitudPendiente });
+      mockSolicitudRepo.save.mockImplementation((data) => Promise.resolve(data));
+
+      const result = await service.cancelar(3, CLIENTE_A);
+
+      expect(result.estado).toBe('Rechazada');
+      expect(result.motivo_rechazo).toBe('Cancelada por el cliente');
+    });
+
+    it('lanza ForbiddenException (403) si el cliente intenta cancelar una solicitud ajena', async () => {
+      mockSolicitudRepo.findOne.mockResolvedValue({ ...solicitudPendiente });
+
+      await expect(service.cancelar(3, CLIENTE_B)).rejects.toThrow(ForbiddenException);
+      expect(mockSolicitudRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('lanza ConflictException con mensaje claro si la solicitud ya fue aprobada', async () => {
+      mockSolicitudRepo.findOne.mockResolvedValue({ ...solicitudPendiente, estado: 'Aprobada' });
+
+      await expect(service.cancelar(3, CLIENTE_A)).rejects.toThrow(
+        'La solicitud #3 ya fue aprobada y no se puede cancelar',
+      );
+      expect(mockSolicitudRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('lanza NotFoundException si la solicitud no existe', async () => {
+      mockSolicitudRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.cancelar(999, CLIENTE_A)).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('Autorización cruzada — mis-solicitudes', () => {
     it('findByClienteId solo consulta solicitudes filtradas por el cliente dueño de la sesión', async () => {
       const CLIENTE_A = 1;
@@ -199,6 +242,12 @@ describe('SolicitudPedidoService', () => {
       expect(rolesRechazar).toEqual(['admin', 'operario']);
       expect(rolesAprobar).not.toContain('cliente');
       expect(rolesRechazar).not.toContain('cliente');
+    });
+
+    it('cancelar solo está habilitado para el rol "cliente" (nivel ruta)', () => {
+      const rolesCancelar = Reflect.getMetadata(ROLES_KEY, SolicitudPedidoController.prototype.cancelar);
+
+      expect(rolesCancelar).toEqual(['cliente']);
     });
   });
 });

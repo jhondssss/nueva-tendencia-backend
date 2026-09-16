@@ -28,6 +28,14 @@ export class SolicitudPedidoController {
     return this.solicitudPedidoService.findByClienteId(clienteId, paginacion?.page, paginacion?.limit);
   }
 
+  @Roles('cliente')
+  @Patch(':id/cancelar')
+  cancelar(@Param('id') id: string, @Req() req: any) {
+    const clienteId = req.user?.clienteId as number | undefined;
+    if (!clienteId) throw new ForbiddenException('Esta cuenta no tiene un cliente asociado');
+    return this.solicitudPedidoService.cancelar(+id, clienteId);
+  }
+
   @Roles('admin', 'operario')
   @Get()
   findAll(@Query('estado') estado?: string, @Query() paginacion?: PaginationQueryDto) {
