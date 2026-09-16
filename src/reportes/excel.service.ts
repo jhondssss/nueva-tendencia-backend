@@ -119,17 +119,49 @@ export class ExcelService implements IReporteExcel {
     }
   }
 
-  /** Ajusta el ancho de cada columna al contenido más largo (máx. 55). */
+  /** Largo del texto tal como se ve en la celda: si tiene numFmt (siempre
+   * '#,##0.00' en este servicio), simula el separador de miles que agrega
+   * Excel al renderizar, en vez del número crudo sin formato. Sin esto,
+   * autoFitColumns mide "1128700.74" (10) cuando lo que se ve es
+   * "1.128.700,74" o "1,128,700.74" (12), y la columna queda angosta para
+   * su propio contenido formateado. */
+  private displayedLength(cell: ExcelJS.Cell): number {
+    if (typeof cell.value === 'number' && cell.numFmt) {
+      return cell.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).length;
+    }
+    return cell.value != null ? String(cell.value).length : 0;
+  }
+
+  /** Ajusta el ancho de cada columna al contenido más largo (máx. 55).
+   * Debe llamarse DESPUÉS de fijar numFmt en las celdas de la columna:
+   * mide el largo ya formateado (ver displayedLength), no el valor crudo. */
   private autoFitColumns(ws: ExcelJS.Worksheet): void {
     ws.columns.forEach(col => {
       if (!col || !col.eachCell) return;
       let maxLen = 8;
       col.eachCell({ includeEmpty: false }, cell => {
-        const len = cell.value != null ? String(cell.value).length : 0;
+        const len = this.displayedLength(cell);
         if (len > maxLen) maxLen = len;
       });
       col.width = Math.min(maxLen + 4, 55);
     });
+  }
+
+  /** Activa wrapText en columnas puntuales de texto libre (direcciones, motivos,
+   * descripciones) que suelen superar el cap de 55 de autoFitColumns: en vez de
+   * ensanchar toda la hoja para esas pocas celdas largas, el contenido se ve
+   * completo envuelto en varias líneas dentro del ancho ya asignado. Excel
+   * recalcula la altura de fila automáticamente al abrir el archivo porque las
+   * filas no tienen `height` explícito. Llamar DESPUÉS de styleDataRows /
+   * styleTotalRow, que dejan wrapText:false. */
+  private wrapColumns(ws: ExcelJS.Worksheet, startRow: number, endRow: number, cols: number[]): void {
+    for (let r = startRow; r <= endRow; r++) {
+      const row = ws.getRow(r);
+      for (const c of cols) {
+        const cell = row.getCell(c);
+        cell.alignment = { ...cell.alignment, wrapText: true };
+      }
+    }
   }
 
   private fmtDate(d: string | Date): string {
@@ -236,6 +268,7 @@ export class ExcelService implements IReporteExcel {
     );
 
     this.styleDataRows(ws, 2, clientes.length + 1);
+    this.wrapColumns(ws, 2, clientes.length + 1, [9]); // Dirección
     this.autoFitColumns(ws);
 
     return wb.xlsx.writeBuffer() as Promise<any>;
@@ -579,6 +612,7 @@ export class ExcelService implements IReporteExcel {
       });
     });
     this.styleDataRows(wsKar, 2, data.movimientosKardex.length + 1);
+    this.wrapColumns(wsKar, 2, data.movimientosKardex.length + 1, [8]); // Motivo
     this.autoFitColumns(wsKar);
 
     // ─── Hoja 5: Alertas críticas ───────────────────────────────────────────
@@ -644,6 +678,7 @@ export class ExcelService implements IReporteExcel {
       });
     });
     this.styleDataRows(wsLog, 2, data.accionesAuditoria.length + 1);
+    this.wrapColumns(wsLog, 2, data.accionesAuditoria.length + 1, [4]); // Descripción
     this.autoFitColumns(wsLog);
 
     wb.creator = 'Calzados Nueva Tendencia';
