@@ -127,6 +127,29 @@ describe('assistant-tools · executeTool · scoping de cliente', () => {
     expect(result).toEqual({ error: expect.any(String) });
     expect(pedidoRepo.find).not.toHaveBeenCalled();
   });
+
+  it('consultarPedidos muestra nombre + apellido del cliente (persona_natural), no solo el nombre', async () => {
+    const pedidoRepo = {
+      find: jest.fn().mockResolvedValue([
+        {
+          id_pedido: 1,
+          cliente: { id_cliente: 7, nombre: 'Carlos', apellido: 'Mamani Flores' },
+          producto: { nombre_modelo: 'Bota Urbana' },
+          estado: 'Terminado',
+          fecha_entrega: '2026-08-15',
+          cantidad_pares: 12,
+          total: 1500,
+        },
+      ]),
+    };
+    const repos = buildRepos({ pedidoRepo: pedidoRepo as any });
+
+    const result = await executeTool('consultarPedidos', {}, { role: Role.ADMIN }, repos);
+
+    expect(result).toEqual({
+      output: [expect.objectContaining({ cliente: 'Carlos Mamani Flores' })],
+    });
+  });
 });
 
 describe('assistant-tools · executeTool · consultarCatalogoProductos no filtra costo_unidad por rol', () => {

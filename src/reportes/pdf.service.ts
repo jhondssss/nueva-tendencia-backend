@@ -14,6 +14,7 @@ import { buildWherePedidos, buildWhereKardex } from './reportes-filtro.util';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const PDFDocument = require('pdfkit');
 import { condicionStockCritico } from '../common/stock-critico';
+import { nombreCompletoCliente } from '../common/cliente-nombre.util';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const MESES = [
@@ -115,9 +116,14 @@ export class PdfService implements IReportePDF {
     return Math.max(minH, maxContentH + padV);
   }
 
-  /** Los encabezados de columna nunca deben partirse en dos líneas: si el label
-   * no entra al ancho de la columna con el tamaño base, se reduce la fuente
-   * solo para esa celda (lineBreak:false como resguardo final). */
+  /** Ajusta cada encabezado de columna en este orden de prioridad (el ancho de
+   * columna de cada tabla ya está repartido para que la mayoría entre en una
+   * sola línea a 7-7.5pt; esto es el resguardo, no la solución principal):
+   *   1) una sola línea, probando de baseSize a singleLineFloor (7.5→7pt).
+   *   2) si no entra en una línea, se envuelve en 2 líneas prolijas (nunca
+   *      cortando una palabra a la mitad), probando de baseSize a minSize.
+   *   3) último recurso: minSize con salto de línea forzado, para columnas
+   *      tan angostas que ni envolviendo en 2 líneas entran. */
   private buildTable(
     doc: any,
     y: number,
@@ -126,32 +132,50 @@ export class PdfService implements IReportePDF {
   ): number {
     const font = 'Helvetica-Bold';
     const baseSize = 7.5;
-    const minSize = 5.5;
+    const singleLineFloor = 7;
+    const minSize = 6.5;
+    const cellPad = 7;
     doc.font(font);
 
-    const sizes = labels.map((label, i) => {
-      let size = baseSize;
-      while (size > minSize && doc.fontSize(size).widthOfString(label) > widths[i] - 7) {
-        size -= 0.5;
+    const plans = labels.map((label, i) => {
+      const avail = widths[i] - cellPad;
+
+      for (let size = baseSize; size >= singleLineFloor; size -= 0.5) {
+        if (doc.fontSize(size).widthOfString(label) <= avail) return { size, wrap: false };
       }
-      return size;
+
+      const words = label.split(' ');
+      for (let size = baseSize; size >= minSize; size -= 0.5) {
+        doc.fontSize(size);
+        if (words.some(w => doc.widthOfString(w) > avail)) continue;
+        const lines = Math.round(doc.heightOfString(label, { width: avail }) / doc.currentLineHeight());
+        if (lines <= 2) return { size, wrap: true };
+      }
+
+      return { size: minSize, wrap: true };
     });
 
-    const H = 20;
+    const H = plans.some(p => p.wrap) ? 30 : 20;
     const totalW = widths.reduce((a, b) => a + b, 0);
     doc.rect(50, y, totalW, H).fill(CAFE);
 
     let x = 50;
     for (let i = 0; i < labels.length; i++) {
+      const { size, wrap } = plans[i];
       doc
-        .fillColor('white').font(font).fontSize(sizes[i])
-        .text(labels[i], x + 4, y + 6, {
+        .fillColor('white').font(font).fontSize(size)
+        .text(labels[i], x + 4, wrap ? y + 5 : y + 6, {
           width: widths[i] - 6,
           align: 'center',
-          lineBreak: false,
+          lineBreak: wrap,
         });
       x += widths[i];
     }
+    // pdfkit deja doc.x clavado en el x explícito de la última celda dibujada
+    // (aquí, la del extremo derecho de la tabla): sin este reset, el próximo
+    // .text() sin x explícito (ej. un título de sección) hereda esa posición
+    // y aparece pegado al margen derecho en vez de al izquierdo.
+    doc.x = doc.page.margins.left;
     return y + H;
   }
 
@@ -183,6 +207,7 @@ export class PdfService implements IReportePDF {
         });
       x += widths[i];
     }
+    doc.x = doc.page.margins.left; // ver comentario equivalente en buildTable
     return y + H;
   }
 
@@ -247,6 +272,7 @@ export class PdfService implements IReportePDF {
         });
       x += adjWidths[i];
     }
+    doc.x = doc.page.margins.left; // ver comentario equivalente en buildTable
     return y + H;
   }
 
@@ -398,8 +424,10 @@ export class PdfService implements IReportePDF {
     doc.fillColor(CAFE).fontSize(10).font('Helvetica-Bold').text('Detalle de Pedidos');
     doc.moveDown(0.3);
 
-    // Cliente/Producto ensanchados y Total Bs. con margen para montos de 6 cifras (ver diagnóstico de superposición).
-    const dWidths = [22, 108, 30, 105, 42, 26, 30, 26, 46, 60];
+    // Total Bs. con margen para montos de 6 cifras (ver diagnóstico de superposición) y Fecha Entrega
+    // ensanchada a costa de Cliente/Producto (que tenían mucho más margen del que su contenido típico
+    // necesita) para que el header quepa en 7.5pt sin achicar letra (antes caía a 5.5pt, ilegible).
+    const dWidths = [22, 99, 30, 96, 42, 26, 30, 26, 64, 60];
     const dAligns: ('left' | 'right' | 'center')[] =
       ['center', 'left', 'center', 'left', 'center', 'right', 'right', 'right', 'center', 'right'];
 
@@ -420,7 +448,7 @@ export class PdfService implements IReportePDF {
       sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
         p.id_pedido,
-        p.cliente?.nombre ?? '—',
+        nombreCompletoCliente(p.cliente),
         p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.estado,
@@ -541,7 +569,9 @@ export class PdfService implements IReportePDF {
       .text(`${insumoCriticos.length} insumo(s) con stock igual o por debajo del nivel mínimo.`);
     doc.moveDown(0.5);
 
-    const iWidths = [135, 65, 60, 60, 55, 65, 55];
+    // "Insumo" tenía mucho más ancho del que su contenido típico necesita; se lo cedemos
+    // a "Cant. Sugerida" para que su header quepa en 7.5pt (antes caía a 6.5pt).
+    const iWidths = [129, 65, 60, 60, 55, 65, 61];
     const iAligns: ('left' | 'right' | 'center')[] = ['left', 'left', 'right', 'right', 'right', 'right', 'right'];
     y = this.buildTable(doc, doc.y,
       ['Insumo', 'Categoría', 'Stock Actual', 'Nivel Mínimo', 'Diferencia', 'Precio Unitario', 'Cant. Sugerida'],
@@ -611,7 +641,7 @@ export class PdfService implements IReportePDF {
       sumaTotal += Number(p.total);
       y = this.drawDataRow(doc, y, [
         p.id_pedido,
-        p.cliente?.nombre ?? '—',
+        nombreCompletoCliente(p.cliente),
         p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.categoria ? catMap[p.categoria] : '—',
@@ -685,7 +715,7 @@ export class PdfService implements IReportePDF {
         : '—';
       y = this.drawDataRow(doc, y, [
         p.id_pedido,
-        p.cliente?.nombre ?? '—',
+        nombreCompletoCliente(p.cliente),
         p.cliente?.id_cliente ?? '—',
         p.producto?.nombre_modelo ?? '—',
         p.cantidad ?? 1,
@@ -782,7 +812,7 @@ export class PdfService implements IReportePDF {
         y = this.maybePageBreak(doc, y, 40, creadosHeaders);
         y = this.drawDataRow(doc, y, [
           p.id_pedido,
-          p.cliente?.nombre ?? '—',
+          nombreCompletoCliente(p.cliente),
           p.producto?.nombre_modelo ?? '—',
           p.estado,
           this.fmtMonto(Number(p.total)),
@@ -809,7 +839,7 @@ export class PdfService implements IReportePDF {
         y = this.maybePageBreak(doc, y, 40, movidosHeaders);
         y = this.drawDataRow(doc, y, [
           p.id_pedido,
-          p.cliente?.nombre ?? '—',
+          nombreCompletoCliente(p.cliente),
           p.producto?.nombre_modelo ?? '—',
           p.estado,
           this.fmtMonto(Number(p.total)),
@@ -844,7 +874,7 @@ export class PdfService implements IReportePDF {
         y = this.maybePageBreak(doc, y, 40, terminadosHeaders);
         y = this.drawDataRow(doc, y, [
           i + 1,
-          p.cliente?.nombre ?? '—',
+          nombreCompletoCliente(p.cliente),
           p.producto?.nombre_modelo ?? '—',
           p.cantidad_pares ?? 0,
           this.fmtMonto(Number(p.total)),
@@ -1073,7 +1103,7 @@ export class PdfService implements IReportePDF {
     }
 
     const catMap: Record<string, string> = { nino: 'Niño', juvenil: 'Juvenil', adulto: 'Adulto' };
-    const clienteNombre = `${pedido.cliente?.nombre ?? '—'} ${pedido.cliente?.apellido ?? ''}`.trim();
+    const clienteNombre = nombreCompletoCliente(pedido.cliente);
 
     const cueroInsumo = pedido.cuero_insumo_id
       ? await this.insumoRepo.findOneBy({ id_insumo: pedido.cuero_insumo_id })

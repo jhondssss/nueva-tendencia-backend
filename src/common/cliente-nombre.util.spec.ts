@@ -1,5 +1,5 @@
 import { FindOperator } from 'typeorm';
-import { matchClienteNombreCompleto } from './cliente-nombre.util';
+import { matchClienteNombreCompleto, nombreCompletoCliente } from './cliente-nombre.util';
 
 function sqlFor(op: FindOperator<string>, aliasColumna: string): string {
   expect(op.getSql).toBeDefined();
@@ -45,5 +45,30 @@ describe('matchClienteNombreCompleto', () => {
     const op = matchClienteNombreCompleto('Carlos');
     const sql = sqlFor(op, 'cliente.nombre');
     expect(sql).toContain('COALESCE');
+  });
+});
+
+describe('nombreCompletoCliente', () => {
+  it('concatena nombre + apellido para un cliente persona_natural (antes solo mostraba el nombre)', () => {
+    expect(nombreCompletoCliente({ nombre: 'Carlos', apellido: 'Mamani Flores' })).toBe('Carlos Mamani Flores');
+  });
+
+  it('muestra solo el nombre comercial para un cliente empresa (sin apellido)', () => {
+    expect(nombreCompletoCliente({ nombre: 'Distribuidora El Buen Paso', apellido: null })).toBe(
+      'Distribuidora El Buen Paso',
+    );
+  });
+
+  it('muestra solo el nombre cuando apellido es undefined', () => {
+    expect(nombreCompletoCliente({ nombre: 'Ana' })).toBe('Ana');
+  });
+
+  it('devuelve el fallback ("—" por defecto) cuando no hay cliente', () => {
+    expect(nombreCompletoCliente(undefined)).toBe('—');
+    expect(nombreCompletoCliente(null)).toBe('—');
+  });
+
+  it('acepta un fallback personalizado (usado en exports de Excel, que usan "" en vez de "—")', () => {
+    expect(nombreCompletoCliente(null, '')).toBe('');
   });
 });

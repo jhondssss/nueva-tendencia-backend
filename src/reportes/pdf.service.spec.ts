@@ -7,6 +7,8 @@ import { Pedido } from '../pedido/entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
 import { KardexMovimiento } from '../kardex/entities/kardex.entity';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PDFDocument = require('pdfkit');
 
 // pdfkit produce un stream binario comprimido: no es viable parsear su texto
 // sin una dependencia nueva. Estas pruebas verifican que las funciones de
@@ -249,6 +251,37 @@ describe('PdfService', () => {
 
       expect(mockInsumoRepo.findOneBy).not.toHaveBeenCalled();
       expectValidPdf(buffer);
+    });
+  });
+
+  // Regresión: pdfkit deja doc.x clavado en el x explícito de la última celda
+  // dibujada (la del extremo derecho de la tabla). Sin el reset a doc.page.margins.left
+  // al final de buildTable/drawDataRow/buildFooter, el próximo texto sin x explícito
+  // (ej. el título de la siguiente sección) hereda esa posición y aparece pegado al
+  // margen derecho en vez de al izquierdo (bug real visto en "Insumos con Stock
+  // Crítico", que aparecía angosto y pegado a la derecha justo después de la tabla
+  // de "Productos con Stock Crítico").
+  describe('cursor de pdfkit tras dibujar una tabla (buildTable / drawDataRow / buildFooter)', () => {
+    function newDoc() {
+      return new PDFDocument({ margin: 50, size: 'A4', bufferPages: true });
+    }
+
+    it('buildTable resetea doc.x al margen izquierdo tras dibujar el header', () => {
+      const doc = newDoc();
+      (service as any).buildTable(doc, 50, ['A', 'B', 'C'], [150, 150, 195]);
+      expect(doc.x).toBe(doc.page.margins.left);
+    });
+
+    it('drawDataRow resetea doc.x al margen izquierdo tras dibujar una fila', () => {
+      const doc = newDoc();
+      (service as any).drawDataRow(doc, 50, ['a', 'b', 'c'], [150, 150, 195], ['left', 'right', 'right'], false);
+      expect(doc.x).toBe(doc.page.margins.left);
+    });
+
+    it('buildFooter resetea doc.x al margen izquierdo tras dibujar la fila de TOTAL', () => {
+      const doc = newDoc();
+      (service as any).buildFooter(doc, 50, ['TOTAL', '', 'Bs. 100.00'], [150, 150, 195]);
+      expect(doc.x).toBe(doc.page.margins.left);
     });
   });
 });

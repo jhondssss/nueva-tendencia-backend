@@ -114,6 +114,23 @@ describe('ExcelService', () => {
       const totalRow = ws.getRow(4); // fila 2 y 3 son datos, fila 4 es el total
       expect(totalRow.getCell(9).value).toBe(283926); // columna 'Total (Bs.)'
     });
+
+    // Antes del fix, la columna 'Cliente' mostraba solo el primer nombre para
+    // clientes persona_natural (ej. "Carlos" en vez de "Carlos Mamani Flores"),
+    // aunque para empresa (nombre comercial único, sin apellido) ya funcionaba bien.
+    it('muestra nombre + apellido para un cliente persona_natural, y solo el nombre comercial para empresa', async () => {
+      mockPedidoRepo.find.mockResolvedValue([
+        { id_pedido: 1, cliente: { nombre: 'Carlos', apellido: 'Mamani Flores', id_cliente: 7 }, producto: { nombre_modelo: 'Bota' }, categoria: 'adulto', cantidad: 1, unidad: 'docena', cantidad_pares: 12, total: 1500, fecha_entrega: '2026-06-10' },
+        { id_pedido: 2, cliente: { nombre: 'Distribuidora El Buen Paso', apellido: null, id_cliente: 12 }, producto: { nombre_modelo: 'Sandalia' }, categoria: 'nino', cantidad: 1, unidad: 'par', cantidad_pares: 1, total: 500, fecha_entrega: '2026-06-15' },
+      ]);
+
+      const buffer = await service.exportarExcelPedidosEntregados();
+      const wb = await readWorkbook(buffer as any);
+      const ws = wb.getWorksheet('Pedidos Entregados')!;
+
+      expect(ws.getRow(2).getCell(2).value).toBe('Carlos Mamani Flores');
+      expect(ws.getRow(3).getCell(2).value).toBe('Distribuidora El Buen Paso');
+    });
   });
 
   describe('exportarExcelGanancias', () => {

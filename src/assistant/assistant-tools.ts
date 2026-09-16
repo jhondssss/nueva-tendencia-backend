@@ -9,6 +9,7 @@ import { Auditoria } from '../auditoria/entities/auditoria.entity';
 import { PrediccionService } from '../dashboard/prediccion.service';
 import { KpiService } from '../dashboard/kpi.service';
 import { esStockCritico } from '../common/stock-critico';
+import { nombreCompletoCliente } from '../common/cliente-nombre.util';
 import { DownloadTokenService } from '../auth/download-token.service';
 import type { AssistantUser } from './assistant.service';
 
@@ -389,7 +390,7 @@ export async function executeTool(
         return {
           output: pedidos.map(p => ({
             id: p.id_pedido,
-            cliente: p.cliente?.nombre ?? '—',
+            cliente: nombreCompletoCliente(p.cliente),
             producto: p.producto?.nombre_modelo ?? '—',
             estado: p.estado,
             fecha_entrega: p.fecha_entrega,

@@ -28,3 +28,16 @@ export function matchClienteNombreCompleto(texto: string): FindOperator<string> 
     { clienteBusqueda: `%${texto}%` },
   );
 }
+
+/** Nombre a mostrar de un cliente: para persona_natural concatena nombre +
+ * apellido (antes se mostraba solo `nombre`, ej. "Carlos" en vez de "Carlos
+ * Mamani Flores"); para empresa, `apellido` no se llena, así que el resultado
+ * es simplemente el nombre comercial, sin necesidad de ramificar por
+ * `tipo_cliente` (que además es un catálogo gestionable, no un enum fijo). */
+export function nombreCompletoCliente(
+  cliente?: { nombre: string; apellido?: string | null } | null,
+  fallback = '—',
+): string {
+  if (!cliente) return fallback;
+  return cliente.apellido ? `${cliente.nombre} ${cliente.apellido}`.trim() : cliente.nombre;
+}

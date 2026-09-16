@@ -8,6 +8,7 @@ import { KardexMovimiento } from '../kardex/entities/kardex.entity';
 import { IReporteExcel, ResumenDiario } from './interfaces/reporte.interface';
 import * as ExcelJS from 'exceljs';
 import { esStockCritico } from '../common/stock-critico';
+import { nombreCompletoCliente } from '../common/cliente-nombre.util';
 import { PedidoReporteFiltroDto } from './dto/pedido-reporte-filtro.dto';
 import { StockReporteFiltroDto } from './dto/stock-reporte-filtro.dto';
 import { KardexReporteFiltroDto } from './dto/kardex-reporte-filtro.dto';
@@ -170,7 +171,7 @@ export class ExcelService implements IReporteExcel {
     pedidos.forEach(p =>
       ws.addRow({
         id:             p.id_pedido,
-        cliente:        p.cliente?.nombre ?? '',
+        cliente:        nombreCompletoCliente(p.cliente, ''),
         id_cliente:     p.cliente?.id_cliente ?? '',
         producto:       p.producto?.nombre_modelo ?? '',
         estado:         p.estado,
@@ -334,7 +335,7 @@ export class ExcelService implements IReporteExcel {
     pedidos.forEach(p =>
       ws.addRow({
         n:              p.id_pedido,
-        cliente:        p.cliente?.nombre ?? '',
+        cliente:        nombreCompletoCliente(p.cliente, ''),
         id_cliente:     p.cliente?.id_cliente ?? '',
         producto:       p.producto?.nombre_modelo ?? '',
         categoria:      p.categoria ? catMap[p.categoria] : '—',
@@ -402,7 +403,7 @@ export class ExcelService implements IReporteExcel {
     pedidos.forEach(p =>
       ws.addRow({
         n:            p.id_pedido,
-        cliente:      p.cliente?.nombre ?? '',
+        cliente:      nombreCompletoCliente(p.cliente, ''),
         id_cliente:   p.cliente?.id_cliente ?? '',
         producto:     p.producto?.nombre_modelo ?? '',
         cantidad:     p.cantidad ?? 1,
@@ -489,7 +490,7 @@ export class ExcelService implements IReporteExcel {
       pedidos.forEach(p =>
         wsPed.addRow({
           id:       p.id_pedido,
-          cliente:  p.cliente?.nombre ?? '',
+          cliente:  nombreCompletoCliente(p.cliente, ''),
           producto: p.producto?.nombre_modelo ?? '',
           estado:   p.estado,
           total:    Number(p.total),
@@ -525,7 +526,7 @@ export class ExcelService implements IReporteExcel {
     data.pedidosTerminados.forEach((p: any, i: number) =>
       wsVen.addRow({
         n:        i + 1,
-        cliente:  p.cliente?.nombre ?? '',
+        cliente:  nombreCompletoCliente(p.cliente, ''),
         producto: p.producto?.nombre_modelo ?? '',
         pares:    p.cantidad_pares ?? 0,
         total:    Number(p.total),
