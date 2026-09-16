@@ -115,24 +115,40 @@ export class PdfService implements IReportePDF {
     return Math.max(minH, maxContentH + padV);
   }
 
+  /** Los encabezados de columna nunca deben partirse en dos líneas: si el label
+   * no entra al ancho de la columna con el tamaño base, se reduce la fuente
+   * solo para esa celda (lineBreak:false como resguardo final). */
   private buildTable(
     doc: any,
     y: number,
     labels: string[],
     widths: number[],
   ): number {
-    doc.fontSize(7.5).font('Helvetica-Bold');
-    const H = this.rowHeight(doc, labels, widths, 20, 12, 6);
+    const font = 'Helvetica-Bold';
+    const baseSize = 7.5;
+    const minSize = 5.5;
+    doc.font(font);
+
+    const sizes = labels.map((label, i) => {
+      let size = baseSize;
+      while (size > minSize && doc.fontSize(size).widthOfString(label) > widths[i] - 7) {
+        size -= 0.5;
+      }
+      return size;
+    });
+
+    const H = 20;
     const totalW = widths.reduce((a, b) => a + b, 0);
     doc.rect(50, y, totalW, H).fill(CAFE);
 
     let x = 50;
     for (let i = 0; i < labels.length; i++) {
       doc
-        .fillColor('white').fontSize(7.5).font('Helvetica-Bold')
+        .fillColor('white').font(font).fontSize(sizes[i])
         .text(labels[i], x + 4, y + 6, {
           width: widths[i] - 6,
           align: 'center',
+          lineBreak: false,
         });
       x += widths[i];
     }
@@ -170,26 +186,66 @@ export class PdfService implements IReportePDF {
     return y + H;
   }
 
+  /** La fila de TOTAL suele llevar valores acumulados (suma de todas las filas)
+   * mucho más anchos que cualquier fila individual. Antes de dibujar, mide el
+   * ancho real de cada celda con el valor ya formateado: si no entra, primero
+   * le pide prestado espacio a celdas vecinas vacías (sin alterar el ancho
+   * total de la fila, para no desalinear los bordes con la tabla de arriba) y,
+   * si con eso no alcanza, reduce la fuente de toda la fila. lineBreak:false
+   * como resguardo final para que nunca se parta en dos líneas. */
   private buildFooter(
     doc: any,
     y: number,
     cells: (string | number)[],
     widths: number[],
   ): number {
-    doc.fontSize(8.5).font('Helvetica-Bold');
-    const H = this.rowHeight(doc, cells, widths, 22, 12, 8);
-    const totalW = widths.reduce((a, b) => a + b, 0);
+    const font = 'Helvetica-Bold';
+    const baseSize = 8.5;
+    const minSize = 6.5;
+    doc.font(font);
+
+    let size = baseSize;
+    let adjWidths = widths;
+    for (;;) {
+      adjWidths = [...widths];
+      doc.fontSize(size);
+      let fits = true;
+      for (let i = 0; i < cells.length; i++) {
+        const text = String(cells[i]);
+        if (!text) continue;
+        const needed = doc.widthOfString(text) + 9;
+        if (needed <= adjWidths[i]) continue;
+        let deficit = needed - adjWidths[i];
+        for (const j of [i + 1, i - 1]) {
+          if (deficit <= 0) break;
+          if (j < 0 || j >= cells.length || String(cells[j]) !== '') continue;
+          const borrow = Math.min(deficit, adjWidths[j] - 9);
+          if (borrow > 0) {
+            adjWidths[j] -= borrow;
+            adjWidths[i] += borrow;
+            deficit -= borrow;
+          }
+        }
+        if (deficit > 0) fits = false;
+      }
+      if (fits || size <= minSize) break;
+      size -= 0.5;
+    }
+
+    const H = 22;
+    const totalW = adjWidths.reduce((a, b) => a + b, 0);
     doc.rect(50, y, totalW, H).fill('#E8DDD5');
 
     let x = 50;
     for (let i = 0; i < cells.length; i++) {
       doc
-        .fillColor('#111111').fontSize(8.5).font('Helvetica-Bold')
+        .fillColor('#111111').font(font).fontSize(size)
         .text(String(cells[i]), x + 4, y + 6, {
-          width: widths[i] - 8,
+          width: adjWidths[i] - 8,
           align: i === 0 ? 'left' : 'right',
+          lineBreak: false,
         });
-      x += widths[i];
+      x += adjWidths[i];
     }
     return y + H;
   }
@@ -348,12 +404,12 @@ export class PdfService implements IReportePDF {
       ['center', 'left', 'center', 'left', 'center', 'right', 'right', 'right', 'center', 'right'];
 
     y = this.buildTable(doc, doc.y,
-      ['#ID', 'Cliente', 'ID Cliente', 'Producto', 'Estado', 'Cant.', 'Unidad', 'Pares', 'Fecha Entrega', 'Total Bs.'],
+      ['#ID', 'Cliente', 'ID Cli.', 'Producto', 'Estado', 'Cant.', 'Unid.', 'Pares', 'Fecha Entrega', 'Total Bs.'],
       dWidths,
     );
 
     const detalleHeaders = {
-      labels: ['#ID', 'Cliente', 'ID Cliente', 'Producto', 'Estado', 'Cant.', 'Unidad', 'Pares', 'Fecha Entrega', 'Total Bs.'],
+      labels: ['#ID', 'Cliente', 'ID Cli.', 'Producto', 'Estado', 'Cant.', 'Unid.', 'Pares', 'Fecha Entrega', 'Total Bs.'],
       widths: dWidths,
     };
     let sumaPares = 0;
@@ -540,12 +596,12 @@ export class PdfService implements IReportePDF {
       ['center', 'left', 'center', 'left', 'center', 'right', 'center', 'right', 'right', 'center'];
 
     let y = this.buildTable(doc, doc.y, [
-      'ID', 'Cliente', 'ID Cliente', 'Producto', 'Categoría',
-      'Cantidad', 'Unidad', 'Pares', 'Total Bs.', 'F. Entrega',
+      'ID', 'Cliente', 'ID Cli.', 'Producto', 'Categ.',
+      'Cant.', 'Unid.', 'Pares', 'Total Bs.', 'F. Entrega',
     ], widths);
 
     const entregadosHeaders = {
-      labels: ['ID', 'Cliente', 'ID Cliente', 'Producto', 'Categoría', 'Cantidad', 'Unidad', 'Pares', 'Total Bs.', 'F. Entrega'],
+      labels: ['ID', 'Cliente', 'ID Cli.', 'Producto', 'Categ.', 'Cant.', 'Unid.', 'Pares', 'Total Bs.', 'F. Entrega'],
       widths,
     };
     let sumaTotal = 0;
