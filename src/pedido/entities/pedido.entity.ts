@@ -67,6 +67,13 @@ export class Pedido {
   @UpdateDateColumn()
   fecha_actualizacion: Date;
 
+  // Instante en que el pedido pasó a Terminado. Es el evento "se completó",
+  // distinto de fecha_entrega (planificación) y de fecha_actualizacion (se
+  // pisa con cualquier edición). Vuelve a null si el pedido retrocede desde
+  // Terminado. Lo usa "Ventas del día" del Reporte Diario.
+  @Column({ type: 'timestamp', nullable: true })
+  fecha_completado: Date | null;
+
   @OneToMany(() => TallaDetalle, (talla) => talla.pedido)
   talles: TallaDetalle[];
 

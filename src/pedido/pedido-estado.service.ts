@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { Pedido } from './entities/pedido.entity';
 import { Producto } from '../producto/entities/producto.entity';
 import { Insumo } from '../insumo/entities/insumo.entity';
@@ -119,7 +120,21 @@ export class PedidoEstadoService implements IPedidoEstadoService {
     } else if (diff === -1 && recetaRetroceso) {
       await this.revertirReceta(pedido, pedido.estado as EtapaConReceta, nuevoEstado, recetaRetroceso);
     } else {
-      await this.pedidoRepo.update(id, { estado: nuevoEstado, fecha_actualizacion: new Date() });
+      // Terminado no está en EtapaConReceta, así que RECETAS nunca tiene una
+      // entrada para ese estado: este else es el único camino de entrada y de
+      // salida de Terminado. Por eso fecha_completado se sella acá al
+      // terminar, y se limpia acá al retroceder — no en revertirReceta, que
+      // para Terminado no llega a ejecutarse.
+      const campos: QueryDeepPartialEntity<Pedido> = {
+        estado: nuevoEstado,
+        fecha_actualizacion: new Date(),
+      };
+      if (nuevoEstado === 'Terminado') {
+        campos.fecha_completado = new Date();
+      } else if (pedido.estado === 'Terminado') {
+        campos.fecha_completado = null;
+      }
+      await this.pedidoRepo.update(id, campos);
     }
 
     if (nuevoEstado === 'Terminado') {

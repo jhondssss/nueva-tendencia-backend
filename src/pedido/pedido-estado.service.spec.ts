@@ -77,8 +77,30 @@ describe('PedidoEstadoService', () => {
       expect(mockPedidoRepo.update).toHaveBeenCalledWith(1, {
         estado: 'Terminado',
         fecha_actualizacion: expect.any(Date),
+        fecha_completado: expect.any(Date),
       });
       expect(result?.estado).toBe('Terminado');
+    });
+
+    // fecha_completado es el evento "se completó": lo que "Ventas del día" del
+    // Reporte Diario necesita para no depender de fecha_entrega (planificación)
+    // ni de fecha_actualizacion (se pisa con cualquier edición).
+    it('sella fecha_completado con el momento del movimiento al pasar a Terminado', async () => {
+      jest.useFakeTimers({ now: new Date('2026-09-17T12:50:34.000Z') });
+      try {
+        const pedidoEmpaque = { ...pedidoPendiente, estado: 'Empaque' };
+        mockPedidoRepo.findOne
+          .mockResolvedValueOnce(pedidoEmpaque)
+          .mockResolvedValueOnce({ ...pedidoEmpaque, estado: 'Terminado' });
+        mockPedidoRepo.update.mockResolvedValue({ affected: 1 });
+
+        await service.moverEstado(1, 'Terminado');
+
+        const campos = mockPedidoRepo.update.mock.calls[0][1];
+        expect(campos.fecha_completado).toEqual(new Date('2026-09-17T12:50:34.000Z'));
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('lanza BadRequestException si salta una etapa (Pendiente → Aparado)', async () => {
@@ -105,8 +127,53 @@ describe('PedidoEstadoService', () => {
       expect(mockPedidoRepo.update).toHaveBeenCalledWith(1, {
         estado: 'Empaque',
         fecha_actualizacion: expect.any(Date),
+        fecha_completado: null,
       });
       expect(result?.estado).toBe('Empaque');
+    });
+
+    // Terminado no está en EtapaConReceta, así que el retroceso desde Terminado
+    // no pasa por revertirReceta: la limpieza de fecha_completado tiene que
+    // ocurrir en el update directo, o el pedido quedaría contado como venta de
+    // un día en el que ya no está terminado.
+    it('limpia fecha_completado al retroceder desde Terminado (sin pasar por revertirReceta)', async () => {
+      const pedidoTerminado = {
+        ...pedidoPendiente,
+        estado: 'Terminado',
+        fecha_completado: new Date('2026-09-17T12:50:34.000Z'),
+      };
+      mockPedidoRepo.findOne
+        .mockResolvedValueOnce(pedidoTerminado)
+        .mockResolvedValueOnce({ ...pedidoTerminado, estado: 'Empaque', fecha_completado: null });
+      mockPedidoRepo.update.mockResolvedValue({ affected: 1 });
+
+      await service.moverEstado(1, 'Empaque', 'admin');
+
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+      expect(mockPedidoRepo.update.mock.calls[0][1].fecha_completado).toBeNull();
+    });
+
+    // Un movimiento entre etapas intermedias no debe tocar la columna: si la
+    // seteara en null de más, un retroceso Empaque → Solado borraría el dato de
+    // un pedido que nunca estuvo terminado (hoy null, pero mañana relevante si
+    // se reordenan las etapas).
+    it('no toca fecha_completado en movimientos que no involucran Terminado', async () => {
+      const pedidoCortado = { ...pedidoPendiente, estado: 'Cortado', cuero_insumo_id: null };
+      mockPedidoRepo.findOne
+        .mockResolvedValueOnce(pedidoCortado)
+        .mockResolvedValueOnce({ ...pedidoCortado, estado: 'Pendiente' });
+      mockInsumoRepo.findOneBy.mockResolvedValue(null);
+      mockKardexService.buscarUltimoConsumoAutomaticoNoRevertido.mockResolvedValue(null);
+
+      await service.moverEstado(1, 'Pendiente', 'admin');
+
+      // Cortado sí tiene receta, así que este retroceso va por revertirReceta
+      // y su update pasa por el manager de la transacción — sin fecha_completado.
+      expect(mockManager.update).toHaveBeenCalledWith(Pedido, 1, {
+        estado: 'Pendiente',
+        fecha_actualizacion: expect.any(Date),
+      });
+      expect(mockPedidoRepo.update).not.toHaveBeenCalled();
     });
 
     it('lanza ForbiddenException si un operario intenta retroceder', async () => {
