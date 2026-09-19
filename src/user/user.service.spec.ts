@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { UserService } from './user.service';
 import { User } from './entities/user.entity';
 import { Cliente } from '../cliente/entities/cliente.entity';
+import { ConflictException } from '@nestjs/common';
 import { Role } from '../auth/enums/role.enum';
 
 describe('UserService', () => {
@@ -13,10 +14,13 @@ describe('UserService', () => {
     save: jest.fn(),
     findAndCount: jest.fn(),
     findOne: jest.fn(),
+    update: jest.fn(),
   };
 
   const mockClienteRepo = {
     find: jest.fn(),
+    update: jest.fn(),
+    save: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -111,6 +115,53 @@ describe('UserService', () => {
         expect.objectContaining({ id: 1, nombre: 'Juan', apellido: 'Perez' }),
       );
       expect(result).not.toHaveProperty('clienteId');
+    });
+  });
+
+  describe('updateOwnProfile', () => {
+    it('actualiza nombre/apellido/email del user indicado sin tocar Cliente', async () => {
+      mockUserRepo.findOne.mockResolvedValue(null);
+
+      await service.updateOwnProfile(9, { email: ' nuevo@test.com ', nombre: 'Ana', apellido: 'Lopez' });
+
+      expect(mockUserRepo.update).toHaveBeenCalledWith(9, {
+        email: 'nuevo@test.com',
+        nombre: 'Ana',
+        apellido: 'Lopez',
+      });
+      expect(mockClienteRepo.update).not.toHaveBeenCalled();
+      expect(mockClienteRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('rechaza un email ya usado por otra cuenta', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 2, email: 'dup@test.com' });
+
+      await expect(service.updateOwnProfile(9, { email: 'dup@test.com' })).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockUserRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('permite reenviar el propio email', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 9, email: 'yo@test.com' });
+
+      await service.updateOwnProfile(9, { email: 'yo@test.com' });
+
+      expect(mockUserRepo.update).toHaveBeenCalledWith(9, { email: 'yo@test.com' });
+    });
+
+    it('traduce la violación de unique (23505) a ConflictException', async () => {
+      mockUserRepo.findOne.mockResolvedValue(null);
+      mockUserRepo.update.mockRejectedValue({ code: '23505' });
+
+      await expect(service.updateOwnProfile(9, { email: 'race@test.com' })).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('no hace nada si no hay campos', async () => {
+      await service.updateOwnProfile(9, {});
+      expect(mockUserRepo.update).not.toHaveBeenCalled();
     });
   });
 });

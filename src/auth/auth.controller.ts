@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, Res } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -7,6 +7,8 @@ import { RegisterDto } from './dto/register.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CambiarPasswordInicialDto } from './dto/cambiar-password-inicial.dto';
+import { UpdatePerfilDto } from './dto/update-perfil.dto';
+import { CambiarPasswordDto } from './dto/cambiar-password.dto';
 import { Public } from './decorators/public.decorator';
 import { Roles } from './decorators/roles.decorator';
 import { ACCESS_TOKEN_COOKIE } from './auth.constants';
@@ -60,6 +62,39 @@ export class AuthController {
   async me(@Req() req: Request) {
     const userId = (req as any).user?.sub as number;
     return this.authService.me(userId);
+  }
+
+  // El id sale siempre del JWT (nunca de la URL/body): nadie puede editar a otro.
+  @Roles('admin', 'operario', 'user', 'cliente')
+  @Get('perfil')
+  async perfil(@Req() req: Request) {
+    const userId = (req as any).user?.sub as number;
+    return this.authService.me(userId);
+  }
+
+  @Roles('admin', 'operario', 'user', 'cliente')
+  @Patch('perfil')
+  async updatePerfil(
+    @Body() dto: UpdatePerfilDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const userId = (req as any).user?.sub as number;
+    const { perfil, access_token } = await this.authService.updatePerfil(userId, dto);
+    // El JWT lleva el email: si cambió, se renueva la cookie para que no quede desfasado.
+    if (access_token) {
+      res.cookie(ACCESS_TOKEN_COOKIE, access_token, authCookieOptions());
+      return { ...perfil, access_token };
+    }
+    return perfil;
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Roles('admin', 'operario', 'user', 'cliente')
+  @Patch('perfil/password')
+  async cambiarPassword(@Body() dto: CambiarPasswordDto, @Req() req: Request) {
+    const userId = (req as any).user?.sub as number;
+    return this.authService.cambiarPassword(userId, dto);
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })

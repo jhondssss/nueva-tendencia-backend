@@ -13,6 +13,8 @@ import { RegisterDto } from './dto/register.dto';
 import { Role } from './enums/role.enum';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { UpdatePerfilDto } from './dto/update-perfil.dto';
+import { CambiarPasswordDto } from './dto/cambiar-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -136,6 +138,59 @@ export class AuthService {
   async cambiarPasswordInicial(userId: number, newPassword: string): Promise<{ message: string }> {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await this.usersService.setPasswordAndClearFlag(userId, hashedPassword);
+    return { message: 'Contraseña actualizada correctamente' };
+  }
+
+  /**
+   * Edita el perfil del propio usuario (id tomado del JWT). Si cambia el email
+   * se re-firma el token, porque el JWT lleva el email en el payload.
+   */
+  async updatePerfil(userId: number, dto: UpdatePerfilDto) {
+    const anterior = await this.usersService.findSessionProfile(userId);
+    if (!anterior) throw new UnauthorizedException('Sesión inválida');
+
+    await this.usersService.updateOwnProfile(userId, dto);
+
+    const perfil = (await this.usersService.findSessionProfile(userId))!;
+    let access_token: string | undefined;
+    if (perfil.email !== anterior.email) {
+      access_token = this.jwtService.sign({
+        email: perfil.email,
+        sub: perfil.id,
+        role: perfil.role,
+        clienteId: perfil.clienteId ?? undefined,
+        requiereCambioPassword: !!perfil.requiereCambioPassword,
+      });
+    }
+    void this.auditoriaService.registrar({
+      accion: 'ACTUALIZAR_PERFIL',
+      modulo: 'auth',
+      descripcion: `Usuario ${perfil.email} actualizó su perfil`,
+      usuarioId: userId,
+    });
+    return { perfil, access_token };
+  }
+
+  async cambiarPassword(userId: number, dto: CambiarPasswordDto): Promise<{ message: string }> {
+    const user = await this.usersService.findByIdWithPassword(userId);
+    if (!user) throw new UnauthorizedException('Sesión inválida');
+
+    const actualValida = !!user.password && (await bcrypt.compare(dto.password_actual, user.password));
+    // 400 (no 401) para que el frontend no interprete el error como sesión expirada.
+    if (!actualValida) throw new BadRequestException('La contraseña actual es incorrecta');
+    if (dto.password_actual === dto.password_nuevo) {
+      throw new BadRequestException('La contraseña nueva debe ser distinta de la actual');
+    }
+
+    const hashed = await bcrypt.hash(dto.password_nuevo, 10);
+    await this.usersService.setPasswordAndClearFlag(userId, hashed);
+
+    void this.auditoriaService.registrar({
+      accion: 'CAMBIAR_PASSWORD',
+      modulo: 'auth',
+      descripcion: `Usuario ${user.email} cambió su contraseña`,
+      usuarioId: userId,
+    });
     return { message: 'Contraseña actualizada correctamente' };
   }
 }

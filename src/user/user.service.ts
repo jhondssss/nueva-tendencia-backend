@@ -45,6 +45,38 @@ export class UserService {
     });
   }
 
+  async findByIdWithPassword(id: number): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id } });
+  }
+
+  /** Autoedición de perfil (/auth/perfil): solo toca la tabla User, nunca Cliente. */
+  async updateOwnProfile(
+    id: number,
+    data: { email?: string; nombre?: string; apellido?: string },
+  ): Promise<void> {
+    const changes: { email?: string; nombre?: string; apellido?: string } = {};
+    if (data.email !== undefined) changes.email = data.email.trim();
+    if (data.nombre !== undefined) changes.nombre = data.nombre.trim();
+    if (data.apellido !== undefined) changes.apellido = data.apellido.trim();
+    if (Object.keys(changes).length === 0) return;
+
+    if (changes.email) {
+      const existing = await this.findByEmail(changes.email);
+      if (existing && existing.id !== id) {
+        throw new ConflictException('Ya existe un usuario con ese email');
+      }
+    }
+    try {
+      await this.userRepository.update(id, changes);
+    } catch (err) {
+      // Carrera entre el chequeo y el update: la constraint unique de email decide.
+      if ((err as { code?: string })?.code === '23505') {
+        throw new ConflictException('Ya existe un usuario con ese email');
+      }
+      throw err;
+    }
+  }
+
   async findClienteIdsConUsuario(clienteIds: number[]): Promise<Set<number>> {
     if (clienteIds.length === 0) return new Set();
     const users = await this.userRepository.find({
