@@ -6,12 +6,14 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { ALLOW_DOWNLOAD_TOKEN_KEY } from '../decorators/allow-download-token.decorator';
 import { DownloadTokenService } from '../download-token.service';
+import { UserService } from '../../user/user.service';
 
 describe('RolesGuard', () => {
   let guard: RolesGuard;
   let jwtService: { verify: jest.Mock };
   let reflector: { getAllAndOverride: jest.Mock };
   let downloadTokenService: { consumir: jest.Mock };
+  let usersService: { getTokenVersion: jest.Mock };
 
   const buildContext = (
     method: string,
@@ -49,91 +51,95 @@ describe('RolesGuard', () => {
     jwtService = { verify: jest.fn() };
     reflector = { getAllAndOverride: jest.fn() };
     downloadTokenService = { consumir: jest.fn() };
+    // Por defecto la BD tiene token_version 0, igual que los tokens de prueba (sin claim = 0).
+    usersService = { getTokenVersion: jest.fn().mockResolvedValue(0) };
     guard = new RolesGuard(
       jwtService as unknown as JwtService,
       reflector as unknown as Reflector,
       downloadTokenService as unknown as DownloadTokenService,
+      usersService as unknown as UserService,
     );
   });
 
   afterEach(() => jest.clearAllMocks());
 
-  it('permite el paso sin verificar token si el endpoint es @Public()', () => {
+  it('permite el paso sin verificar token si el endpoint es @Public()', async () => {
     setMetadata(true, undefined);
     const context = buildContext('GET');
 
-    expect(guard.canActivate(context)).toBe(true);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(jwtService.verify).not.toHaveBeenCalled();
+    expect(usersService.getTokenVersion).not.toHaveBeenCalled();
   });
 
-  it('lanza UnauthorizedException si no se envía token', () => {
+  it('lanza UnauthorizedException si no se envía token', async () => {
     setMetadata(false, undefined);
     const context = buildContext('GET');
 
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('lanza UnauthorizedException si el token es inválido o expiró', () => {
+  it('lanza UnauthorizedException si el token es inválido o expiró', async () => {
     setMetadata(false, undefined);
     jwtService.verify.mockImplementation(() => {
       throw new Error('jwt expired');
     });
     const context = buildContext('GET', 'Bearer token-invalido');
 
-    expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+    await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
   describe('extracción de token', () => {
-    it('autentica con la cookie access_token si no hay header Authorization', () => {
+    it('autentica con la cookie access_token si no hay header Authorization', async () => {
       setMetadata(false, undefined);
       jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
       const context = buildContext('GET', undefined, { access_token: 'token-cookie' });
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(jwtService.verify).toHaveBeenCalledWith('token-cookie');
       const request = context.switchToHttp().getRequest();
       expect(request.authSource).toBe('cookie');
     });
 
-    it('cae al header Authorization si no hay cookie', () => {
+    it('cae al header Authorization si no hay cookie', async () => {
       setMetadata(false, undefined);
       jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
       const context = buildContext('GET', 'Bearer token-header');
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(jwtService.verify).toHaveBeenCalledWith('token-header');
       const request = context.switchToHttp().getRequest();
       expect(request.authSource).toBe('header');
     });
 
-    it('prioriza la cookie sobre el header si ambos están presentes', () => {
+    it('prioriza la cookie sobre el header si ambos están presentes', async () => {
       setMetadata(false, undefined);
       jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
       const context = buildContext('GET', 'Bearer token-header', { access_token: 'token-cookie' });
 
-      guard.canActivate(context);
+      await guard.canActivate(context);
       expect(jwtService.verify).toHaveBeenCalledWith('token-cookie');
     });
 
-    it('lanza UnauthorizedException si el token de la cookie es inválido', () => {
+    it('lanza UnauthorizedException si el token de la cookie es inválido', async () => {
       setMetadata(false, undefined);
       jwtService.verify.mockImplementation(() => {
         throw new Error('jwt expired');
       });
       const context = buildContext('GET', undefined, { access_token: 'token-invalido' });
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
   });
 
   describe('rol admin', () => {
-    it('pasa en cualquier método sin @Roles() declarado', () => {
+    it('pasa en cualquier método sin @Roles() declarado', async () => {
       setMetadata(false, undefined);
       jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
 
       for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
         const context = buildContext(method, 'Bearer token');
-        expect(guard.canActivate(context)).toBe(true);
+        await expect(guard.canActivate(context)).resolves.toBe(true);
       }
     });
   });
@@ -143,70 +149,134 @@ describe('RolesGuard', () => {
       jwtService.verify.mockReturnValue({ sub: 2, email: 'operario@nt.com', role: 'operario' });
     });
 
-    it.each(['GET', 'PATCH'])('permite %s sin @Roles() declarado', (method) => {
+    it.each(['GET', 'PATCH'])('permite %s sin @Roles() declarado', async (method) => {
       setMetadata(false, undefined);
       const context = buildContext(method, 'Bearer token');
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
     });
 
-    it.each(['POST', 'DELETE', 'PUT'])('rechaza %s sin @Roles() declarado', (method) => {
+    it.each(['POST', 'DELETE', 'PUT'])('rechaza %s sin @Roles() declarado', async (method) => {
       setMetadata(false, undefined);
       const context = buildContext(method, 'Bearer token');
 
-      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('rol no reconocido', () => {
     it.each(['cliente', 'user', 'invitado'])(
       'rechaza el rol "%s" en un endpoint sin @Roles() declarado',
-      (role) => {
+      async (role) => {
         setMetadata(false, undefined);
         jwtService.verify.mockReturnValue({ sub: 3, email: 'x@nt.com', role });
         const context = buildContext('GET', 'Bearer token');
 
-        expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+        await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
       },
     );
   });
 
   describe('@Roles() explícito', () => {
-    it('permite acceso cuando el rol del token está en la lista declarada', () => {
+    it('permite acceso cuando el rol del token está en la lista declarada', async () => {
       setMetadata(false, ['cliente']);
       jwtService.verify.mockReturnValue({ sub: 4, email: 'c@nt.com', role: 'cliente' });
       const context = buildContext('GET', 'Bearer token');
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
     });
 
-    it('rechaza acceso cuando el rol no está en la lista declarada, incluso a un operario en GET', () => {
+    it('rechaza acceso cuando el rol no está en la lista declarada, incluso a un operario en GET', async () => {
       setMetadata(false, ['admin']);
       jwtService.verify.mockReturnValue({ sub: 5, email: 'o@nt.com', role: 'operario' });
       const context = buildContext('GET', 'Bearer token');
 
-      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
 
-    it('respeta una lista de múltiples roles declarados', () => {
+    it('respeta una lista de múltiples roles declarados', async () => {
       setMetadata(false, ['admin', 'operario']);
       jwtService.verify.mockReturnValue({ sub: 6, email: 'o@nt.com', role: 'operario' });
       const context = buildContext('PATCH', 'Bearer token');
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
     });
 
-    it('rechaza un rol ausente de la lista aunque el método sea GET/PATCH (no aplica el bypass de operario)', () => {
+    it('rechaza un rol ausente de la lista aunque el método sea GET/PATCH (no aplica el bypass de operario)', async () => {
       setMetadata(false, ['admin']);
       jwtService.verify.mockReturnValue({ sub: 7, email: 'c@nt.com', role: 'cliente' });
       const context = buildContext('GET', 'Bearer token');
 
-      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('invalidación de sesiones (token_version)', () => {
+    beforeEach(() => setMetadata(false, undefined));
+
+    it('rechaza con 401 y mensaje específico si el token_version del JWT es menor al de la BD', async () => {
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin', token_version: 2 });
+      usersService.getTokenVersion.mockResolvedValue(3);
+      const context = buildContext('GET', 'Bearer token-viejo');
+
+      const error = await guard.canActivate(context).catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.message).toBe('Sesión inválida, iniciá sesión de nuevo');
+      expect(usersService.getTokenVersion).toHaveBeenCalledWith(1);
+    });
+
+    it('acepta el token cuando token_version coincide con la BD', async () => {
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin', token_version: 3 });
+      usersService.getTokenVersion.mockResolvedValue(3);
+
+      await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).resolves.toBe(true);
+    });
+
+    it('trata un token sin claim (emitido antes de la migración) como versión 0', async () => {
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin' });
+      usersService.getTokenVersion.mockResolvedValue(0);
+      await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).resolves.toBe(true);
+
+      usersService.getTokenVersion.mockResolvedValue(1);
+      await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('rechaza si el usuario ya no existe', async () => {
+      jwtService.verify.mockReturnValue({ sub: 99, email: 'x@nt.com', role: 'admin', token_version: 0 });
+      usersService.getTokenVersion.mockResolvedValue(null);
+
+      await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).rejects.toThrow(
+        'Sesión inválida, iniciá sesión de nuevo',
+      );
+    });
+
+    it('no consulta la BD si la firma del token es inválida', async () => {
+      jwtService.verify.mockImplementation(() => {
+        throw new Error('invalid signature');
+      });
+
+      await expect(guard.canActivate(buildContext('GET', 'Bearer falso'))).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(usersService.getTokenVersion).not.toHaveBeenCalled();
+    });
+
+    it('también valida token_version en tokens de descarga', async () => {
+      setMetadata(false, ['admin'], true);
+      downloadTokenService.consumir.mockReturnValue({ sub: 1, role: 'admin', token_version: 0, typ: 'download', jti: 'j' });
+      usersService.getTokenVersion.mockResolvedValue(1);
+
+      await expect(
+        guard.canActivate(buildContext('GET', undefined, undefined, { token: 'd' })),
+      ).rejects.toThrow('Sesión inválida, iniciá sesión de nuevo');
     });
   });
 
   describe('token de descarga por query param (@AllowDownloadToken)', () => {
-    it('permite la descarga con un token de descarga válido cuando no hay cookie ni header', () => {
+    it('permite la descarga con un token de descarga válido cuando no hay cookie ni header', async () => {
       setMetadata(false, ['admin', 'operario'], true);
       downloadTokenService.consumir.mockReturnValue({
         sub: 1,
@@ -217,14 +287,14 @@ describe('RolesGuard', () => {
       });
       const context = buildContext('GET', undefined, undefined, { token: 'token-descarga-valido' });
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(downloadTokenService.consumir).toHaveBeenCalledWith('token-descarga-valido');
       expect(jwtService.verify).not.toHaveBeenCalled();
       const request = context.switchToHttp().getRequest();
       expect(request.authSource).toBe('download-token');
     });
 
-    it('rechaza el token de descarga si el rol que trae no está habilitado para el endpoint, aunque el token sea válido en su firma', () => {
+    it('rechaza el token de descarga si el rol que trae no está habilitado para el endpoint, aunque el token sea válido en su firma', async () => {
       setMetadata(false, ['admin'], true);
       downloadTokenService.consumir.mockReturnValue({
         sub: 9,
@@ -235,42 +305,42 @@ describe('RolesGuard', () => {
       });
       const context = buildContext('GET', undefined, undefined, { token: 'token-de-cliente' });
 
-      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
       expect(downloadTokenService.consumir).toHaveBeenCalledWith('token-de-cliente');
     });
 
-    it('propaga el rechazo del servicio si el token de descarga expiró o ya fue usado', () => {
+    it('propaga el rechazo del servicio si el token de descarga expiró o ya fue usado', async () => {
       setMetadata(false, ['admin', 'operario'], true);
       downloadTokenService.consumir.mockImplementation(() => {
         throw new UnauthorizedException('Token de descarga inválido o expirado');
       });
       const context = buildContext('GET', undefined, undefined, { token: 'token-expirado' });
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
     });
 
-    it('ignora el token de descarga por query param si el endpoint no tiene @AllowDownloadToken()', () => {
+    it('ignora el token de descarga por query param si el endpoint no tiene @AllowDownloadToken()', async () => {
       setMetadata(false, ['admin', 'operario'], false);
       const context = buildContext('GET', undefined, undefined, { token: 'token-descarga-valido' });
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
       expect(downloadTokenService.consumir).not.toHaveBeenCalled();
     });
 
-    it('sigue exigiendo cookie/header cuando no se manda ningún token de descarga', () => {
+    it('sigue exigiendo cookie/header cuando no se manda ningún token de descarga', async () => {
       setMetadata(false, ['admin', 'operario'], true);
       const context = buildContext('GET');
 
-      expect(() => guard.canActivate(context)).toThrow(UnauthorizedException);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
       expect(downloadTokenService.consumir).not.toHaveBeenCalled();
     });
 
-    it('prioriza la cookie/header por sobre el token de descarga si ambos están presentes', () => {
+    it('prioriza la cookie/header por sobre el token de descarga si ambos están presentes', async () => {
       setMetadata(false, ['admin', 'operario'], true);
       jwtService.verify.mockReturnValue({ sub: 1, email: 'admin@nt.com', role: 'admin' });
       const context = buildContext('GET', undefined, { access_token: 'token-cookie' }, { token: 'token-descarga' });
 
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
       expect(downloadTokenService.consumir).not.toHaveBeenCalled();
     });
   });

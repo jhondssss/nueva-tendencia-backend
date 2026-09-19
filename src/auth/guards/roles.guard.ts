@@ -13,6 +13,7 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 import { ALLOW_DOWNLOAD_TOKEN_KEY } from '../decorators/allow-download-token.decorator';
 import { ACCESS_TOKEN_COOKIE } from '../auth.constants';
 import { DownloadTokenService } from '../download-token.service';
+import { UserService } from '../../user/user.service';
 
 export type AuthSource = 'cookie' | 'header' | 'download-token';
 
@@ -22,9 +23,10 @@ export class RolesGuard implements CanActivate {
     private readonly jwtService: JwtService,
     private readonly reflector: Reflector,
     private readonly downloadTokenService: DownloadTokenService,
+    private readonly usersService: UserService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     // Endpoints marcados con @Public() no requieren autenticación
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
@@ -35,7 +37,13 @@ export class RolesGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const { token, source } = this.extractToken(request);
 
-    let payload: { sub: number; email?: string; role: string; clienteId?: number };
+    let payload: {
+      sub: number;
+      email?: string;
+      role: string;
+      clienteId?: number;
+      token_version?: number;
+    };
 
     if (token) {
       try {
@@ -64,6 +72,15 @@ export class RolesGuard implements CanActivate {
 
       payload = this.downloadTokenService.consumir(queryToken);
       (request as any).authSource = 'download-token';
+    }
+
+    // Invalidación de sesiones: el token_version del JWT debe coincidir con el
+    // de la BD. Los tokens emitidos antes de esta columna no traen el claim y
+    // se tratan como versión 0 (el default), así el deploy no desloguea a nadie.
+    // Los @Public() ya retornaron arriba: no hacen esta consulta.
+    const versionActual = await this.usersService.getTokenVersion(payload.sub);
+    if (versionActual === null || (payload.token_version ?? 0) !== versionActual) {
+      throw new UnauthorizedException('Sesión inválida, iniciá sesión de nuevo');
     }
 
     const role = payload.role;

@@ -28,6 +28,7 @@ export class ReportesController {
       sub: req.user.sub,
       email: req.user.email,
       role: req.user.role,
+      token_version: req.user.token_version,
     });
     return { token, expiresIn: DOWNLOAD_TOKEN_TTL_SECONDS };
   }

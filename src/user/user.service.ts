@@ -132,15 +132,31 @@ export class UserService {
     await this.userRepository.update(id, { reset_token: null, reset_token_expires: null });
   }
 
-  async updatePassword(id: number, hashedPassword: string): Promise<void> {
-    await this.userRepository.update(id, { password: hashedPassword });
+  /** token_version vigente del usuario, o null si ya no existe. Lo consulta RolesGuard en cada request. */
+  async getTokenVersion(id: number): Promise<number | null> {
+    const user = await this.userRepository.findOne({ where: { id }, select: ['id', 'tokenVersion'] });
+    return user ? user.tokenVersion : null;
   }
 
-  async setPasswordAndClearFlag(id: number, hashedPassword: string): Promise<void> {
+  // Todo cambio de contraseña incrementa token_version (en el mismo UPDATE,
+  // atómico) para invalidar las sesiones emitidas con la contraseña anterior.
+  // Devuelve la versión nueva para que quien cambia su propia contraseña
+  // pueda reemitirse un token válido.
+  async updatePassword(id: number, hashedPassword: string): Promise<number> {
+    await this.userRepository.update(id, {
+      password: hashedPassword,
+      tokenVersion: () => '"token_version" + 1',
+    });
+    return (await this.getTokenVersion(id)) as number;
+  }
+
+  async setPasswordAndClearFlag(id: number, hashedPassword: string): Promise<number> {
     await this.userRepository.update(id, {
       password: hashedPassword,
       requiereCambioPassword: false,
+      tokenVersion: () => '"token_version" + 1',
     });
+    return (await this.getTokenVersion(id)) as number;
   }
 
   // ── Admin CRUD ──────────────────────────────────────────────────────

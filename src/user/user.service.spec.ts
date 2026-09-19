@@ -118,6 +118,28 @@ describe('UserService', () => {
     });
   });
 
+  describe('token_version', () => {
+    it.each(['updatePassword', 'setPasswordAndClearFlag'] as const)(
+      '%s incrementa token_version en el mismo UPDATE y devuelve la versión nueva',
+      async (metodo) => {
+        mockUserRepo.findOne.mockResolvedValue({ id: 1, tokenVersion: 4 });
+
+        const version = await service[metodo](1, 'hash');
+
+        const [id, cambios] = mockUserRepo.update.mock.calls[0];
+        expect(id).toBe(1);
+        expect(cambios.password).toBe('hash');
+        expect(cambios.tokenVersion()).toBe('"token_version" + 1');
+        expect(version).toBe(4);
+      },
+    );
+
+    it('getTokenVersion devuelve null si el usuario no existe', async () => {
+      mockUserRepo.findOne.mockResolvedValue(null);
+      await expect(service.getTokenVersion(1)).resolves.toBeNull();
+    });
+  });
+
   describe('updateOwnProfile', () => {
     it('actualiza nombre/apellido/email del user indicado sin tocar Cliente', async () => {
       mockUserRepo.findOne.mockResolvedValue(null);

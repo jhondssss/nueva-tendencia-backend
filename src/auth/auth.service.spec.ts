@@ -24,6 +24,10 @@ describe('AuthService', () => {
     updateOwnProfile: jest.fn(),
     findByIdWithPassword: jest.fn(),
     setPasswordAndClearFlag: jest.fn(),
+    updatePassword: jest.fn(),
+    getTokenVersion: jest.fn(),
+    findByResetToken: jest.fn(),
+    clearResetToken: jest.fn(),
   };
   const mockJwtService = { sign: jest.fn() };
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
@@ -58,6 +62,7 @@ describe('AuthService', () => {
         role: user.role,
         clienteId: undefined,
         requiereCambioPassword: false,
+        token_version: 0,
       });
       expect(result).toEqual({
         access_token: 'mock-jwt-token',
@@ -118,11 +123,12 @@ describe('AuthService', () => {
         .mockResolvedValueOnce(antes)
         .mockResolvedValueOnce({ ...antes, email: 'b@test.com' });
       mockJwtService.sign.mockReturnValue('nuevo-jwt');
+      mockUserService.getTokenVersion.mockResolvedValue(5);
 
       const { access_token } = await service.updatePerfil(4, { email: 'b@test.com' });
 
       expect(mockJwtService.sign).toHaveBeenCalledWith(
-        expect.objectContaining({ sub: 4, email: 'b@test.com' }),
+        expect.objectContaining({ sub: 4, email: 'b@test.com', token_version: 5 }),
       );
       expect(access_token).toBe('nuevo-jwt');
     });
@@ -154,6 +160,8 @@ describe('AuthService', () => {
       mockUserService.findByIdWithPassword.mockResolvedValue(userConHash);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hash-nuevo');
+      mockUserService.setPasswordAndClearFlag.mockResolvedValue(8);
+      mockJwtService.sign.mockReturnValue('jwt-reemitido');
 
       const result = await service.cambiarPassword(4, {
         password_actual: 'vieja123',
@@ -162,7 +170,25 @@ describe('AuthService', () => {
 
       expect(bcrypt.hash).toHaveBeenCalledWith('nueva123', 10);
       expect(mockUserService.setPasswordAndClearFlag).toHaveBeenCalledWith(4, 'hash-nuevo');
-      expect(result).toEqual({ message: 'Contraseña actualizada correctamente' });
+      // Reemite la sesión propia con la versión ya incrementada (8), no la vieja.
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: 4, token_version: 8, requiereCambioPassword: false }),
+      );
+      expect(result).toEqual({
+        message: 'Contraseña actualizada correctamente',
+        access_token: 'jwt-reemitido',
+      });
+    });
+
+    it('no incrementa token_version ni reemite token si la actual es incorrecta', async () => {
+      mockUserService.findByIdWithPassword.mockResolvedValue(userConHash);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.cambiarPassword(4, { password_actual: 'x', password_nuevo: 'nueva123' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockUserService.setPasswordAndClearFlag).not.toHaveBeenCalled();
+      expect(mockJwtService.sign).not.toHaveBeenCalled();
     });
 
     it('rechaza una nueva igual a la actual', async () => {
@@ -172,6 +198,45 @@ describe('AuthService', () => {
       await expect(
         service.cambiarPassword(4, { password_actual: 'misma123', password_nuevo: 'misma123' }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cambiarPasswordInicial', () => {
+    it('incrementa token_version y reemite el token con la versión nueva y el flag apagado', async () => {
+      mockUserService.findByIdWithPassword.mockResolvedValue({
+        id: 6,
+        email: 'c@test.com',
+        role: 'cliente',
+        clienteId: 2,
+        requiereCambioPassword: true,
+        tokenVersion: 0,
+      });
+      (bcrypt.hash as jest.Mock).mockResolvedValue('h');
+      mockUserService.setPasswordAndClearFlag.mockResolvedValue(1);
+      mockJwtService.sign.mockReturnValue('jwt-nuevo');
+
+      const result = await service.cambiarPasswordInicial(6, 'nueva123');
+
+      expect(mockUserService.setPasswordAndClearFlag).toHaveBeenCalledWith(6, 'h');
+      expect(mockJwtService.sign).toHaveBeenCalledWith(
+        expect.objectContaining({ sub: 6, clienteId: 2, token_version: 1, requiereCambioPassword: false }),
+      );
+      expect(result.access_token).toBe('jwt-nuevo');
+    });
+  });
+
+  describe('resetPassword', () => {
+    it('cambia la contraseña vía updatePassword (que incrementa token_version) y limpia el token de reset', async () => {
+      mockUserService.findByResetToken.mockResolvedValue({
+        id: 3,
+        reset_token_expires: new Date(Date.now() + 60000),
+      });
+      (bcrypt.hash as jest.Mock).mockResolvedValue('h');
+
+      await service.resetPassword({ token: 't', password: 'nueva123' });
+
+      expect(mockUserService.updatePassword).toHaveBeenCalledWith(3, 'h');
+      expect(mockUserService.clearResetToken).toHaveBeenCalledWith(3);
     });
   });
 

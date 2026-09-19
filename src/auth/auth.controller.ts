@@ -92,9 +92,17 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Roles('admin', 'operario', 'user', 'cliente')
   @Patch('perfil/password')
-  async cambiarPassword(@Body() dto: CambiarPasswordDto, @Req() req: Request) {
+  async cambiarPassword(
+    @Body() dto: CambiarPasswordDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const userId = (req as any).user?.sub as number;
-    return this.authService.cambiarPassword(userId, dto);
+    const result = await this.authService.cambiarPassword(userId, dto);
+    // token_version subió: las demás sesiones quedaron invalidadas. Se renueva
+    // la cookie de ESTA sesión con el token reemitido para que siga logueada.
+    res.cookie(ACCESS_TOKEN_COOKIE, result.access_token, authCookieOptions());
+    return result;
   }
 
   @Throttle({ default: { limit: 5, ttl: 60000 } })
@@ -129,8 +137,11 @@ export class AuthController {
   async cambiarPasswordInicial(
     @Body() dto: CambiarPasswordInicialDto,
     @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
     const userId = (req as any).user?.sub as number;
-    return this.authService.cambiarPasswordInicial(userId, dto.password);
+    const result = await this.authService.cambiarPasswordInicial(userId, dto.password);
+    res.cookie(ACCESS_TOKEN_COOKIE, result.access_token, authCookieOptions());
+    return result;
   }
 }

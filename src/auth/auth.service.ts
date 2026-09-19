@@ -56,14 +56,29 @@ export class AuthService {
     }
   }
 
-  async login(user: any, ip?: string) {
-    const payload = {
+  /**
+   * Único punto donde se firma el JWT de sesión. Lleva token_version para que
+   * RolesGuard pueda invalidarlo al cambiar la contraseña.
+   */
+  private signSession(user: {
+    id: number;
+    email: string;
+    role: string;
+    clienteId?: number | null;
+    requiereCambioPassword?: boolean;
+    tokenVersion?: number;
+  }): string {
+    return this.jwtService.sign({
       email: user.email,
       sub: user.id,
       role: user.role,
       clienteId: user.clienteId ?? undefined,
       requiereCambioPassword: !!user.requiereCambioPassword,
-    };
+      token_version: user.tokenVersion ?? 0,
+    });
+  }
+
+  async login(user: any, ip?: string) {
 
     void this.auditoriaService.registrar({
       accion: 'LOGIN',
@@ -74,7 +89,7 @@ export class AuthService {
     });
 
     return {
-      access_token: this.jwtService.sign(payload),
+      access_token: this.signSession(user),
       user: { id: user.id, email: user.email, role: user.role },
     };
   }
@@ -135,10 +150,19 @@ export class AuthService {
     return { message: 'Contraseña actualizada correctamente' };
   }
 
-  async cambiarPasswordInicial(userId: number, newPassword: string): Promise<{ message: string }> {
+  async cambiarPasswordInicial(
+    userId: number,
+    newPassword: string,
+  ): Promise<{ message: string; access_token: string }> {
+    const user = await this.usersService.findByIdWithPassword(userId);
+    if (!user) throw new UnauthorizedException('Sesión inválida');
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await this.usersService.setPasswordAndClearFlag(userId, hashedPassword);
-    return { message: 'Contraseña actualizada correctamente' };
+    const tokenVersion = await this.usersService.setPasswordAndClearFlag(userId, hashedPassword);
+    // Se reemite el token: el actual quedó invalidado por el incremento de
+    // token_version y, además, llevaba requiereCambioPassword=true.
+    const access_token = this.signSession({ ...user, requiereCambioPassword: false, tokenVersion });
+    return { message: 'Contraseña actualizada correctamente', access_token };
   }
 
   /**
@@ -154,12 +178,13 @@ export class AuthService {
     const perfil = (await this.usersService.findSessionProfile(userId))!;
     let access_token: string | undefined;
     if (perfil.email !== anterior.email) {
-      access_token = this.jwtService.sign({
-        email: perfil.email,
-        sub: perfil.id,
-        role: perfil.role,
-        clienteId: perfil.clienteId ?? undefined,
-        requiereCambioPassword: !!perfil.requiereCambioPassword,
+      access_token = this.signSession({
+        id: perfil.id as number,
+        email: perfil.email as string,
+        role: perfil.role as string,
+        clienteId: perfil.clienteId,
+        requiereCambioPassword: perfil.requiereCambioPassword,
+        tokenVersion: (await this.usersService.getTokenVersion(userId)) ?? 0,
       });
     }
     void this.auditoriaService.registrar({
@@ -171,7 +196,10 @@ export class AuthService {
     return { perfil, access_token };
   }
 
-  async cambiarPassword(userId: number, dto: CambiarPasswordDto): Promise<{ message: string }> {
+  async cambiarPassword(
+    userId: number,
+    dto: CambiarPasswordDto,
+  ): Promise<{ message: string; access_token: string }> {
     const user = await this.usersService.findByIdWithPassword(userId);
     if (!user) throw new UnauthorizedException('Sesión inválida');
 
@@ -183,7 +211,7 @@ export class AuthService {
     }
 
     const hashed = await bcrypt.hash(dto.password_nuevo, 10);
-    await this.usersService.setPasswordAndClearFlag(userId, hashed);
+    const tokenVersion = await this.usersService.setPasswordAndClearFlag(userId, hashed);
 
     void this.auditoriaService.registrar({
       accion: 'CAMBIAR_PASSWORD',
@@ -191,6 +219,9 @@ export class AuthService {
       descripcion: `Usuario ${user.email} cambió su contraseña`,
       usuarioId: userId,
     });
-    return { message: 'Contraseña actualizada correctamente' };
+    // Cualquier otra sesión (otro navegador, token robado) queda invalidada por
+    // el incremento de token_version; la actual se reemite para no cerrarse sola.
+    const access_token = this.signSession({ ...user, requiereCambioPassword: false, tokenVersion });
+    return { message: 'Contraseña actualizada correctamente', access_token };
   }
 }

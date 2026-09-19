@@ -8,6 +8,7 @@ export interface DownloadTokenPayload {
   email?: string;
   role: string;
   clienteId?: number;
+  token_version?: number;
   typ: 'download';
   jti: string;
 }
@@ -50,10 +51,24 @@ export class DownloadTokenService {
     this.secret = secret;
   }
 
-  generar(user: { sub: number; email?: string; role: string; clienteId?: number }): string {
+  generar(user: {
+    sub: number;
+    email?: string;
+    role: string;
+    clienteId?: number;
+    token_version?: number;
+  }): string {
     const jti = randomUUID();
     return this.jwtService.sign(
-      { sub: user.sub, email: user.email, role: user.role, clienteId: user.clienteId, typ: 'download', jti },
+      {
+        sub: user.sub,
+        email: user.email,
+        role: user.role,
+        clienteId: user.clienteId,
+        token_version: user.token_version,
+        typ: 'download',
+        jti,
+      },
       { secret: this.secret, expiresIn: `${DOWNLOAD_TOKEN_TTL_SECONDS}s` },
     );
   }

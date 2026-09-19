@@ -11,6 +11,7 @@ describe('AuthController', () => {
     me: jest.Mock;
     updatePerfil: jest.Mock;
     cambiarPassword: jest.Mock;
+    cambiarPasswordInicial: jest.Mock;
   };
   let res: { cookie: jest.Mock; clearCookie: jest.Mock };
 
@@ -21,6 +22,7 @@ describe('AuthController', () => {
       me: jest.fn(),
       updatePerfil: jest.fn(),
       cambiarPassword: jest.fn(),
+      cambiarPasswordInicial: jest.fn(),
     };
     controller = new AuthController(authService as unknown as AuthService);
     res = { cookie: jest.fn(), clearCookie: jest.fn() };
@@ -91,13 +93,27 @@ describe('AuthController', () => {
       );
     });
 
-    it('cambiarPassword usa el sub del JWT', async () => {
-      authService.cambiarPassword.mockResolvedValue({ message: 'ok' });
+    it('cambiarPassword usa el sub del JWT y renueva la cookie con el token reemitido', async () => {
+      authService.cambiarPassword.mockResolvedValue({ message: 'ok', access_token: 'jwt-reemitido' });
       const dto = { password_actual: 'a', password_nuevo: 'bbbbbb' };
 
-      await controller.cambiarPassword(dto, { user: { sub: 5 } } as any);
+      await controller.cambiarPassword(dto, { user: { sub: 5 } } as any, res as any);
 
       expect(authService.cambiarPassword).toHaveBeenCalledWith(5, dto);
+      expect(res.cookie).toHaveBeenCalledWith(
+        ACCESS_TOKEN_COOKIE,
+        'jwt-reemitido',
+        expect.objectContaining({ httpOnly: true }),
+      );
+    });
+
+    it('cambiarPasswordInicial renueva la cookie con el token reemitido', async () => {
+      authService.cambiarPasswordInicial.mockResolvedValue({ message: 'ok', access_token: 'jwt-nuevo' });
+
+      await controller.cambiarPasswordInicial({ password: 'nueva123' }, { user: { sub: 5 } } as any, res as any);
+
+      expect(authService.cambiarPasswordInicial).toHaveBeenCalledWith(5, 'nueva123');
+      expect(res.cookie).toHaveBeenCalledWith(ACCESS_TOKEN_COOKIE, 'jwt-nuevo', expect.anything());
     });
 
     it.each(['perfil', 'updatePerfil', 'cambiarPassword'] as const)(

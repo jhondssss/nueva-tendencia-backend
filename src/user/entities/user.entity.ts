@@ -34,4 +34,9 @@ export class User {
 
   @Column({ name: 'requiere_cambio_password', default: false })
   requiereCambioPassword: boolean;
+
+  // Se incrementa al cambiar/resetear la contraseña; RolesGuard lo compara con
+  // el claim token_version del JWT para invalidar sesiones anteriores.
+  @Column({ name: 'token_version', type: 'int', default: 0 })
+  tokenVersion: number;
 }
