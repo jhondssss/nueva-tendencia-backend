@@ -132,7 +132,19 @@ export class UserService {
     await this.userRepository.update(id, { reset_token: null, reset_token_expires: null });
   }
 
-  /** token_version vigente del usuario, o null si ya no existe. Lo consulta RolesGuard en cada request. */
+  /**
+   * Estado de sesión del usuario (token_version + activo), o null si ya no existe.
+   * Lo consulta RolesGuard en cada request autenticado, en una sola query.
+   */
+  async getSessionState(id: number): Promise<{ tokenVersion: number; activo: boolean } | null> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: ['id', 'tokenVersion', 'activo'],
+    });
+    return user ? { tokenVersion: user.tokenVersion, activo: user.activo } : null;
+  }
+
+  /** token_version vigente del usuario, o null si ya no existe. */
   async getTokenVersion(id: number): Promise<number | null> {
     const user = await this.userRepository.findOne({ where: { id }, select: ['id', 'tokenVersion'] });
     return user ? user.tokenVersion : null;

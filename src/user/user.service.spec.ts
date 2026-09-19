@@ -134,6 +134,21 @@ describe('UserService', () => {
       },
     );
 
+    it('getSessionState devuelve token_version y activo en una sola consulta', async () => {
+      mockUserRepo.findOne.mockResolvedValue({ id: 1, tokenVersion: 2, activo: false });
+
+      await expect(service.getSessionState(1)).resolves.toEqual({ tokenVersion: 2, activo: false });
+      expect(mockUserRepo.findOne).toHaveBeenCalledTimes(1);
+      expect(mockUserRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ select: ['id', 'tokenVersion', 'activo'] }),
+      );
+    });
+
+    it('getSessionState devuelve null si el usuario no existe', async () => {
+      mockUserRepo.findOne.mockResolvedValue(null);
+      await expect(service.getSessionState(1)).resolves.toBeNull();
+    });
+
     it('getTokenVersion devuelve null si el usuario no existe', async () => {
       mockUserRepo.findOne.mockResolvedValue(null);
       await expect(service.getTokenVersion(1)).resolves.toBeNull();

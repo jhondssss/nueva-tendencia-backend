@@ -43,8 +43,8 @@ class RecursoDePruebaController {
     // @AllowDownloadToken()), así que alcanza con un stub — RolesGuard solo
     // necesita la dependencia resuelta en el constructor.
     { provide: DownloadTokenService, useValue: { consumir: jest.fn() } },
-    // RolesGuard valida token_version contra la BD; acá el usuario siempre está en versión 0.
-    { provide: UserService, useValue: { getTokenVersion: jest.fn().mockResolvedValue(0) } },
+    // RolesGuard valida token_version y activo contra la BD; acá el usuario siempre está activo en versión 0.
+    { provide: UserService, useValue: { getSessionState: jest.fn().mockResolvedValue({ tokenVersion: 0, activo: true }) } },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
   ],

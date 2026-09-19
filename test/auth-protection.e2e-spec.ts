@@ -61,7 +61,7 @@ describe('Protección real de /auth y /users (e2e, sin @UseGuards local)', () =>
   };
 
   const fakeUserService = {
-    getTokenVersion: jest.fn().mockResolvedValue(0),
+    getSessionState: jest.fn().mockResolvedValue({ tokenVersion: 0, activo: true }),
     findAll: jest.fn().mockResolvedValue({ data: [], total: 0 }),
     findOne: jest.fn().mockResolvedValue({ id: 1, email: 'admin@nt.com' }),
     adminCreate: jest.fn().mockResolvedValue({ id: 6, email: 'creado@nt.com' }),

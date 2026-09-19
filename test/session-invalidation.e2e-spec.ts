@@ -29,8 +29,12 @@ class FakeUserService {
   fila = { id: 1, email: 'ana@nt.com', role: 'operario', password: '', activo: true, clienteId: null, requiereCambioPassword: false, tokenVersion: 0 };
   getTokenVersionCalls = 0;
 
-  async getTokenVersion(id: number) {
+  // Lo que consulta RolesGuard en cada request autenticado.
+  async getSessionState(id: number) {
     this.getTokenVersionCalls++;
+    return id === this.fila.id ? { tokenVersion: this.fila.tokenVersion, activo: this.fila.activo } : null;
+  }
+  async getTokenVersion(id: number) {
     return id === this.fila.id ? this.fila.tokenVersion : null;
   }
   async findByIdWithPassword(id: number) {
@@ -102,6 +106,7 @@ describe('Invalidación de sesiones al cambiar contraseña (e2e)', () => {
     users.fila.password = await bcrypt.hash(PASS_VIEJA, 4);
     users.fila.tokenVersion = 0;
     users.fila.requiereCambioPassword = false;
+    users.fila.activo = true;
     users.getTokenVersionCalls = 0;
   });
 
@@ -204,6 +209,30 @@ describe('Invalidación de sesiones al cambiar contraseña (e2e)', () => {
 
   it('un JWT anterior a la migración (sin claim token_version) sigue valiendo mientras la BD esté en 0', async () => {
     await request(app.getHttpServer()).get('/auth/perfil').set('Authorization', `Bearer ${tokenV(undefined)}`).expect(200);
+  });
+
+  describe('cuenta desactivada', () => {
+    it('un usuario desactivado con un token técnicamente válido (firma y token_version correctos) es rechazado', async () => {
+      const token = tokenV(0);
+      await request(app.getHttpServer()).get('/auth/perfil').set('Authorization', `Bearer ${token}`).expect(200);
+
+      users.fila.activo = false;
+
+      const res = await request(app.getHttpServer())
+        .get('/auth/perfil')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401);
+      expect(res.body.message).toBe('Cuenta desactivada');
+    });
+
+    it('al reactivar la cuenta, el mismo token vuelve a funcionar', async () => {
+      const token = tokenV(0);
+      users.fila.activo = false;
+      await request(app.getHttpServer()).get('/auth/perfil').set('Authorization', `Bearer ${token}`).expect(401);
+
+      users.fila.activo = true;
+      await request(app.getHttpServer()).get('/auth/perfil').set('Authorization', `Bearer ${token}`).expect(200);
+    });
   });
 
   describe('rutas @Public() no se ven afectadas', () => {

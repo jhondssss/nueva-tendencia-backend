@@ -74,12 +74,22 @@ export class RolesGuard implements CanActivate {
       (request as any).authSource = 'download-token';
     }
 
+    // Estado de la cuenta en BD (una sola query). Los @Public() ya retornaron
+    // arriba: no hacen esta consulta.
+    const estado = await this.usersService.getSessionState(payload.sub);
+    // Usuario borrado: la sesión ya no corresponde a nadie.
+    if (!estado) {
+      throw new UnauthorizedException('Sesión inválida, iniciá sesión de nuevo');
+    }
+    // Cuenta desactivada: se chequea antes que la versión para que la causa
+    // real quede clara aunque el token además esté desfasado.
+    if (!estado.activo) {
+      throw new UnauthorizedException('Cuenta desactivada');
+    }
     // Invalidación de sesiones: el token_version del JWT debe coincidir con el
     // de la BD. Los tokens emitidos antes de esta columna no traen el claim y
     // se tratan como versión 0 (el default), así el deploy no desloguea a nadie.
-    // Los @Public() ya retornaron arriba: no hacen esta consulta.
-    const versionActual = await this.usersService.getTokenVersion(payload.sub);
-    if (versionActual === null || (payload.token_version ?? 0) !== versionActual) {
+    if ((payload.token_version ?? 0) !== estado.tokenVersion) {
       throw new UnauthorizedException('Sesión inválida, iniciá sesión de nuevo');
     }
 

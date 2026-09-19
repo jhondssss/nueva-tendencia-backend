@@ -13,7 +13,7 @@ describe('RolesGuard', () => {
   let jwtService: { verify: jest.Mock };
   let reflector: { getAllAndOverride: jest.Mock };
   let downloadTokenService: { consumir: jest.Mock };
-  let usersService: { getTokenVersion: jest.Mock };
+  let usersService: { getSessionState: jest.Mock };
 
   const buildContext = (
     method: string,
@@ -51,8 +51,8 @@ describe('RolesGuard', () => {
     jwtService = { verify: jest.fn() };
     reflector = { getAllAndOverride: jest.fn() };
     downloadTokenService = { consumir: jest.fn() };
-    // Por defecto la BD tiene token_version 0, igual que los tokens de prueba (sin claim = 0).
-    usersService = { getTokenVersion: jest.fn().mockResolvedValue(0) };
+    // Por defecto la BD tiene token_version 0 y cuenta activa, igual que los tokens de prueba (sin claim = 0).
+    usersService = { getSessionState: jest.fn().mockResolvedValue({ tokenVersion: 0, activo: true }) };
     guard = new RolesGuard(
       jwtService as unknown as JwtService,
       reflector as unknown as Reflector,
@@ -69,7 +69,7 @@ describe('RolesGuard', () => {
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(jwtService.verify).not.toHaveBeenCalled();
-    expect(usersService.getTokenVersion).not.toHaveBeenCalled();
+    expect(usersService.getSessionState).not.toHaveBeenCalled();
   });
 
   it('lanza UnauthorizedException si no se envía token', async () => {
@@ -216,37 +216,64 @@ describe('RolesGuard', () => {
 
     it('rechaza con 401 y mensaje específico si el token_version del JWT es menor al de la BD', async () => {
       jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin', token_version: 2 });
-      usersService.getTokenVersion.mockResolvedValue(3);
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 3, activo: true });
       const context = buildContext('GET', 'Bearer token-viejo');
 
       const error = await guard.canActivate(context).catch((e) => e);
 
       expect(error).toBeInstanceOf(UnauthorizedException);
       expect(error.message).toBe('Sesión inválida, iniciá sesión de nuevo');
-      expect(usersService.getTokenVersion).toHaveBeenCalledWith(1);
+      expect(usersService.getSessionState).toHaveBeenCalledWith(1);
     });
 
     it('acepta el token cuando token_version coincide con la BD', async () => {
       jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin', token_version: 3 });
-      usersService.getTokenVersion.mockResolvedValue(3);
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 3, activo: true });
 
       await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).resolves.toBe(true);
     });
 
     it('trata un token sin claim (emitido antes de la migración) como versión 0', async () => {
       jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin' });
-      usersService.getTokenVersion.mockResolvedValue(0);
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 0, activo: true });
       await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).resolves.toBe(true);
 
-      usersService.getTokenVersion.mockResolvedValue(1);
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 1, activo: true });
       await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
+    it('rechaza con "Cuenta desactivada" a un usuario activo=false aunque firma y token_version sean válidos', async () => {
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin', token_version: 3 });
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 3, activo: false });
+
+      const error = await guard.canActivate(buildContext('GET', 'Bearer token-valido')).catch((e) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect(error.message).toBe('Cuenta desactivada');
+    });
+
+    it('el mensaje de cuenta desactivada tiene prioridad sobre el de token_version desfasado', async () => {
+      jwtService.verify.mockReturnValue({ sub: 1, email: 'a@nt.com', role: 'admin', token_version: 1 });
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 4, activo: false });
+
+      await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).rejects.toThrow('Cuenta desactivada');
+    });
+
+    it('también rechaza a un usuario desactivado con token de descarga', async () => {
+      setMetadata(false, ['admin'], true);
+      downloadTokenService.consumir.mockReturnValue({ sub: 1, role: 'admin', token_version: 0, typ: 'download', jti: 'j2' });
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 0, activo: false });
+
+      await expect(
+        guard.canActivate(buildContext('GET', undefined, undefined, { token: 'd' })),
+      ).rejects.toThrow('Cuenta desactivada');
+    });
+
     it('rechaza si el usuario ya no existe', async () => {
       jwtService.verify.mockReturnValue({ sub: 99, email: 'x@nt.com', role: 'admin', token_version: 0 });
-      usersService.getTokenVersion.mockResolvedValue(null);
+      usersService.getSessionState.mockResolvedValue(null);
 
       await expect(guard.canActivate(buildContext('GET', 'Bearer token'))).rejects.toThrow(
         'Sesión inválida, iniciá sesión de nuevo',
@@ -261,13 +288,13 @@ describe('RolesGuard', () => {
       await expect(guard.canActivate(buildContext('GET', 'Bearer falso'))).rejects.toThrow(
         UnauthorizedException,
       );
-      expect(usersService.getTokenVersion).not.toHaveBeenCalled();
+      expect(usersService.getSessionState).not.toHaveBeenCalled();
     });
 
     it('también valida token_version en tokens de descarga', async () => {
       setMetadata(false, ['admin'], true);
       downloadTokenService.consumir.mockReturnValue({ sub: 1, role: 'admin', token_version: 0, typ: 'download', jti: 'j' });
-      usersService.getTokenVersion.mockResolvedValue(1);
+      usersService.getSessionState.mockResolvedValue({ tokenVersion: 1, activo: true });
 
       await expect(
         guard.canActivate(buildContext('GET', undefined, undefined, { token: 'd' })),
