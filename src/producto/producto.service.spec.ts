@@ -6,6 +6,8 @@ import { ProductoService } from './producto.service';
 import { Producto } from './entities/producto.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CategoriaProducto } from '../categoria-producto/entities/categoria-producto.entity';
+import { TipoCalzado } from '../tipo-calzado/entities/tipo-calzado.entity';
+import { Genero } from '../genero/entities/genero.entity';
 import { KardexService } from '../kardex/kardex.service';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
@@ -35,6 +37,9 @@ describe('ProductoService', () => {
     findOne: jest.fn(),
   };
 
+  const mockTipoCalzadoRepo = { findOne: jest.fn() };
+  const mockGeneroRepo = { findOne: jest.fn() };
+
   const mockKardexService = {};
   const mockAuditoriaService = { registrar: jest.fn().mockResolvedValue(undefined) };
 
@@ -45,12 +50,17 @@ describe('ProductoService', () => {
         { provide: getRepositoryToken(Producto), useValue: mockProductoRepo },
         { provide: getRepositoryToken(SolicitudPedido), useValue: mockSolicitudRepo },
         { provide: getRepositoryToken(CategoriaProducto), useValue: mockCategoriaProductoRepo },
+        { provide: getRepositoryToken(TipoCalzado), useValue: mockTipoCalzadoRepo },
+        { provide: getRepositoryToken(Genero), useValue: mockGeneroRepo },
         { provide: KardexService, useValue: mockKardexService },
         { provide: AuditoriaService, useValue: mockAuditoriaService },
       ],
     }).compile();
 
     service = module.get<ProductoService>(ProductoService);
+
+    mockTipoCalzadoRepo.findOne.mockResolvedValue({ id_tipo_calzado: 1 });
+    mockGeneroRepo.findOne.mockResolvedValue({ id_genero: 1 });
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -119,7 +129,7 @@ describe('ProductoService', () => {
       mockProductoRepo.save.mockImplementation((v: any) => Promise.resolve({ ...v, id_producto: 1, stock: v.stock ?? 0 }));
     });
 
-    const baseDto = { nombre_modelo: 'Bota', marca: 'NT' } as unknown as CreateProductoDto;
+    const baseDto = { nombre_modelo: 'Bota', marca: 'NT', tipo_calzado_id: 1, genero_id: 1 } as unknown as CreateProductoDto;
 
     it('sin categoria_id (ausente) crea el producto con categoria null, sin validar', async () => {
       const saved = await service.create(baseDto);
@@ -187,6 +197,91 @@ describe('ProductoService', () => {
       await expect(service.update(1, { categoria_id: 999 } as unknown as UpdateProductoDto))
         .rejects.toThrow(NotFoundException);
       expect(mockProductoRepo.update).not.toHaveBeenCalled();
+    });
+  });
+  describe('tipo_calzado_id / genero_id', () => {
+    const baseDto = { nombre_modelo: 'Bota', marca: 'NT', tipo_calzado_id: 2, genero_id: 3 } as unknown as CreateProductoDto;
+
+    describe('create', () => {
+      beforeEach(() => {
+        mockProductoRepo.findOne.mockResolvedValue(null);
+        mockProductoRepo.save.mockImplementation((v: any) => Promise.resolve({ ...v, id_producto: 1, stock: 0 }));
+      });
+
+      it('valida ambos ids y asigna las relaciones', async () => {
+        mockTipoCalzadoRepo.findOne.mockResolvedValue({ id_tipo_calzado: 2 });
+        mockGeneroRepo.findOne.mockResolvedValue({ id_genero: 3 });
+
+        const saved = await service.create(baseDto);
+
+        expect(mockTipoCalzadoRepo.findOne).toHaveBeenCalledWith({ where: { id_tipo_calzado: 2 } });
+        expect(mockGeneroRepo.findOne).toHaveBeenCalledWith({ where: { id_genero: 3 } });
+        expect(saved.tipo_calzado).toEqual({ id_tipo_calzado: 2 });
+        expect(saved.genero).toEqual({ id_genero: 3 });
+        expect(saved).not.toHaveProperty('tipo_calzado_id');
+        expect(saved).not.toHaveProperty('genero_id');
+      });
+
+      it('con tipo_calzado_id inexistente lanza NotFoundException y no guarda', async () => {
+        mockTipoCalzadoRepo.findOne.mockResolvedValue(null);
+
+        await expect(service.create(baseDto)).rejects.toThrow(NotFoundException);
+        expect(mockProductoRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('con genero_id inexistente lanza NotFoundException y no guarda', async () => {
+        mockGeneroRepo.findOne.mockResolvedValue(null);
+
+        await expect(service.create(baseDto)).rejects.toThrow(NotFoundException);
+        expect(mockProductoRepo.save).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('update', () => {
+      beforeEach(() => {
+        mockProductoRepo.findOne.mockResolvedValue({ id_producto: 1, nombre_modelo: 'Bota', stock: 5 });
+        mockProductoRepo.update.mockResolvedValue({ affected: 1 });
+      });
+
+      it('sin ids (ausentes) no valida ni toca las relaciones', async () => {
+        await service.update(1, { nombre_modelo: 'Bota v2' } as unknown as UpdateProductoDto);
+
+        expect(mockTipoCalzadoRepo.findOne).not.toHaveBeenCalled();
+        expect(mockGeneroRepo.findOne).not.toHaveBeenCalled();
+        const tocaRelacion = mockProductoRepo.update.mock.calls.some(
+          ([, campos]) => 'tipo_calzado' in (campos ?? {}) || 'genero' in (campos ?? {}),
+        );
+        expect(tocaRelacion).toBe(false);
+      });
+
+      it('con ids válidos actualiza las relaciones', async () => {
+        await service.update(1, { tipo_calzado_id: 2, genero_id: 3 } as unknown as UpdateProductoDto);
+
+        expect(mockProductoRepo.update).toHaveBeenCalledWith(
+          { id_producto: 1 },
+          { tipo_calzado: { id_tipo_calzado: 2 } },
+        );
+        expect(mockProductoRepo.update).toHaveBeenCalledWith(
+          { id_producto: 1 },
+          { genero: { id_genero: 3 } },
+        );
+      });
+
+      it('con tipo_calzado_id inexistente lanza NotFoundException y no actualiza', async () => {
+        mockTipoCalzadoRepo.findOne.mockResolvedValue(null);
+
+        await expect(service.update(1, { tipo_calzado_id: 999 } as unknown as UpdateProductoDto))
+          .rejects.toThrow(NotFoundException);
+        expect(mockProductoRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('con genero_id inexistente lanza NotFoundException y no actualiza', async () => {
+        mockGeneroRepo.findOne.mockResolvedValue(null);
+
+        await expect(service.update(1, { genero_id: 999 } as unknown as UpdateProductoDto))
+          .rejects.toThrow(NotFoundException);
+        expect(mockProductoRepo.update).not.toHaveBeenCalled();
+      });
     });
   });
 });

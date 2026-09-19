@@ -1,6 +1,8 @@
 // src/producto/entities/producto.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { CategoriaProducto } from '../../categoria-producto/entities/categoria-producto.entity';
+import { TipoCalzado } from '../../tipo-calzado/entities/tipo-calzado.entity';
+import { Genero } from '../../genero/entities/genero.entity';
 
 @Entity('productos')
 export class Producto {
@@ -13,11 +15,13 @@ export class Producto {
   @Column()
   marca: string;
 
-  @Column()
-  tipo_calzado: string;
+  @ManyToOne(() => TipoCalzado, { eager: true, nullable: false })
+  @JoinColumn({ name: 'tipo_calzado_id' })
+  tipo_calzado: TipoCalzado;
 
-  @Column()
-  genero: string;
+  @ManyToOne(() => Genero, { eager: true, nullable: false })
+  @JoinColumn({ name: 'genero_id' })
+  genero: Genero;
 
   @Column()
   material_principal: string;

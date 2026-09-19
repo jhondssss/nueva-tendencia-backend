@@ -14,13 +14,15 @@ export class CreateProductoDto {
   @IsNotEmpty({ message: 'La marca es obligatoria' })
   marca: string;
 
-  @IsString()
-  @IsNotEmpty({ message: 'El tipo de calzado es obligatorio' })
-  tipo_calzado: string;
+  // Llegan como string desde multipart/form-data; se validan contra las
+  // entidades TipoCalzado/Genero en ProductoService (existencia del id).
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? undefined : Number(value)))
+  @IsInt({ message: 'El tipo de calzado es obligatorio (tipo_calzado_id)' })
+  tipo_calzado_id: number;
 
-  @IsString()
-  @IsNotEmpty({ message: 'El género es obligatorio' })
-  genero: string;
+  @Transform(({ value }) => (value === undefined || value === null || value === '' ? undefined : Number(value)))
+  @IsInt({ message: 'El género es obligatorio (genero_id)' })
+  genero_id: number;
 
   @IsString()
   @IsNotEmpty({ message: 'El material principal es obligatorio' })

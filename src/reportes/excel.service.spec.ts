@@ -49,7 +49,7 @@ describe('ExcelService', () => {
     it('marca "Normal" cuando el stock está por encima del mínimo (caso feliz)', async () => {
       mockQueryBuilder.getMany.mockResolvedValue([
         {
-          id_producto: 1, nombre_modelo: 'Bota Clásica', marca: 'NT', tipo_calzado: 'Bota',
+          id_producto: 1, nombre_modelo: 'Bota Clásica', marca: 'NT', tipo_calzado: { nombre: 'Bota' },
           color: 'Negro', precio_venta: 250, costo_unidad: 120, stock: 30, nivel_minimo: 10,
           unidad_medida: 'par', activo: true,
         },
@@ -65,7 +65,7 @@ describe('ExcelService', () => {
     it('marca "CRÍTICO" cuando el stock es igual al nivel mínimo (caso borde: umbral inclusivo)', async () => {
       mockQueryBuilder.getMany.mockResolvedValue([
         {
-          id_producto: 2, nombre_modelo: 'Sandalia', marca: 'NT', tipo_calzado: 'Sandalia',
+          id_producto: 2, nombre_modelo: 'Sandalia', marca: 'NT', tipo_calzado: { nombre: 'Sandalia' },
           color: 'Blanco', precio_venta: 150, costo_unidad: 80, stock: 10, nivel_minimo: 10,
           unidad_medida: 'par', activo: true,
         },

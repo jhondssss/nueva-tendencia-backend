@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Producto } from './entities/producto.entity';
 import { CategoriaProducto } from '../categoria-producto/entities/categoria-producto.entity';
+import { TipoCalzado } from '../tipo-calzado/entities/tipo-calzado.entity';
+import { Genero } from '../genero/entities/genero.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -27,6 +29,12 @@ export class ProductoService {
     @InjectRepository(CategoriaProducto)
     private readonly categoriaProductoRepo: Repository<CategoriaProducto>,
 
+    @InjectRepository(TipoCalzado)
+    private readonly tipoCalzadoRepo: Repository<TipoCalzado>,
+
+    @InjectRepository(Genero)
+    private readonly generoRepo: Repository<Genero>,
+
     private readonly kardexService: KardexService,
     private readonly auditoriaService: AuditoriaService,
   ) {}
@@ -35,6 +43,20 @@ export class ProductoService {
     const existe = await this.categoriaProductoRepo.findOne({ where: { id_categoria_producto: categoriaId } });
     if (!existe) {
       throw new NotFoundException(`Categoría de producto #${categoriaId} no encontrada`);
+    }
+  }
+
+  private async validarTipoCalzadoExiste(id: number): Promise<void> {
+    const existe = await this.tipoCalzadoRepo.findOne({ where: { id_tipo_calzado: id } });
+    if (!existe) {
+      throw new NotFoundException(`Tipo de calzado #${id} no encontrado`);
+    }
+  }
+
+  private async validarGeneroExiste(id: number): Promise<void> {
+    const existe = await this.generoRepo.findOne({ where: { id_genero: id } });
+    if (!existe) {
+      throw new NotFoundException(`Género #${id} no encontrado`);
     }
   }
 
@@ -50,9 +72,14 @@ export class ProductoService {
       await this.validarCategoriaExiste(dto.categoria_id);
     }
 
-    const { categoria_id, ...resto } = dto;
+    await this.validarTipoCalzadoExiste(dto.tipo_calzado_id);
+    await this.validarGeneroExiste(dto.genero_id);
+
+    const { categoria_id, tipo_calzado_id, genero_id, ...resto } = dto;
     const producto = this.repo.create({
       ...resto,
+      tipo_calzado: { id_tipo_calzado: tipo_calzado_id } as TipoCalzado,
+      genero: { id_genero: genero_id } as Genero,
       categoria: categoria_id ? ({ id_categoria_producto: categoria_id } as CategoriaProducto) : null,
     } as any);
     const saved = await this.repo.save(producto) as unknown as Producto;
@@ -96,14 +123,36 @@ export class ProductoService {
       await this.validarCategoriaExiste(dto.categoria_id);
     }
 
-    // Separar stock y categoria_id del resto de campos: el stock se maneja
-    // aparte vía kardex, categoria_id se mapea a la relación `categoria`.
+    if (dto.tipo_calzado_id !== undefined) {
+      await this.validarTipoCalzadoExiste(dto.tipo_calzado_id);
+    }
+    if (dto.genero_id !== undefined) {
+      await this.validarGeneroExiste(dto.genero_id);
+    }
+
+    // Separar stock, categoria_id, tipo_calzado_id y genero_id del resto de
+    // campos: el stock se maneja aparte vía kardex, los ids se mapean a las
+    // relaciones `categoria`, `tipo_calzado` y `genero`.
     // undefined = key ausente, no tocar la categoría. null = limpiarla ("sin categoría").
-    const { stock: newStock, categoria_id, ...camposResto } = dto as any;
+    const { stock: newStock, categoria_id, tipo_calzado_id, genero_id, ...camposResto } = dto as any;
 
     // Actualizar campos que no son stock directamente
     if (Object.keys(camposResto).length > 0) {
       await this.repo.update({ id_producto: id }, camposResto);
+    }
+
+    if (tipo_calzado_id !== undefined) {
+      await this.repo.update(
+        { id_producto: id },
+        { tipo_calzado: { id_tipo_calzado: tipo_calzado_id } as TipoCalzado },
+      );
+    }
+
+    if (genero_id !== undefined) {
+      await this.repo.update(
+        { id_producto: id },
+        { genero: { id_genero: genero_id } as Genero },
+      );
     }
 
     if (categoria_id !== undefined) {

@@ -3,6 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Producto } from './entities/producto.entity';
 import { SolicitudPedido } from '../solicitud-pedido/entities/solicitud-pedido.entity';
 import { CategoriaProducto } from '../categoria-producto/entities/categoria-producto.entity';
+import { TipoCalzado } from '../tipo-calzado/entities/tipo-calzado.entity';
+import { Genero } from '../genero/entities/genero.entity';
 import { ProductoService } from './producto.service';
 import { ProductoController } from './producto.controller';
 import { KardexModule } from '../kardex/kardex.module';
@@ -11,7 +13,7 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Producto, SolicitudPedido, CategoriaProducto]),
+    TypeOrmModule.forFeature([Producto, SolicitudPedido, CategoriaProducto, TipoCalzado, Genero]),
     KardexModule,
     AuditoriaModule,
   ],

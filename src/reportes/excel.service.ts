@@ -309,7 +309,7 @@ export class ExcelService implements IReporteExcel {
         id:     p.id_producto,
         modelo: p.nombre_modelo,
         marca:  p.marca,
-        tipo:   p.tipo_calzado,
+        tipo:   p.tipo_calzado?.nombre,
         color:  p.color,
         precio: Number(p.precio_venta),
         costo:  Number(p.costo_unidad),

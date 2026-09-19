@@ -34,6 +34,8 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `CategoriaInsumo` | `categorias_insumo` | Categorías gestionables de Insumo (material, adhesivo, cuero, etc.) |
 | `UnidadMedida` | `unidades_medida` | Unidades de medida gestionables de Insumo (litro, kilo, metro, etc.) |
 | `CategoriaProducto` | `categorias_producto` | Categorías gestionables de Producto (niño, juvenil, adulto); `categoria = null` = no aparece en el catálogo público |
+| `TipoCalzado` | `tipos_calzado` | Tipos gestionables de Producto (Casual, Formal, etc.); `Producto.tipo_calzado` es FK obligatoria |
+| `Genero` | `generos` | Géneros gestionables de Producto (Hombre, Juvenil, Niño, etc.); `Producto.genero` es FK obligatoria |
 | `Auditoria` | `auditoria` | Log de acciones del sistema |
 
 ---
@@ -66,6 +68,8 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | `UserModule` | `/users` | Gestión de usuarios (solo admin) |
 | `ProductoModule` | `/productos` | CRUD de calzados + subida de imagen a Cloudinary |
 | `CategoriaProductoModule` | `/categorias-producto` | CRUD de categorías de producto (usado por el selector de tipo en Productos) |
+| `TipoCalzadoModule` | `/tipos-calzado` | CRUD de tipos de calzado (selector de tipo en Productos) |
+| `GeneroModule` | `/generos` | CRUD de géneros (selector de género en Productos) |
 | `ClienteModule` | `/clientes` | CRUD de clientes |
 | `TipoClienteModule` | `/tipos-cliente` | CRUD de tipos de cliente (usado por el selector de tipo en Clientes) |
 | `PedidoModule` | `/pedidos` + `/publico/pedido` | Pedidos, Kanban, seguimiento público por token |
@@ -98,7 +102,7 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | GET | `/productos` | Autenticado | Lista todos |
 | GET | `/productos/alertas-stock` | Autenticado | Productos bajo nivel mínimo |
 | GET | `/productos/:id` | Autenticado | Detalle |
-| POST | `/productos` | Admin | Crear con imagen (multipart) |
+| POST | `/productos` | Admin | Crear con imagen (multipart); requiere `tipo_calzado_id` y `genero_id` (opcional `categoria_id`) |
 | PATCH | `/productos/:id` | Admin | Actualizar con imagen opcional |
 | DELETE | `/productos/:id` | Admin | Eliminar |
 
@@ -110,6 +114,24 @@ API REST para **Calzados Nueva Tendencia**, una empresa de fabricación y venta 
 | POST | `/categorias-producto` | Admin | Crear |
 | PATCH | `/categorias-producto/:id` | Admin | Actualizar |
 | DELETE | `/categorias-producto/:id` | Admin | Eliminar (bloqueado si hay productos usándola) |
+
+### Tipos de calzado — `/tipos-calzado`
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/tipos-calzado` | Autenticado | Lista todos (para poblar selectores) |
+| GET | `/tipos-calzado/:id` | Autenticado | Detalle |
+| POST | `/tipos-calzado` | Admin | Crear |
+| PATCH | `/tipos-calzado/:id` | Admin | Actualizar |
+| DELETE | `/tipos-calzado/:id` | Admin | Eliminar (bloqueado si hay productos usándolo) |
+
+### Géneros — `/generos`
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| GET | `/generos` | Autenticado | Lista todos (para poblar selectores) |
+| GET | `/generos/:id` | Autenticado | Detalle |
+| POST | `/generos` | Admin | Crear |
+| PATCH | `/generos/:id` | Admin | Actualizar |
+| DELETE | `/generos/:id` | Admin | Eliminar (bloqueado si hay productos usándolo) |
 
 ### Clientes — `/clientes`
 | Método | Ruta | Auth | Descripción |

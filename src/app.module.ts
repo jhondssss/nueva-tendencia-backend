@@ -10,6 +10,8 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { CsrfGuard } from './auth/guards/csrf.guard';
 import { ProductoModule } from './producto/producto.module';
 import { CategoriaProductoModule } from './categoria-producto/categoria-producto.module';
+import { TipoCalzadoModule } from './tipo-calzado/tipo-calzado.module';
+import { GeneroModule } from './genero/genero.module';
 import { ClienteModule } from './cliente/cliente.module';
 import { TipoClienteModule } from './tipo-cliente/tipo-cliente.module';
 import { PedidoModule } from './pedido/pedido.module';
@@ -82,6 +84,8 @@ const dbLogger = new Logger('TypeOrmConfig');
     }),
     ProductoModule,
     CategoriaProductoModule,
+    TipoCalzadoModule,
+    GeneroModule,
     ClienteModule,
     TipoClienteModule,
     PedidoModule,
